@@ -1,7 +1,6 @@
 include("model.jl")
 
-m = MetaMDP()
-s = State(m)
+m = MetaMDP(obs_sigma=10, switch_cost=3)
 pol = MetaGreedy(m)
 
 function sample_trial()
