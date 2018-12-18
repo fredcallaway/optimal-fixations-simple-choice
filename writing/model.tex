@@ -1,0 +1,245 @@
+\documentclass[12pt,a4paperpaper,]{article}
+
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+
+\usepackage{geometry}
+\geometry{
+    top=1in,
+    bottom=1in,
+    left=1in,
+    right=1in,
+    headheight=3ex,
+    headsep=3ex
+}
+\usepackage{sidecap}
+\usepackage[unicode=true]{hyperref}
+\hypersetup{
+            pdftitle={Attention allocation in multi-alternative choice},
+            pdfauthor={Fred Callaway},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+
+\usepackage{natbib}
+\bibpunct{[}{]}{,}{n}{}{;}
+\bibliographystyle{apa}
+
+
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+% set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+
+
+\usepackage{titlesec}
+
+% \titleformat*{\section}{\LARGE\bfseries\sffamily}
+% \titleformat*{\subsection}{\Large\bfseries\sffamily}
+% \titleformat*{\subsubsection}{\large\series}
+% \titleformat*{\paragraph}{\large\bfseries\sffamily}
+% \titleformat*{\subparagraph}{\large\bfseries\sffamily}
+
+\titlespacing*{\section}
+{0pt}{3ex}{1ex}
+\titlespacing*{\subsection}
+{0pt}{2ex}{0.5ex}
+\titlespacing*{\subsubsection}
+{0pt}{1.5ex}{0.3ex}
+
+%% Headers and footers:
+%%
+%% Center footer: page number
+%% Right header:  nothing
+%% Left header:   nothing
+\usepackage{lastpage}
+\newpagestyle{fancy}{
+  \setfoot{}{\thepage \ of \pageref*{LastPage}}{}
+  \sethead
+    { Attention allocation in multi-alternative choice }
+    {}
+    { Callaway }
+  \headrule
+  \setheadrule{0.3pt}
+}
+\pagestyle{fancy}
+
+\title{\vspace{-2em}Attention allocation in multi-alternative choice}
+\author{\vspace{-1em}Fred Callaway}
+\date{\vspace{-1em}}
+
+\begin{document}
+\maketitle
+
+
+\input{commands.tex}
+
+Here we consider the problem of a decision maker who must choose between
+one of several goods. The decision maker has limited attentional
+capabilities and is under some time pressure (perhaps only due to
+opportunity cost). Given these constraints, how should the agent divide
+her attention among the competing options? Here we derive a near-optimal
+solution to this problem and compare to human fixation patterns.
+
+\subsection{Problem statement}\label{problem-statement}
+
+An agent must choose between \(k\) goods, each having some true utility
+\(u_i\). The agent does not have knowledge of these exact values, but
+she can draw samples from \(k\) Normal distributions centered on these
+true utilities. At some point she chooses one of the items and receives
+a payout equal to the true utiliy of the chosen item.
+
+We assume sampling has a cost, which may be due to explicit time cost,
+implicit opportunity cost, internal cognitive cost, or some combination
+of the three. We additionally assume that \emph{changing} the focus of
+attention is costly; that is, it is more costly to sample from a
+distribution that was not sampled on the last time step. Because we are
+interested in modeling eye tracking data, we refer to the item that was
+most recently sampled from as the \emph{fixated} item; we refer to
+changing the focus of attention, i.e.~sampling from a different
+distribution as a \emph{saccade}.
+
+\subsection{POMDP model}\label{pomdp-model}
+
+We can model this problem as a partially observable Markov decision
+process (POMDP) which defines a set of states, actions, and observations
+as well as functions that determine how action and state determine
+observations and future states. In our model, state defines the true
+(unknown) utility and sampling precision of each item as well as the
+(known) attentional state of the agent i.e.~which item is fixated.
+Actions can be attentional (saccading to a new item) or physical
+(choosing an item). Observations are noisy estimates of the fixated
+item's utility. Rewards capture the cost of time/attention, the
+additional cost of saccades, and the utility of the item that is
+ultimately chosen. Formally, we define a POMDP
+\((\S, \A, T, R, \Omega, O)\) where
+
+\begin{itemize}
+\tightlist
+\item
+  \(\S = \R^k \times \{1, \dots, k\}\) is the state space. The state is
+  broken up into the true utility of each item \(\vec{u}\), and the
+  current fixation \(f\).
+\item
+  hello there
+\item
+  \(\A = \{ \nop, f_1, \dots, f_k , c_1, \dots, c_k \}\) is the action
+  space, where \(\nop\) has no effect, \(f_i\) saccades to item \(i\),
+  and \(c_i\) chooses item \(i\), ending the episode.
+\item
+  \(T: \S \times \A \rightarrow \S\) is the deterministic transition
+  function that updates only the fixation portion of state based on
+  saccade actions.
+\item
+  \(R: \S \times \A \rightarrow \R\) is the reward function that gives a
+  constant negative reward at each time step, plus an additional
+  negative reward for making saccades. For the choice actions, it gives
+  a reward equal to the utility of the chosen item.
+\item
+  \(\Omega = \R\) is the set of possible observations, which are samples
+  of an item's utility.
+\item
+  \(O: \S \times \A \times \Omega \rightarrow [0, 1]\) is the
+  observation function that gives the probability of drawing a utility
+  sample given the true utility of the fixated item.
+  \(O(s, o) = \Normal(o; u_{f}, \sigma)\) where \(f\) is the fixated
+  item and \(\sigma\) is a free parameter that determines how noisy the
+  samples are.
+\end{itemize}
+
+\subsection{Optimal solution}\label{optimal-solution}
+
+Following Kaelbling et al. (1998), we break down the problem into two
+parts: a state estimator and a policy. The state estimator maintains a
+belief (i.e.~a distribution over states) based on the sequence of
+actions and observations. The policy selects the action to take at each
+time step given the current belief. By combining these two parts, we
+create an agent that optimally selects fixations and choices given the
+full history of previous observations.
+
+\subsubsection{State estimator}\label{state-estimator}
+
+For ease of exposition, we focus on the belief over item values, noting
+that the currently fixated item is simply the target of the most recent
+fixation action. The belief over item values \(\vec{u}\) is a
+multivariate Gaussian with mean vector \(\vec{\mu}\) and diagonal
+precision matrix \(\Sigma = \text{diag}(\vec{\lambda})\). Because the
+observation \(o\) is only informative about the currently fixated item
+(indicated by subscript \(f\) below), only the belief about the fixated
+item changes at each time step. We derive this update by Bayesian
+inference {[}cite Murphy?{]}, resulting in
+
+\[
+\begin{aligned}
+\lambda_f(t+1) &= \lambda_f(t) + \sigma^{-2}  \\
+\mu_f(t+1) &= \frac{\sigma^{-2} o + \lambda_f(t) \mu_f(t)}{\lambda_f(t+1)}  \\
+\lambda_i(t+1) &= \lambda_i(t) \text{ for } i \neq f  \\
+\mu_i(t+1) &= \mu_i(t) \text{ for } i \neq f  \\
+\end{aligned}
+\]
+
+The belief is initialized to the prior distribution over \(\vec{u}\).
+For now, we assume that the agent knows the true distribution from which
+utilities are sampled from, which are standard-normal distributed; thus,
+we have \(\vec{\mu}(0) = 0\) and \(\vec{\lambda}(0) = 1\).
+
+\subsubsection{Policy}\label{policy}
+
+The policy makes two kinds of actions: saccades and choices. We can
+immediately simplify the problem by reducing the set of choices to a
+single action, \(\bot\), which selects the item that has maximal
+expected value given the current belief, \(\arg\max_i \mu_i(t)\). With
+this reduction, the problem becomes a \emph{metareasoning} problem (Hay
+et al. 2012): at each time step the policy must decide whether or not to
+gather more information and which (if any) item to gather information
+about. Such problems are generally impossible to solve exactly due to
+the infinite (continuous) space of possible beliefs. To address this
+difficulty, Callaway et al. (2018) proposed a reinforcement learning
+method for identifying metareasoning policies. They found that their
+method, Bayesian Metalevel Policy Search (BMPS), found near-optimal
+policies for a bandit-like metareasoning problem with similar structure
+to the present problem. Thus, we apply their method and treat the
+identified policy as ``optimal''.
+
+
+
+
+\end{document}
