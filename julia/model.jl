@@ -1,3 +1,4 @@
+
 using Distributions
 using Memoize
 import Random
@@ -19,10 +20,8 @@ struct State
     value::Vector{Float64}
     obs_sigma::Vector{Float64}
 end
-State(m::MetaMDP) = State(
-    randn(m.n_arm),
-    ones(m.n_arm) * m.obs_sigma
-)
+State(m::MetaMDP, value) = State(value, ones(m.n_arm) * m.obs_sigma)
+State(m::MetaMDP) = State(m, randn(m.n_arm))
 
 mutable struct Belief
     mu::Vector{Float64}

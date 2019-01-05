@@ -1,50 +1,7 @@
-using ParticleFilters, Distributions
-using SplitApplyCombine
-using Base.Iterators: cycle, take
-
-mutable struct Particle{T}
-    w::Float64
-    x::T
-end
-Particle(x) = Particle(1., x)
-
-struct ParticleFilter
-    particles::Vector{Particle}
-    transition
-    obs_likelihood
-end
-
-using Random: shuffle!
-function resample!(pf::ParticleFilter)
-    g = group(p -> p.w > 0, pf.particles)
-    haskey(g, false) || return  # no dead particles
-    haskey(g, true) || error("No more particles")
-    shuffle!(g[true])
-
-    for (dead, living) in zip(g[false], cycle(g[true]))
-        dead.x = living.x
-        dead.w = living.w = living.w / 2
-    end
-end
-
-function reweight!(pf::ParticleFilter, o)
-    for p in pf.particles
-        p.w *= obs_likelihood(p.x, o)
-        p.x = transition(p.x, o)
-    end
-end
-
-function run!(pf::ParticleFilter, obs; callback=(particles->nothing))
-    for o in obs
-        reweight!(pf, o)
-        resample!(pf)
-        callback(pf)
-    end
-end
 
 # %% ==================== Metagreedy ====================
 include("model.jl")
-m = MetaMDP(n_arm=2)
+m = MetaMDP(n_arm=2, sample_cost=1e-4, obs_sigma=5)
 pol = MetaGreedy(m)
 
 s = State(m)
@@ -54,8 +11,9 @@ function sample_fixations()
     fix
 end
 
-obs = sample_fixations()
-
+# obs = sample_fixations()
+obs = [2, 2, 0]
+println(obs)
 b = Belief(s)
 function transition(b, c)
     b = deepcopy(b)
@@ -70,69 +28,101 @@ function lik()
     run!(pf, obs)
     mean(p.w for p in particles)
 end
-lik2() = mean(sample_fixations() == obs for i in 1:1000)
 
+lik()
+# %% ====================  ====================
+lik2() = mean(sample_fixations() == obs for i in 1:1000)
 l1 = [lik() for i in 1:100]
 l2 = [lik2() for i in 1:100]
 mean(l1)
 mean(l2)
 std(l1)
 std(l2)
-# # %% ==================== Coin flipping ====================
-#
-# x0 = []
-# transition(x) = [x..., Int(rand() > 0.5)]
-# obs_likelihood(o, x) = x[end] == 0
-# gen_obs(n) = rand(0:1, n)
-#
-# n = 10
-# obs = gen_obs(n)
-#
+
+# %% ==================== Coin flipping ====================
+
+x0 = []
+transition(x) = [x..., Int(rand() > 0.5)]
+obs_likelihood(o, x) = x[end] == 0
+gen_obs(n) = rand(0:1, n)
+
+N = 3
+obs = gen_obs(N)
+
+#=
+def estimate_loglikelihood(human_response)
+	L = 0
+	n = 1
+
+	while True:
+		model_sample = sample_from_model()
+		if model_sample == human_response:
+			break
+		else:
+			L = L + 1/n
+			n = n + 1
+	return L
+=#
+function bas_logp()
+    L = 0; n = 1
+    while true
+        if gen_obs(N) == obs
+            return -L
+        end
+        L += 1/n
+        n += 1
+    end
+end
+
+mean(exp(bas_logp()) for i in 1:100000)
+exp(mean(bas_logp() for i in 1:100000))
+
 # function lik()
 #     particles = [Particle([]) for i in 1:1000]
 #     pf = ParticleFilter(particles, transition, obs_likelihood)
 #     run!(pf, obs)
 #     mean(p.w for p in particles)
 # end
-#
-#
-# function lik2()
-#     mean(gen_obs(n) == obs for i in 1:1000)
-# end
-#
-# l1 = [lik() for i in 1:100]
-# l2 = [lik2() for i in 1:100]
-# ltrue = 0.5^n
-# mae(x, y) = mean(abs.(x .- y))
-# mae(l1, ltrue)
-# mae(l2, ltrue)
-#
-#
-# # %% ==================== Random walk with observed sign ====================
-# x0 = 0
-# act(x) = Int(x > 0)
-# transition(x) = 0.9x + 0.1randn()
-# obs_likelihood(o, x) = float(act(x) == o)
-#
-# function gen_obs(n)
-#     x = x0
-#     obs = Int[]
-#     for i in 1:n
-#         x = transition(x)
-#         push!(obs, act(x))
-#     end
-#     obs
-# end
-#
-# n = 100
-# obs = gen_obs(40)
-#
-# particles = [Particle(0.) for _ in 1:n]
-#
-# history = Vector{Particle}[]
-# pf = ParticleFilter(particles, transition, obs_likelihood)
-# run!(pf, obs, callback=ps->push!(history, deepcopy(ps)))
-# sort!(pf.particles, by=p->-p.w)
+
+
+function lik2()
+    mean(gen_obs(n) == obs for i in 1:1000)
+end
+
+l1 = [lik() for i in 1:100]
+l2 = [lik2() for i in 1:100]
+ltrue = 0.5^n
+mae(x, y) = mean(abs.(x .- y))
+mae(l1, ltrue)
+mae(l2, ltrue)
+
+
+# %% ==================== Random walk with observed sign ====================
+x0 = 0
+transition(x) = x + randn()
+obs_likelihood(o, x) = float(Int(x > 0) == o)
+
+function gen_obs(n)
+    x = x0
+    obs = Int[]
+    for i in 1:n
+        x = transition(x)
+        push!(obs, act(x))
+    end
+    obs
+end
+
+println(gen_obs(4))
+n = 4
+obs = [0, 1, 1, 1]
+mean(gen_obs(n) == obs for i in 1:1000000)
+# %%
+particles = [Particle(0.) for _ in 1:n]
+
+history = Vector{Particle}[]
+pf = ParticleFilter(particles, transition, obs_likelihood)
+run!(pf, obs, callback=ps->push!(history, deepcopy(ps)))
+sort!(pf.particles, by=p->-p.w)
 #
 # # %% ====================  ====================
 # using StatPlots
