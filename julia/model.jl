@@ -133,6 +133,24 @@ end
     v, c = findmax(voc)
     v <= 0 ? TERM : c
 end
+"A metalevel policy that uses the BMPS features"
+struct FastPolicy
+    m::MetaMDP
+    θ::Vector{Float64}
+end
+"Selects a computation to perform in a given belief."
+
+(π::FastPolicy)(b::Belief) = begin
+    voc1 = [voi1(b, c) - cost(π.m, b, c) for c in 1:π.m.n_arm]
+    voi_a = [voi_action(b, c) for c in 1:π.m.n_arm]
+    if any(voc1 .> 0)
+        return argmax(π.θ[2] .* voc1 .+ π.θ[3] .* voi_a)
+    end
+    voc = (π.θ' * features(π.m, b))'
+    voc .-= [cost(π.m, b, c) for c in 1:π.m.n_arm]
+    v, c = findmax(voc)
+    v <= 0 ? TERM : c
+end
 
 noisy(x, ε=1e-10) = x + ε * rand(length(x))
 struct MetaGreedy
@@ -144,7 +162,7 @@ end
     v <= 0 ? TERM : c
 end
 
-function rollout(m, policy; state=nothing, max_steps=100, callback=(b, c)->nothing)
+function rollout(m::MetaMDP, policy; state=nothing, max_steps=100, callback=(b, c)->nothing)
     s = state == nothing ? State(m) : state
     b = Belief(s)
     reward = 0
@@ -158,3 +176,5 @@ function rollout(m, policy; state=nothing, max_steps=100, callback=(b, c)->nothi
         end
     end
 end
+
+rollout(callback::Function, m, policy; kws...) = rollout(m, policy; kws..., callback=callback)
