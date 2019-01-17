@@ -14,9 +14,12 @@ using JSON
     seed::Int = 0
     group::String = "dummy"
 end
-function Job(file::AbstractString)
-    kws = Dict(Symbol(k)=>v for (k, v) in JSON.parsefile(file))
+function Job(d::Dict{String,Any})
+    kws = Dict(Symbol(k)=>v for (k, v) in d)
     Job(;kws...)
+end
+function Job(file::AbstractString)
+    Job(JSON.parsefile(file))
 end
 MetaMDP(job::Job) = MetaMDP(
     job.n_arm,
@@ -38,7 +41,7 @@ function save(job::Job, name::Symbol, value)
     end
     println("Wrote $(result_file(job, name))")
 end
-load(job::Job, name::Symbol) = JSON.parsefile(result_file(job, name))[string(name)]
+load(job::Job, name::Symbol) = JSON.parsefile(result_file(job, name))["value"]
 
 if !isempty(ARGS)
     job_group, job_id = ARGS

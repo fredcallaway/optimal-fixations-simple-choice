@@ -32,15 +32,12 @@ julia -p {cpus_per_task} optimize.jl {job_name} $SLURM_ARRAY_TASK_ID
 def params(quick):
     return dict_product({
         'n_arm': 3,
-        'n_iter': 10 if quick else 200,
+        'n_iter': 10 if quick else 100,
         'n_roll': 100 if quick else 1000,
-        'obs_sigma': 7,
-        'sample_cost': 0.0001,
-        'switch_cost': 8,
-        # 'obs_sigma': [3,5,7],
-        # 'sample_cost': [0.001, 0.0001],
-        # 'switch_cost': [4, 8, 12],
-        'seed': 0
+        'obs_sigma': [3,5,7],
+        'sample_cost': [0.002, 0.001, 0.0005],
+        'switch_cost': [4, 8, 12],
+        'seed': [0, 1]
     })
 
 

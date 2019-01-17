@@ -63,10 +63,12 @@ end
 
 # ---------- BMPS Features ---------- #
 
-@memoize function mem_randn(shape...; seed=1)
-    Random.seed!(seed)
-    randn(shape...)
+@memoize function mem_randn(d1, d2; seed=1)
+    randn(Random.MersenneTwister(seed), d1, d2)
 end
+
+@memoize mem_zeros(d1) = zeros(d1)
+@memoize mem_zeros(d1, d2) = zeros(d1, d2)
 
 "Highest value in mu not including mu[a]"
 function competing_value(mu::Vector{Float64}, a::Int)
@@ -102,10 +104,19 @@ function voi1(b::Belief, c::Computation)
     expect_max_dist(d, cv) - maximum(b.mu)
 end
 
-function vpi(b::Belief; n_sample=5000)
-    s = b.mu .+ (b.lam .^ -0.5) .* mem_randn(length(b.mu), n_sample)
-    mean(maximum(s; dims=1)) - maximum(b.mu)
+function vpi(b; n_sample=5000)
+    # Use pre-allocated arrays efficiency
+    R = mem_zeros(n_sample, length(b.mu))
+    max_samples = mem_zeros(n_sample)
+
+    R[:] = mem_randn(n_sample, length(b.mu))
+    R .*= (b.lam .^ -0.5)' .+ b.mu'
+
+    maximum!(max_samples, R)
+    mean(max_samples) - maximum(b.mu)
 end
+
+using SplitApplyCombine
 
 function features(m::MetaMDP, b::Belief)
     vpi_ = vpi(b)
@@ -115,32 +126,31 @@ function features(m::MetaMDP, b::Belief)
         voi_action(b, c),
         vpi_
     ]
-    hcat((phi(c) for c in 1:m.n_arm)...)
+    combinedims([phi(c) for c in 1:m.n_arm])
 end
-
 
 # ---------- Policy ---------- #
 
 "A metalevel policy that uses the BMPS features"
-struct Policy
+struct SlowPolicy
     m::MetaMDP
     θ::Vector{Float64}
 end
 "Selects a computation to perform in a given belief."
-(π::Policy)(b::Belief) = begin
+(π::SlowPolicy)(b::Belief) = begin
     voc = (π.θ' * features(π.m, b))'
     voc .-= [cost(π.m, b, c) for c in 1:π.m.n_arm]
     v, c = findmax(voc)
     v <= 0 ? TERM : c
 end
 "A metalevel policy that uses the BMPS features"
-struct FastPolicy
+struct Policy
     m::MetaMDP
     θ::Vector{Float64}
 end
 "Selects a computation to perform in a given belief."
 
-(π::FastPolicy)(b::Belief) = begin
+(π::Policy)(b::Belief) = begin
     voc1 = [voi1(b, c) - cost(π.m, b, c) for c in 1:π.m.n_arm]
     voi_a = [voi_action(b, c) for c in 1:π.m.n_arm]
     if any(voc1 .> 0)
@@ -162,7 +172,8 @@ end
     v <= 0 ? TERM : c
 end
 
-function rollout(m::MetaMDP, policy; state=nothing, max_steps=100, callback=(b, c)->nothing)
+function rollout(policy; state=nothing, max_steps=100, callback=(b, c)->nothing)
+    m = policy.m
     s = state == nothing ? State(m) : state
     b = Belief(s)
     reward = 0
@@ -177,4 +188,4 @@ function rollout(m::MetaMDP, policy; state=nothing, max_steps=100, callback=(b, 
     end
 end
 
-rollout(callback::Function, m, policy; kws...) = rollout(m, policy; kws..., callback=callback)
+rollout(callback::Function, policy; kws...) = rollout(policy; kws..., callback=callback)

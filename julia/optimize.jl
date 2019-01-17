@@ -1,19 +1,15 @@
 using Distributed
 @everywhere include("model.jl")
 include("job.jl")
+include("skopt.jl")
 
 import Random
 using Dates: now
-using PyCall
 import JSON
 using LatinHypercubeSampling
 using Printf
 
-@pyimport numpy
-@pyimport skopt
-# Optimizer methods
-ask(opt)::Vector{Float64} = opt[:ask]()
-tell(opt, x::Vector{Float64}, fx::Float64) = opt[:tell](Tuple(x), fx)
+
 
 # Optimization.
 function x2theta(x)
@@ -26,7 +22,7 @@ function max_cost(m::MetaMDP)
     theta = Float64[1, 0, 0, 1]
     s = State(m)
     b = Belief(s)
-    computes() = Policy(m, theta)(b) != TERM
+    computes() = SlowPolicy(m, theta)(b) != TERM
 
     while computes()
         theta[1] *= 2
@@ -49,16 +45,16 @@ end
 function optimize(job::Job; verbose=true)
     @unpack seed, n_iter, n_roll = job
     Random.seed!(seed)
-    numpy.random[:seed](seed)
     m = MetaMDP(job)
 
     function loss(x; nr=n_roll)
         policy = Policy(m, x2theta(x))
         reward, secs = @timed @distributed (+) for i in 1:nr
-            rollout(m, policy, max_steps=200).reward
+            rollout(policy, max_steps=200).reward
         end
         reward /= nr
         if verbose
+            print("θ = ", round.(x2theta(x); digits=2), "   ")
             @printf "reward = %.3f   seconds = %.3f\n" reward secs
             flush(stdout)
         end
@@ -67,9 +63,8 @@ function optimize(job::Job; verbose=true)
     bounds = [ (0., max_cost(m)), (0., 1.), (0., 1.) ]
     n_latin = max(2, cld(n_iter, 4))
     opt = skopt.Optimizer(bounds, random_state=seed, n_initial_points=n_latin)
-
-
-    # Choose initial samples by Latin Hypersquare sampling.
+    
+    # Choose initial samples (1/4) by Latin Hypersquare sampling.
     upper_bounds = [b[2] for b in bounds]
     latin_points = LHCoptim(n_latin, length(bounds), 1000)[1]
     for i in 1:n_latin
@@ -83,12 +78,45 @@ function optimize(job::Job; verbose=true)
         tell(opt, x, loss(x))
     end
 
-    println("Cross validation.")
-    best_x = opt[:Xi][sortperm(opt[:yi])][1:cld(n_iter, 5)]  # top 20%
-    fx, i = findmin(loss.(best_x; nr=n_roll*10))
+    x1, y1 = expected_minimum(opt)
 
-    return (theta=x2theta(best_x[i]), reward=-fx, X=opt[:Xi], y=opt[:yi])
+    return (X=opt[:Xi], y=opt[:yi], x1=x1, y1=y1)
 end
+
+
+function sum_reward(policy; n_roll=1000, seed=0)
+    @distributed (+) for i in 1:n_roll
+        Random.seed!(seed + i)
+        rollout(policy.m, policy, max_steps=200).reward
+    end
+end
+
+function halving(m::MetaMDP)
+    n = 500
+    bounds = [ (0., max_cost(m)), (0., 1.), (0., 1.) ]
+    pop = [Policy(m, x2theta(rand(3) .* [b[2] for b in bounds])) for i in 1:n]
+
+    n_eval = zeros(Int, n)
+    score = zeros(n)
+    avg_score = zeros(n)
+
+    reduction = 2
+    for t in 0:7
+        r = 100 * reduction ^ t
+        q = 1 - 1 / reduction ^ t
+        active = avg_score .>= quantile(avg_score, q)
+        for i in 1:n
+            if active[i]
+                score[i] += sum_reward(pop[i]; n_roll=r, seed=n_eval[i])
+                n_eval[i] += r
+            end
+        end
+        avg_score = score ./ n_eval
+        println(maximum(avg_score), "  ", sum(active))
+    end
+    return (pop=[p.θ for p in pop], avg_score=avg_score, n_eval=n_eval)
+end
+
 
 function main(job::Job)
     try
@@ -97,7 +125,6 @@ function main(job::Job)
         println("Optimization")
         flush(stdout)
         @time result = optimize(job)
-        println(result.reward)
         save(job, :optim, result)
         println("Done ", now())
         flush(stdout)
