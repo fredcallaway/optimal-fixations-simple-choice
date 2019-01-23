@@ -2,6 +2,7 @@
 
 using Parameters
 using JSON
+using Dates: now
 
 @with_kw struct Job
     n_arm::Int = 2
@@ -36,10 +37,12 @@ function save(job::Job, name::Symbol, value)
         :time => now(),
         :value => value
     )
-    open(result_file(job, name), "w") do f
+    file = result_file(job, name)
+    open(file, "w") do f
         write(f, JSON.json(d))
     end
-    println("Wrote $(result_file(job, name))")
+    println("Wrote $file")
+    return file
 end
 load(job::Job, name::Symbol) = JSON.parsefile(result_file(job, name))["value"]
 

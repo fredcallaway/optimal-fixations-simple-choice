@@ -50,7 +50,7 @@ function optimize(job::Job; verbose=true)
     function loss(x; nr=n_roll)
         policy = Policy(m, x2theta(x))
         reward, secs = @timed @distributed (+) for i in 1:nr
-            rollout(policy, max_steps=200).reward
+            rollout(policy, max_steps=1000).reward
         end
         reward /= nr
         if verbose
@@ -63,7 +63,7 @@ function optimize(job::Job; verbose=true)
     bounds = [ (0., max_cost(m)), (0., 1.), (0., 1.) ]
     n_latin = max(2, cld(n_iter, 4))
     opt = skopt.Optimizer(bounds, random_state=seed, n_initial_points=n_latin)
-    
+
     # Choose initial samples (1/4) by Latin Hypersquare sampling.
     upper_bounds = [b[2] for b in bounds]
     latin_points = LHCoptim(n_latin, length(bounds), 1000)[1]
@@ -79,7 +79,6 @@ function optimize(job::Job; verbose=true)
     end
 
     x1, y1 = expected_minimum(opt)
-
     return (X=opt[:Xi], y=opt[:yi], x1=x1, y1=y1)
 end
 

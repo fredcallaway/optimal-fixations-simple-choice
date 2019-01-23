@@ -1,4 +1,3 @@
-
 using Distributions
 using Memoize
 import Random
