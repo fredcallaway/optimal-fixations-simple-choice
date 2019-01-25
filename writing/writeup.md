@@ -46,26 +46,25 @@ We now show how we can derive a metalevel MDP from the POMDP model in the previo
 
 The agent's beliefs are described by a set of Gaussian distributions, one for each item in the choice set. The estimated utility distribution for item $i$ at time point $t$ is $U_i(t) \sim \Normal(\mu_i(t), \lam_i(t)^{-1})$. The belief can be encoded by two vectors giving the mean and precision of the estimate of each item's value. Thus, the state space of the metalevel MDP is $\R^2k$, where the latter $k$ dimensions are bounded to be strictly positive (because precision must be strictly positive).
 
-We now derive the transition function for ...
-
-Because the observation $o$ is only informative about the currently fixated item (indicated by subscript $f$ below), only the belief about the fixated item changes at each time step. We derive this update by Bayesian inference, resulting in
+We now derive the transition function for the metalevel MDP. Because the observation $o$ is only informative about the currently fixated item (indicated by subscript $f$ below), only the belief about the fixated item changes at each time step. We derive this update by Bayesian inference, resulting in
 
 $$
 \begin{aligned}
+o(t) &\sim \Normal(u_f) \\
 \lambda_f(t+1) &= \lambda_f(t) + \sigma^{-2}  \\
-\mu_f(t+1) &= \frac{\sigma^{-2} o + \lambda_f(t) \mu_f(t)}{\lambda_f(t+1)}  \\
+\mu_f(t+1) &= \frac{\sigma^{-2} o(t) + \lambda_f(t) \mu_f(t)}{\lambda_f(t+1)}  \\
 \lambda_i(t+1) &= \lambda_i(t) \text{ for } i \neq f  \\
 \mu_i(t+1) &= \mu_i(t) \text{ for } i \neq f  \\
 \end{aligned}
-$$
+$$.
 
 The belief is initialized to a prior distribution over item values (across all decision problems). We assume that the agent knows the true distribution from which utilities are sampled from. Without loss of generality, we can further assume that they are standard-normal distributed; thus, we have $\mu_i(0) = 0$ and $\lambda_i(0) = 1$ for all $i$.
 
-Having derived the belief updating procedure, we now turn to the prob
+Having derived the optimal belief updating procedure given fixed observations, we now turn to deriving the optimal decision rule given a belief. Assuming the decision maker must make a choice at time $t$, the decision rule is clear: choose the item that has highest expected value, i.e. $\arg\max_i \mu_i(t)$. This leaves the decision maker with two remaining challenges: When should she stop thinking and make a decision, and which item should she sample from when she decides to think more? Unfortunately, these two challenges do not have an analytical solution when there are more than two items (at least not one that we are aware of). Thus, we turn to approximate methods.
 
-<!-- TODO, update all below -->
+<!-- These are the two primary challenges addressed by  _metareasoning_, a subfield of AI.  -->
 
-The policy makes two kinds of actions: saccades and choices. We can immediately simplify the problem by reducing the set of choices to a single action, $\bot$, which selects the item that has maximal expected value given the current belief, $\arg\max_i \mu_i(t)$. With this reduction, the problem becomes a _metareasoning_ problem (Hay et al. 2012): at each time step the policy must decide whether or not to gather more information and which (if any) item to gather information about. Such problems are generally impossible to solve exactly due to the infinite (continuous) space of possible beliefs. To address this difficulty, Callaway et al. (2018) proposed a reinforcement learning method for identifying metareasoning policies. They found that their method, Bayesian Metalevel Policy Search (BMPS), found near-optimal policies for a bandit-like metareasoning problem with similar structure to the present problem. Thus, we apply their method and treat the identified policy as "optimal".
+The problems of how much to think and what to think about are the primary problems addressed by the field of _metareasoning_ [citations]. It has been noted that metareasoning is intractable in the general case due to the explosion of possible beliefs that could result from future computations. Thus, several approximate metareasoning strategies have been developed. Callaway et al. (2018) proposed a reinforcement learning method for identifying metareasoning policies. They found that their method, Bayesian Metalevel Policy Search (BMPS), found near-optimal policies for a bandit-like metareasoning problem with similar structure to the present problem. Thus, we apply their method and treat the identified policy as "optimal".
 
 ## Predictions
 
