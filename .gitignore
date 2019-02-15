@@ -5,3 +5,6 @@ julia/run.sbatch
 julia/runs
 analysis/data
 .tmp/
+julia/scratch.jl
+analysis/figs/
+analysis/figs1/
