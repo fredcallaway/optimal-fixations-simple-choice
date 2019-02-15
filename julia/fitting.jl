@@ -4,7 +4,6 @@ addprocs(30)
 # if JOB == nothing
 pop!(ARGS)
 @everywhere cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
-
 @everywhere include("model.jl")
 include("human.jl")
 include("job.jl")

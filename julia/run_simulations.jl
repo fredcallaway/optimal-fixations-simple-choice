@@ -1,32 +1,38 @@
-pop!(ARGS)
+# pop!(ARGS)
 cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
 using Distributed
-addprocs(40)
+# addprocs(40)
 @everywhere include("simulations.jl")
-
-job = jobs[1]
-pol = optimized_policy(job)
-sim = simulate_experiment(pol)
-loss(simulate_experiment(pol))
-loss(simulate_experiment(pol; μ=μ, σ=σ))
-
-simulate_experiment()
 
 using Glob
 files = glob("runs/rando/jobs/*")
 jobs = Job.(files)
-sims, sim_files = pmap(jobs) do job
-    try
-        pol = optimized_policy(job)
-        μ, σ = optimize_prior(pol)
-        sim = simulate_experiment(pol; μ=μ, σ=σ)
-        file = save(job, :simulation, invert(sim))
-        (sim, file)
-    catch SystemError
-        return (missing, missing)
-    end
-end |> invert
 
+
+# %% ====================  ====================
+PARALLEL_SIM = false
+
+@everywhere function run_simulation(job, prior)
+    pol = optimized_policy(job)
+    ismissing(pol) && return (missing, missing, missing, missing)
+    μ, σ = prior == :optimize ? optimize_prior(pol; max_func_evals=100) :
+           prior == :empirical ? (μ_emp, σ_emp) :
+           prior == :zero ? (0, σ_emp) :
+           error("$prior is not a valid prior argument")
+
+    sim = simulate_experiment(pol; μ=μ, σ=σ)
+    file = save(job, Symbol("simulation_$prior"), invert(sim))
+    (sim, (μ, σ), loss(sim), file)
+end
+
+# %% ====================  ====================
+@time opt_results = pmap(jobs) do job
+    run_simulation(job, :optimize)
+end
+
+@time emp_results = pmap(jobs) do job
+    run_simulation(job, :empirical)
+end
 
 # %% ==================== Scratch ====================
 pred = get_fix_ranks(sim)

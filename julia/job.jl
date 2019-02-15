@@ -46,7 +46,7 @@ function save(job::Job, name::Symbol, value)
 end
 load(job::Job, name::Symbol) = JSON.parsefile(result_file(job, name))["value"]
 
-if !isempty(ARGS)
+if length(ARGS) == 2
     job_group, job_id = ARGS
     const JOB = Job("runs/$job_group/jobs/$job_id.json")
     println(JOB)

@@ -48,22 +48,3 @@ function discretize_fixations(t; sample_time=50)
         repeat([item], Int(round(ft/sample_time)))
     end
 end
-
-# %% ====================  ====================
-t = trials[1]
-d = discretize_fixations(t)
-ranks = sortperm(sortperm(-t.value))
-enumerate(ranks[d])
-# %% ====================  ====================
-
-CSV.write("../krajbich_PNAS_2011/trials.csv", trials)
-
-
-
-D = mapmany(trials) do t
-    d = discretize_fixations(t)
-    ranks = sortperm(sortperm(-t.value))
-    enumerate(ranks[d])
-end |> invert
-const human_fix_ranks = Table(time=D[1] * 50, focus=D[2])
-CSV.write("../krajbich_PNAS_2011/discretized_fixations.csv", human_fix_ranks)
