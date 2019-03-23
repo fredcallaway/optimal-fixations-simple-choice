@@ -4,11 +4,13 @@ using Random: shuffle!
 
 export ParticleFilter, run!
 
+
 mutable struct Particle{T}
     w::Float64
     x::T
 end
 Particle(x) = Particle(1., x)
+
 
 struct ParticleFilter{I, T, O}
     initialize::I
@@ -23,10 +25,12 @@ function resample!(particles)
     shuffle!(g[true])
 
     for (dead, living) in zip(g[false], cycle(g[true]))
-        dead.x = deepcopy(living.x)
+        dead.x = copy(living.x)
         dead.w = living.w = living.w / 2
     end
 end
+
+
 
 function update!(pf::ParticleFilter, particles, o)
     for p in particles

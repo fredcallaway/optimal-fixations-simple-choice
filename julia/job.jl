@@ -3,6 +3,7 @@
 using Parameters
 using JSON
 using Dates: now
+using Serialization
 
 @with_kw struct Job
     n_arm::Int = 2
@@ -29,7 +30,7 @@ MetaMDP(job::Job) = MetaMDP(
     job.switch_cost,
 )
 Base.string(job::Job) = join((getfield(job, f) for f in fieldnames(Job)), "-")
-result_file(job::Job, name) = "runs/$(job.group)/results/$name-$(string(job)).json"
+result_file(job::Job, name) = "runs/$(job.group)/results/$name-$(string(job))"
 
 function save(job::Job, name::Symbol, value)
     d = Dict(
@@ -37,14 +38,29 @@ function save(job::Job, name::Symbol, value)
         :time => now(),
         :value => value
     )
-    file = result_file(job, name)
+    file = result_file(job, name) * ".json"
     open(file, "w") do f
         write(f, JSON.json(d))
     end
     println("Wrote $file")
     return file
 end
-load(job::Job, name::Symbol) = JSON.parsefile(result_file(job, name))["value"]
+load(job::Job, name::Symbol) = JSON.parsefile(result_file(job, name) * ".json")["value"]
+
+function Serialization.serialize(job::Job, name::Symbol, value)
+    file = result_file(job, name) * ".jls"
+    open(file, "w") do f
+        serialize(f, value)
+    end
+    println("Wrote $file")
+end
+
+function Serialization.deserialize(job::Job, name::Symbol)
+    file = result_file(job, name) * ".jls"
+    open(file) do f
+        deserialize(f)
+end
+end
 
 if length(ARGS) == 2
     job_group, job_id = ARGS

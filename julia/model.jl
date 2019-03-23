@@ -2,7 +2,7 @@ using Distributions
 using Memoize
 import Random
 using Parameters
-
+import Base
 # ---------- MetaMDP Model ---------- #
 
 const TERM = 0
@@ -35,6 +35,7 @@ Belief(s::State) = Belief(
     s.obs_sigma,
     rand(1:length(s.value))
 )
+Base.copy(b::Belief) = Belief(copy(b.mu), copy(b.lam), b.obs_sigma, b.focused)
 
 function step!(m::MetaMDP, b::Belief, s::State, c::Computation)
     if c == TERM
@@ -161,15 +162,28 @@ end
     v <= 0 ? TERM : c
 end
 
-noisy(x, ε=1e-10) = x + ε * rand(length(x))
+noisy(x, ε=1e-10) = x .+ ε .* rand(length(x))
 struct MetaGreedy
     m::MetaMDP
 end
+
 (π::MetaGreedy)(b::Belief) = begin
     voc1 = [voi1(b, c) - cost(π.m, b, c) for c in 1:π.m.n_arm]
     v, c = findmax(noisy(voc1))
     v <= 0 ? TERM : c
 end
+
+struct Noisy{T}
+    ε::Float64
+    π::T
+    m::MetaMDP
+end
+Noisy(ε, π) = Noisy(ε, π, π.m)
+
+(π::Noisy)(b::Belief) = begin
+    rand() < π.ε ? rand(1:length(b.mu)) : π.π(b)
+end
+
 
 function rollout(policy; state=nothing, max_steps=100, callback=(b, c)->nothing)
     m = policy.m

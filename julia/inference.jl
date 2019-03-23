@@ -1,177 +1,279 @@
 # %%
-import CSV
-using TypedTables
-using SplitApplyCombine
+cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
+using Distributed
+addprocs(96)
+@everywhere include("inference_helpers.jl")
 using Distributions
 using StatsBase
-using Lazy: @>>
+using Glob
+jobs = Job.(glob("runs/rando/jobs/*"))
+policies = optimized_policy.(jobs) |> skipmissing |> collect
 
-# %%
-
-valmap(f, d::Dict) = Dict(k => f(v) for (k, v) in d)
-keymap(f, d::Dict) = Dict(f(k) => v for (k, v) in d)
-
-const data = Table(CSV.File("../krajbich_PNAS_2011/data.csv"; allowmissing=:none));
-
-function reduce_trial(t::Table)
-    r = t[1]
-    (choice = argmax([r.choice1, r.choice2, r.choice3]),
-     value = Float64[r.rating1, r.rating2, r.rating3],
-     subject = r.subject,
-     trial = r.trial,
-     rt = r.rt,
-     fixations = combinedims([t.leftroi, t.middleroi, t.rightroi]) * [1, 2, 3],
-     fix_times = t.eventduration)
+# %% ====================  ====================
+using Plots
+function plot_feature(f, pol)
+    x, y = f(simulate_experiment(pol, (μ_emp, σ_emp), 5))
+    bins = make_bins(5, x)
+    plot!(mids(bins), mean.(bin_by(bins, x, y)))
 end
+# %% ==================== Test recovery ====================
+m = MetaMDP(obs_sigma=1, switch_cost=4, sample_cost=0.0001)
+plot_feature()
 
-function normalize_values!(trials)
-    for (subj, g) in group(x->x.subject, trials)
-        μ, σ = juxt(mean, std)(flatten(g.value))
-        for v in g.value
-            v .-= μ
-            v ./= σ
-        end
+
+# %% ====================  ====================
+# xs = 10 .^ range(-5, -2, length=100)
+# xs = range(.001, .1, length=100)
+xs = range(1, 10, length=100)
+n = 1000
+
+ys = map(xs) do x
+    m = MetaMDP(obs_sigma=x, switch_cost=4, sample_cost=1e-3)
+    policy = MetaGreedy(m)
+    y = @distributed (+) for i in 1:n
+        sim = simulate(policy, randn(3))
+        # length(sim.samples)
+        sim.value[sim.choice] - maximum(sim.value)
+
     end
-    return trials
+    y / n
+end
+# %% ====================  ====================
+d = sim_data[1]
+@everywhere begin
+    d = $d
+    true_policy = $true_policy
+    true_ε = $true_ε
 end
 
-const trials = @>> begin
-    data
-    group(x->(x.subject, x.trial))
-    values
-    map(reduce_trial)
-    Table
-    normalize_values!
+xs = pmap(1:length(workers())) do i
+    logp(true_policy, true_ε, d.value, d.samples, d.choice; n_particle=Int(1e5))
+end
+std(xs)
+
+# %% ====================  ====================
+true_mdp = MetaMDP(obs_sigma=1, switch_cost=4, sample_cost=0.0001)
+true_ε = 0.
+# policy = Noisy(true_ε, MetaGreedy(true_mdp))
+true_policy = MetaGreedy(true_mdp)
+
+sim_data = map(1:500) do i
+    simulate(true_policy, randn(3))
 end
 
+map(sim_data) do d
+    maximum(d.value) - d.value[d.choice]
+end |> mean |> println
+map(sim_data) do d
+    length(d.samples)
+end |> mean |> println
 
-function parse_computations(t; sample_time=50)
-    cs = mapmany(t.fixations, t.fix_times) do item, ft
-        repeat([item], Int(round(ft/sample_time)))
+# %% ====================  ====================
+@everywhere rescale(x, low, high) = low + x * (high-low)
+
+@everywhere MetaMDP(x::Vector{Float64}) = MetaMDP(
+    3,
+    rescale(x[1], 1, 10),
+    10 ^ rescale(x[2], -5, -2),
+    rescale(x[3], 1, 10)
+)
+
+
+# m = MetaMDP(rand(3))
+@everywhere sim_data = $sim_data
+@everywhere function logp(policy, ε)
+    mapreduce(+, sim_data) do d
+        logp(policy, ε, d.value, d.samples, d.choice)
     end
-    push!(cs, 0)
-    (cs=cs, choice=t.choice)
 end
 
-# %% ==================== Explore data ====================
-
-num_fixation(trials[1].fixations)
-trials[2].fixations
-
-map(typeof, group(x->x.subject, trials))
-
-@>> begin
-    trials
-    group(x->x.subject)
-    values
-    map
-end
-
-
-groupsum(x->x.subject, x->length(x.fixations), trials)
-groupsum(x->x.subject, x->x.rt, trials)
-
-
-# %% ==================== Simulate ====================
-include("model.jl")
-function simulate(m::MetaMDP, value)
-    cs = Int[]
-    s = State(m, value)
-    choice = rollout(m, MetaGreedy(m), state=s, callback=(b,c)->push!(cs, c)).choice
-    (cs=cs, choice=choice)
-end
-
-
-num_fixation(cs) = sum(diff(cs) .!= 0)
-m = MetaMDP(obs_sigma=5, sample_cost=0.001, switch_cost=5)
-x = simulate(m, trials[1].value)
-
-
-
-
-# %% ==================== Particle filter ====================
-include("model.jl")
-include("ParticleFilters.jl")
-
-m = MetaMDP(obs_sigma=5, sample_cost=0.001, switch_cost=5)
-
-function simulate(m, s)
-    cs = Int[]
-    choice = rollout(m, MetaGreedy(m), state=s, callback=(b,c)->push!(cs, c)).choice
-    (cs=cs, choice=choice)
-end
-
-function choice_probs(b::Belief)
-    is_best = b.mu .== maximum(b.mu)
-    is_best / sum(is_best)
-end
-
-function ParticleFilter(m::MetaMDP, t)
-    pol = MetaGreedy(m)
-    s = State(m, t.value)
-    init() = Belief(s)
-    transition(b, c) = begin
-        step!(m, b, s, c)
-        b
+function plogp(policy, ε)
+    @distributed (+) for d in sim_data
+        logp(policy, ε, d.value, d.samples, d.choice)
     end
-    obs_p(b, c) = Int(pol(b) == c)
-    ParticleFilter(init, transition, obs_p)
 end
 
-function logp(pf::ParticleFilter, d; n_particle=10000)
-    ps = run!(pf, d.cs; n_particle=n_particle)
-    for p in ps
-        # choice probability
-        p.w *= softmax(1e10 * p.x.mu)[d.choice]
+candidates = [MetaGreedy(MetaMDP(rand(3))) for i in 1:3*96]
+logps = pmap(candidates) do pol
+    logp(pol, 0.1)
+end
+
+# %% ====================  ====================
+println(candidates[argmax(logps)])
+println(true_mdp)
+logp(MetaGreedy(true_mdp), 0.1))
+
+obs_sigma = [p.m.obs_sigma for p in candidates]
+sample_cost = [p.m.sample_cost for p in candidates]
+switch_cost = [p.m.switch_cost for p in candidates]
+
+# include("binning.jl")
+# bin_by(Binning(obs_sigma, 5), obs_sigma, logps) .|> maximum
+idx = sortperm(-logps)
+pol = candidates[idx[1]]
+# %% ====================  ====================
+
+# include("features.jl")
+function plot_feature(f, pol)
+    x, y = f(simulate_experiment(pol, (μ_emp, σ_emp), 5))
+    bins = make_bins(5, x)
+    plot!(mids(bins), mean.(bin_by(bins, x, y)))
+end
+plot()
+f = value_choice
+
+plot_feature(f, candidates[idx[1]])
+plot_feature(f, candidates[idx[2]])
+plot_feature(f, candidates[idx[3]])
+# plot_feature(value_bias, candidates[idx[2]])
+
+# %% ====================  ====================
+display("")
+function foo(pol)
+    println("")
+    println(pol.m)
+    for _ in 1:20
+        sim = simulate(pol, [0., 0.5, 1.])
+        println(sim.choice, "  ", sim.samples)
     end
-    log(mean(p.w for p in ps))
 end
+foo(MetaGreedy(true_mdp))
+# foo(candidates[idx[1]])
 
-function logp(m::MetaMDP, t; sample_time=500, n_particle=10000)
-    d = parse_computations(t; sample_time=sample_time)
-    pf = ParticleFilter(m, t)
-    logp(pf, d; n_particle=n_particle)
+# %% ====================  ====================
+params = Base.product(2:6, 0.003:0.001:0.007, 2:6) |> collect
+logp_grid = pmap(params) do x
+    ε = 0.1
+    m = MetaMDP(3, x...)
+    mapreduce(+, sim_data) do d
+        logp(m, ε, d)
+    end
 end
 
 
 # %% ====================  ====================
-m1 = MetaMDP(obs_sigma=3)
-m2 = MetaMDP(obs_sigma=5)
-d = simulate(m1, State(m1, t.value))
-p1 = logp(ParticleFilter(m1, t), d)
-p2 = logp(ParticleFilter(m2, t), d)
-(p1, p2)
+
+params[3, :, :]
+X = map(logp_grid) do x
+    isfinite(x) ? x : NaN
+end
+pyplot()
+heatmap(X[3, :, :], clim=(-1000, -750))
+
+X = reshape(maximum(logp_grid, dims=1), (5, 5))
+heatmap(X, clim=(-800, -750))
+
+# maximum(logp_grid, dims=(1,3)) |> flatten |> plot
+
+# %% ====================  ====================
+using Glob
+files = glob("runs/rando/jobs/*")
+jobs = Job.(files)
+
+@everywhere function logp(policy, ε, t::Trial)
+    samples = discretize_fixations(t, sample_time=100)
+    value = (t.value .- μ_emp) ./ σ_emp
+    logp(policy, ε, value, samples, t.choice)
+end
+
+policies = map(optimized_policy, jobs) |> skipmissing |> collect
+@everywhere dd = group(x->x.subject, trials)[18]
+@time res = pmap(policies) do policy
+    map(dd) do t
+        logp(policy, 0.3, t)
+    end
+end
+
+# %% ====================  ====================
+@everywhere t = dd[1]
+@time x = pmap(policies) do policy
+    logp(policy, 0.3, t)
+end
+
+best = argmax(x)
+pol = policies[best]
+
+discretize_fixations(t, sample_time=100)
+# %% ==================== Q regression? ====================
+
+
+function foobar()
+    N = 480
+    v = [0., 0., 1.]
+    x = @distributed (+) for i in 1:N
+        rollout(policy; state=State(policy.m, v)).reward
+    end
+    x / N
+end
+foobar()
+
+
 
 
 # %% ====================  ====================
-t = trials[1000 .<= trials.rt .<= 5000][1]
-s = State(m, t.value)
+function rand_logp(t::Trial)
+    samples = discretize_fixations(t, sample_time=100)
+    log(1/4) * (length(samples) + 1) + log(1/3)
+end
 
+function stay_logp(t::Trial, ε)
+    samples = discretize_fixations(t, sample_time=100)
+    switch = diff(samples) .!= 0
+    p_first = log(1/3)
+    p_stay = log(1-ε) * sum(.!switch)
+    p_switch = log(ε * 1/4) * sum(switch)
+    p_end = log(ε * 1/4)
+    return p_first + p_stay + p_switch + p_end
+end
+stay_logp(t, 0.3)
+
+struct StayPolicy
+    m::MetaMDP
+end
+(π::StayPolicy)(b::Belief) = b.focused
+logp(StayPolicy(MetaMDP(obs_sigma=1e10)), 0.3, t)
+
+# %% ====================  ====================
+best = argmax(map(sum, res))
+map(sum, res)
+simulate(policies[best], dd[4].value)
+
+
+
+
+
+
+
+
+
+
+
+# %% ====================  ====================
 steps, choices = repeatedly(10) do
-    roll = rollout(m, MetaGreedy(m), state=s)
+    roll = rollout(MetaGreedy(m), state=s)
     (roll.steps, roll.choice)
 end |> invert
-mean(steps)
+
 proportions(choices, 3) |> Tuple
 
-
-pf = ParticleFilter(m, t)
+pf = ParticleFilter(m, 0.1, t)
 d = parse_computations(t; sample_time=100)
 history = []
 ps = run!(pf, d.cs, callback=(particles->push!(history, deepcopy(particles))))
 # %% ====================  ====================
+using Plots
+
 function plot_particles(i)
-    h = history[i]
     c = d.cs[i]
+    h = history[i]
     mu = combinedims([p.x.mu for p in h])
     w = [p.w for p in h]
     w ./= maximum(w)
     plot(mu, label="", color=:black, α=0.1w', ylim=(-1, 1), title=string(c))
 end
-plots = [plot_particles(i) for i in 1:length(history)]
-plot(plots...)
+# plots = [plot_particles(i) for i in 1:length(history)]
+# plot(plots...)
 
-plot(1:3, title=string(1))
 # %% ====================  ====================
 
 

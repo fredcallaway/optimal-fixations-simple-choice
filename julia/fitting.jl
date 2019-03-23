@@ -1,12 +1,12 @@
 using BlackBoxOptim
 using Distributed
-addprocs(30)
+addprocs(96)
 # if JOB == nothing
-pop!(ARGS)
 @everywhere cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
 @everywhere include("model.jl")
 include("human.jl")
 include("job.jl")
+
 
 const human_mean_fix = mean([length(t.fixations) for t in trials])
 const human_mean_value = mean([t.value[t.choice] for t in trials])

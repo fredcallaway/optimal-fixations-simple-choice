@@ -7,6 +7,27 @@ include("human.jl")
 include("job.jl")
 include("simulations.jl")
 include("binning.jl")
+
+
+# %% ==================== Explore data ====================
+
+num_fixation(trials[1].fixations)
+trials[2].fixations
+
+map(typeof, group(x->x.subject, trials))
+
+@>> begin
+    trials
+    group(x->x.subject)
+    values
+    map
+end
+
+
+groupsum(x->x.subject, x->length(x.fixations), trials)
+groupsum(x->x.subject, x->x.rt, trials)
+groupsum(x->x.subject, x->x.choice == argmax(x.value), trials)
+
 # %% ====================  ====================
 # D = mapmany(trials) do t
 #     d = discretize_fixations(t)

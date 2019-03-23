@@ -25,7 +25,7 @@ SBATCH_SCRIPT = '''
 #SBATCH --mail-user=flc2@princeton.edu
 
 module load julia
-julia -p {cpus_per_task} optimize.jl {job_name} $SLURM_ARRAY_TASK_ID
+julia -p {cpus_per_task} {file} {job_name} $SLURM_ARRAY_TASK_ID
 '''.strip()
 
 
@@ -54,12 +54,13 @@ def rand_params(quick):
         }
 
 @click.command()
+@click.argument('file')
 @click.argument('job-name')
 @click.argument('max-time')
 @click.option('--quick', is_flag=True)
 @click.option('--mem-per-cpu', default=5000)
 @click.option('--cpus-per-task', default=1)
-def main(job_name, quick, **slurm_args):
+def main(file, job_name, quick, **slurm_args):
     os.makedirs(f'runs/{job_name}/jobs', exist_ok=True)
     os.makedirs(f'runs/{job_name}/out', exist_ok=True)
     import json
@@ -69,7 +70,7 @@ def main(job_name, quick, **slurm_args):
             json.dump(prm, f)
 
     with open('run.sbatch', 'w+') as f:
-        f.write(SBATCH_SCRIPT.format(n_job=i, job_name=job_name, **slurm_args))
+        f.write(SBATCH_SCRIPT.format(n_job=i, file=file, job_name=job_name, **slurm_args))
 
     print(f'Wrote JSON and run.sbatch with {i} jobs.')
     subprocess.Popen('sbatch --test-only run.sbatch', shell=True)

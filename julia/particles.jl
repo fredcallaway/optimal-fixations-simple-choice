@@ -1,129 +1,71 @@
-
-# %% ==================== Metagreedy ====================
-include("model.jl")
-m = MetaMDP(n_arm=2, sample_cost=1e-4, obs_sigma=5)
-pol = MetaGreedy(m)
-
-s = State(m)
-function sample_fixations()
-    fix = Int[]
-    rollout(m, pol, state=s, callback=(b,c)->push!(fix, c))
-    fix
-end
-
-# obs = sample_fixations()
-obs = [2, 2, 0]
-println(obs)
-b = Belief(s)
-function transition(b, c)
-    b = deepcopy(b)
-    step!(m, b, s, c)
-    b
-end
-obs_likelihood(b, c) = Int(pol(b) == c)
-
-function lik()
-    particles = [Particle(b) for i in 1:1000]
-    pf = ParticleFilter(particles, transition, obs_likelihood)
-    run!(pf, obs)
-    mean(p.w for p in particles)
-end
-
-lik()
-# %% ====================  ====================
-lik2() = mean(sample_fixations() == obs for i in 1:1000)
-l1 = [lik() for i in 1:100]
-l2 = [lik2() for i in 1:100]
-mean(l1)
-mean(l2)
-std(l1)
-std(l2)
-
-# %% ==================== Coin flipping ====================
-
-x0 = []
-transition(x) = [x..., Int(rand() > 0.5)]
-obs_likelihood(o, x) = x[end] == 0
-gen_obs(n) = rand(0:1, n)
-
-N = 3
-obs = gen_obs(N)
-
-#=
-def estimate_loglikelihood(human_response)
-	L = 0
-	n = 1
-
-	while True:
-		model_sample = sample_from_model()
-		if model_sample == human_response:
-			break
-		else:
-			L = L + 1/n
-			n = n + 1
-	return L
-=#
-function bas_logp()
-    L = 0; n = 1
-    while true
-        if gen_obs(N) == obs
-            return -L
-        end
-        L += 1/n
-        n += 1
-    end
-end
-
-mean(exp(bas_logp()) for i in 1:100000)
-exp(mean(bas_logp() for i in 1:100000))
-
-# function lik()
-#     particles = [Particle([]) for i in 1:1000]
-#     pf = ParticleFilter(particles, transition, obs_likelihood)
-#     run!(pf, obs)
-#     mean(p.w for p in particles)
-# end
-
-
-function lik2()
-    mean(gen_obs(n) == obs for i in 1:1000)
-end
-
-l1 = [lik() for i in 1:100]
-l2 = [lik2() for i in 1:100]
-ltrue = 0.5^n
-mae(x, y) = mean(abs.(x .- y))
-mae(l1, ltrue)
-mae(l2, ltrue)
-
+using Distributions
+using Statistics
+using Printf
 
 # %% ==================== Random walk with observed sign ====================
-x0 = 0
-transition(x) = x + randn()
-obs_likelihood(o, x) = float(Int(x > 0) == o)
+x0 = 0.
+transition(x, o) = x + randn()
+obs_likelihood(x, o) = float(Int(x > 0) == o)
 
 function gen_obs(n)
     x = x0
     obs = Int[]
     for i in 1:n
-        x = transition(x)
-        push!(obs, act(x))
+        push!(obs, Int(x > 0))
+        x = transition(x, 1)
     end
     obs
 end
 
-println(gen_obs(4))
-n = 4
-obs = [0, 1, 1, 1]
-mean(gen_obs(n) == obs for i in 1:1000000)
-# %%
+n_obs = 4
+obs = [0, 0, 0, 1]
+mc_lik = mean(gen_obs(n_obs) == obs for i in 1:100000)
+
+n_particle = 100000
+x = [x0 for _ in 1:n_particle]
+x1 = copy(x)
+w0 = ones(n_particle) ./ n_particle
+w = copy(w0)
+η = 1
+
+function resample!()
+    n_offspring = rand(Multinomial(n_particle, w))
+    j = 1
+    for i in 1:n_particle
+        for _ in 1:n_offspring[i]
+            x1[j] = x[i]
+            j += 1
+        end
+    end
+    x .= x1
+    w .= w0
+end
+
+for o in obs
+    for i in 1:n_particle
+        w[i] *= obs_likelihood(x[i], o)
+        x[i] = transition(x[i], o)
+    end
+    sumw = sum(w)
+    η *= sumw
+    w ./= sumw
+    resample!()
+end
+
+# 1 / sum(w .^ 2)
+# sum(w .> 0)
+@printf "%.3f  %.3f\n" mc_lik η
+
+# %% ====================  ====================
+
 particles = [Particle(0.) for _ in 1:n]
 
 history = Vector{Particle}[]
 pf = ParticleFilter(particles, transition, obs_likelihood)
 run!(pf, obs, callback=ps->push!(history, deepcopy(ps)))
 sort!(pf.particles, by=p->-p.w)
-#
+
+
 # # %% ====================  ====================
 # using StatPlots
 #
@@ -264,3 +206,100 @@ x = counts(cs)[2:end]
 x / sum(x)
 
 groupreduce(x->x[1], x->x[2], +, zip(t.fixations, t.fix_times))
+
+# %% ==================== Metagreedy ====================
+include("model.jl")
+m = MetaMDP(n_arm=2, sample_cost=1e-4, obs_sigma=5)
+pol = MetaGreedy(m)
+
+s = State(m)
+function sample_fixations()
+    fix = Int[]
+    rollout(m, pol, state=s, callback=(b,c)->push!(fix, c))
+    fix
+end
+
+# obs = sample_fixations()
+obs = [2, 2, 0]
+println(obs)
+b = Belief(s)
+function transition(b, c)
+    b = deepcopy(b)
+    step!(m, b, s, c)
+    b
+end
+obs_likelihood(b, c) = Int(pol(b) == c)
+
+function lik()
+    particles = [Particle(b) for i in 1:1000]
+    pf = ParticleFilter(particles, transition, obs_likelihood)
+    run!(pf, obs)
+    mean(p.w for p in particles)
+end
+
+lik()
+# %% ====================  ====================
+lik2() = mean(sample_fixations() == obs for i in 1:1000)
+l1 = [lik() for i in 1:100]
+l2 = [lik2() for i in 1:100]
+mean(l1)
+mean(l2)
+std(l1)
+std(l2)
+
+# %% ==================== Coin flipping ====================
+
+x0 = []
+transition(x) = [x..., Int(rand() > 0.5)]
+obs_likelihood(o, x) = x[end] == 0
+gen_obs(n) = rand(0:1, n)
+
+N = 3
+obs = gen_obs(N)
+
+#=
+def estimate_loglikelihood(human_response)
+	L = 0
+	n = 1
+
+	while True:
+		model_sample = sample_from_model()
+		if model_sample == human_response:
+			break
+		else:
+			L = L + 1/n
+			n = n + 1
+	return L
+=#
+function bas_logp()
+    L = 0; n = 1
+    while true
+        if gen_obs(N) == obs
+            return -L
+        end
+        L += 1/n
+        n += 1
+    end
+end
+
+mean(exp(bas_logp()) for i in 1:100000)
+exp(mean(bas_logp() for i in 1:100000))
+
+# function lik()
+#     particles = [Particle([]) for i in 1:1000]
+#     pf = ParticleFilter(particles, transition, obs_likelihood)
+#     run!(pf, obs)
+#     mean(p.w for p in particles)
+# end
+
+
+function lik2()
+    mean(gen_obs(n) == obs for i in 1:1000)
+end
+
+l1 = [lik() for i in 1:100]
+l2 = [lik2() for i in 1:100]
+ltrue = 0.5^n
+mae(x, y) = mean(abs.(x .- y))
+mae(l1, ltrue)
+mae(l2, ltrue)

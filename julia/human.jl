@@ -5,11 +5,8 @@ using SplitApplyCombine
 using Distributions
 using StatsBase
 using Lazy: @>>
-
-flatten = SplitApplyCombine.flatten
-valmap(f, d::Dict) = Dict(k => f(v) for (k, v) in d)
-keymap(f, d::Dict) = Dict(f(k) => v for (k, v) in d)
-juxt(fs...) = (xs...) -> Tuple(f(xs...) for f in fs)
+include("utils.jl")
+include("model.jl")
 
 const data = Table(CSV.File("../krajbich_PNAS_2011/data.csv"; allowmissing=:none));
 function reduce_trial(t::Table)
@@ -42,8 +39,11 @@ const trials = @>> begin
     Table
     # normalize_values!
 end
+Trial = typeof(trials[1])
+const μ_emp, σ_emp = juxt(mean, std)(flatten(trials.value))
+norm_value(t::Trial) = (t.value .- μ_emp) ./ σ_emp
 
-function discretize_fixations(t; sample_time=50)
+function discretize_fixations(t; sample_time=100)
     mapmany(t.fixations, t.fix_times) do item, ft
         repeat([item], Int(round(ft/sample_time)))
     end
