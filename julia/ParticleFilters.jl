@@ -50,11 +50,3 @@ function run!(pf::ParticleFilter, obs; n_particle=1000, callback=(particles->not
     end
     particles
 end
-
-call(f) = f()
-call() do
-    println("oo")
-    @time x = Tuple(rand(1000))
-    @time copy(x)
-    nothing
-end

@@ -1,0 +1,101 @@
+\begin{thebibliography}{}
+
+\bibitem[Armel and Rangel, 2008]{Armel2008}
+Armel, K.~C. and Rangel, A. (2008).
+\newblock {Neuroeconomic models of economic decision making: The impact of
+  computation time and experience on decision values}.
+\newblock {\em American Economic Review}, 98(2):163--168.
+
+\bibitem[Bitzer et~al., 2014]{Bitzer2014}
+Bitzer, S., Park, H., Blankenburg, F., and Kiebel, S.~J. (2014).
+\newblock {Perceptual decision making: drift-diffusion model is equivalent to a
+  Bayesian model}.
+\newblock {\em Frontiers in Human Neuroscience}, 8(February):1--17.
+
+\bibitem[Bogacz et~al., 2006]{Bogacz2006}
+Bogacz, R., Brown, E., Moehlis, J., Holmes, P., and Cohen, J.~D. (2006).
+\newblock {The physics of optimal decision making: A formal analysis of models
+  of performance in two-alternative forced-choice tasks}.
+\newblock {\em Psychological Review}, 113(4):700--765.
+
+\bibitem[Callaway et~al., 2018]{callaway2018learning}
+Callaway, F., Gul, S., Krueger, P., Griffiths, T.~L., and Lieder, F. (2018).
+\newblock {Learning to select computations}.
+\newblock In {\em Uncertainty in Artificial Intelligence: Proceedings of the
+  Thirty-Fourth Conference}.
+
+\bibitem[Fudenberg et~al., 2018]{Fudenberg2018}
+Fudenberg, D., Strack, P., and Strzalecki, T. (2018).
+\newblock {Speed, accuracy, and the optimal timing of choices}.
+\newblock {\em American Economic Review}, 108(12):3651--3684.
+
+\bibitem[Griffiths et~al., 2015]{griffiths15}
+Griffiths, T.~L., Lieder, F., and Goodman, N.~D. (2015).
+\newblock {Rational use of cognitive resources: Levels of analysis between the
+  computational and the algorithmic}.
+\newblock {\em Topics in Cognitive Science}, 7(2):217--229.
+
+\bibitem[Hay et~al., 2012]{Hay2012}
+Hay, N., Russell, S., Tolpin, D., and Shimony, S. (2012).
+\newblock {Selecting Computations: Theory and Applications}.
+\newblock {\em Uncertainty in Artificial Intelligence: Proceedings of the
+  Twenty-Eighth Conference}.
+
+\bibitem[Kahneman and Tversky, 1979]{Kahneman1979}
+Kahneman, D. and Tversky, A. (1979).
+\newblock {Prospect Theory: An analysis of decision under risk}.
+\newblock {\em Econometrica}, 47(2):263--292.
+
+\bibitem[Krajbich et~al., 2010]{Krajbich2010}
+Krajbich, I., Armel, C., and Rangel, A. (2010).
+\newblock {Visual fixations and the computation and comparison of value in
+  simple choice}.
+\newblock {\em Nature Neuroscience}, 13(10):1292--1298.
+
+\bibitem[Krajbich and Rangel, 2011]{Krajbich2011}
+Krajbich, I. and Rangel, A. (2011).
+\newblock {Multialternative drift-diffusion model predicts the relationship
+  between visual fixations and choice in value-based decisions}.
+\newblock {\em Proceedings of the National Academy of Sciences},
+  108(33):13852--13857.
+
+\bibitem[Mormann et~al., 2010]{Milosavljevic2010}
+Mormann, M., Malmaud, J., Huth, A., Koch, C., and Rangel, A. (2010).
+\newblock The drift diffusion model can account for the accuracy and reaction
+  time of value-based choices under high and low time pressure.
+\newblock {\em Judgment and Decision Making}, 5(6):437--449.
+
+\bibitem[Orquin and {Mueller Loose}, 2013]{Orquin2013}
+Orquin, J.~L. and {Mueller Loose}, S. (2013).
+\newblock {Attention and choice: A review on eye movements in decision making}.
+\newblock {\em Acta Psychologica}, 144(1):190--206.
+
+\bibitem[Rangel et~al., 2008]{Rangel2008}
+Rangel, A., Camerer, C., and Montague, P.~R. (2008).
+\newblock {A framework for studying the neurobiology of value-based decision
+  making}.
+\newblock {\em Nature Reviews Neuroscience}, 9(7):545--556.
+
+\bibitem[Ratcliff, 1978]{Ratcliff1978}
+Ratcliff, R. (1978).
+\newblock {A theory of memory retrieval.}
+\newblock {\em Psychological Review}, 85(2):59--108.
+
+\bibitem[Sanborn and Chater, 2016]{sanborn16}
+Sanborn, A.~N. and Chater, N. (2016).
+\newblock {Bayesian Brains without Probabilities}.
+\newblock {\em Trends in Cognitive Sciences}, 20(12):883--893.
+
+\bibitem[Tavares et~al., 2017]{Tavares2017}
+Tavares, G., Perona, P., and Rangel, A. (2017).
+\newblock The attentional drift diffusion model of simple perceptual
+  decision-making.
+\newblock {\em Frontiers in Neuroscience}, 11.
+
+\bibitem[Yechiam and Hochman, 2013]{yechiam2013losses}
+Yechiam, E. and Hochman, G. (2013).
+\newblock Losses as modulators of attention: review and analysis of the unique
+  effects of losses over gains.
+\newblock {\em Psychological bulletin}, 139(2):497.
+
+\end{thebibliography}
