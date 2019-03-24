@@ -16,16 +16,6 @@ function Particles{T}(n::Int) where T
     )
 end
 
-struct SIR{I,T,L,P}
-    init::I
-    transition::T
-    likelihood::L
-    P::Particles{P}
-end
-
-# %% ====================  ====================
-SIR(I::Function, T::Function, L::Function, P::Type, n::Int) = SIR(I, T, L, Particles{P}(n::Int))
-
 function resample!(P::Particles)
     x, x1, w, nc = P.x, P.x1, P.w, P.nc
     Distributions.rand!(Multinomial(length(x), w), nc)
@@ -40,14 +30,29 @@ function resample!(P::Particles)
     w .= 1. / length(x)
 end
 
-function reset!(s::SIR)
-    x, w = s.P.x, s.P.w
+function reset!(P::Particles, init, w0 = 1. / length(P.x))
+    x, w = P.x, P.w
     w0 = 1. / length(x)
     for i in 1:length(x)
-        x[i] = s.init()
+        x[i] = init()
         w[i] = w0
     end
 end
+
+function reweight!(P::Particles)
+    w = P.w
+    sumw = sum(w)
+    w ./= sumw
+    return sumw
+end
+
+struct SIR{I,T,L,P}
+    init::I
+    transition::T
+    likelihood::L
+    P::Particles{P}
+end
+SIR(I::Function, T::Function, L::Function, P::Type, n::Int) = SIR(I, T, L, Particles{P}(n::Int))
 
 function step!(s::SIR, obs)
     x, w = s.P.x, s.P.w
@@ -57,19 +62,12 @@ function step!(s::SIR, obs)
     end
 end
 
-function reweight!(s::SIR)
-    w = s.P.w
-    sumw = sum(w)
-    w ./= sumw
-    return sumw
-end
-
 function logp(s::SIR, observations)
-    reset!(s)
+    reset!(s.P, s.init)
     logp = 0.
     for obs in observations
         step!(s, obs)
-        logp += log(reweight!(s))
+        logp += log(reweight!(s.P))
         resample!(s.P)
     end
     logp

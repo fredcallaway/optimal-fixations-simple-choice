@@ -5,23 +5,18 @@ addprocs(96)
 @everywhere include("inference_helpers.jl")
 using Distributions
 using StatsBase
-using Glob
-jobs = Job.(glob("runs/rando/jobs/*"))
-policies = optimized_policy.(jobs) |> skipmissing |> collect
+# using Glob
+# jobs = Job.(glob("runs/rando/jobs/*"))
+# policies = optimized_policy.(jobs) |> skipmissing |> collect
 
-# %% ====================  ====================
+# %% ==================== Plot effect of parameters ====================
 using Plots
 function plot_feature(f, pol)
     x, y = f(simulate_experiment(pol, (μ_emp, σ_emp), 5))
     bins = make_bins(5, x)
     plot!(mids(bins), mean.(bin_by(bins, x, y)))
 end
-# %% ==================== Test recovery ====================
-m = MetaMDP(obs_sigma=1, switch_cost=4, sample_cost=0.0001)
-plot_feature()
 
-
-# %% ====================  ====================
 # xs = 10 .^ range(-5, -2, length=100)
 # xs = range(.001, .1, length=100)
 xs = range(1, 10, length=100)
@@ -38,21 +33,15 @@ ys = map(xs) do x
     end
     y / n
 end
-# %% ====================  ====================
-d = sim_data[1]
-@everywhere begin
-    d = $d
-    true_policy = $true_policy
-    true_ε = $true_ε
-end
 
-xs = pmap(1:length(workers())) do i
-    logp(true_policy, true_ε, d.value, d.samples, d.choice; n_particle=Int(1e5))
-end
-std(xs)
+map(trials) do t
+    (maximum(t.value) - t.value[t.choice]) / σ_emp
+end |> mean
+# %% ==================== Simulate data ====================
+# true_mdp = MetaMDP(obs_sigma=3, switch_cost=4, sample_cost=0.0001)
+true_mdp = MetaMDP(obs_sigma=6, switch_cost=8, sample_cost=0.001)
 
-# %% ====================  ====================
-true_mdp = MetaMDP(obs_sigma=1, switch_cost=4, sample_cost=0.0001)
+
 true_ε = 0.
 # policy = Noisy(true_ε, MetaGreedy(true_mdp))
 true_policy = MetaGreedy(true_mdp)
@@ -61,57 +50,89 @@ sim_data = map(1:500) do i
     simulate(true_policy, randn(3))
 end
 
-map(sim_data) do d
+describe(f, label, agg=mean) = println("$label: ", agg(map(f, sim_data)))
+display("")
+describe("value loss") do d
     maximum(d.value) - d.value[d.choice]
-end |> mean |> println
-map(sim_data) do d
+end
+describe("# samples") do d
     length(d.samples)
-end |> mean |> println
+end
+describe("first fixation", x->quantile(x, 0.75)) do d
+    parse_fixations(d.samples, 100)[2][1]
+end
+# %% ====================  ====================
+d = sim_data[1]
+sir_logp(true_policy, 0.1, d.value, d.samples, d.choice, 10000)
+
 
 # %% ====================  ====================
-@everywhere rescale(x, low, high) = low + x * (high-low)
-
-@everywhere MetaMDP(x::Vector{Float64}) = MetaMDP(
-    3,
-    rescale(x[1], 1, 10),
-    10 ^ rescale(x[2], -5, -2),
-    rescale(x[3], 1, 10)
-)
-
-
-# m = MetaMDP(rand(3))
-@everywhere sim_data = $sim_data
-@everywhere function logp(policy, ε)
-    mapreduce(+, sim_data) do d
-        logp(policy, ε, d.value, d.samples, d.choice)
-    end
+@everywhere begin
+    sim_data = $sim_data
+    d = $d
+    true_policy = $true_policy
+    true_ε = $true_ε
 end
 
 function plogp(policy, ε)
     @distributed (+) for d in sim_data
-        logp(policy, ε, d.value, d.samples, d.choice)
+        sir_logp(policy, ε, d.value, d.samples, d.choice, 10000)
     end
 end
 
-candidates = [MetaGreedy(MetaMDP(rand(3))) for i in 1:3*96]
-logps = pmap(candidates) do pol
-    logp(pol, 0.1)
+@everywhere function logp(policy, ε)
+    mapreduce(+, sim_data) do d
+        sir_logp(policy, ε, d.value, d.samples, d.choice, 10000)
+    end
 end
 
+@time plogp(true_policy, 0.05);
+@time logp(true_policy, 0.05);
+
+
+
+# %% ==================== Compare Remi's method to SIR ====================
+x1 = pmap(1:1000) do i
+    logp(true_policy, 0.1, d.value, d.samples, d.choice; n_particle=Int(1e5))
+end
+x2 = pmap(1:1000) do i
+    sir_logp(true_policy, 0.1, d.value, d.samples, d.choice)
+end
+std(x1) / std(x2)
+mean(x1) / mean(x2)
+
+# %% ==================== Recover parameters? ====================
+@everywhere rescale(x, low, high) = low + x * (high-low)
+
+@everywhere MetaMDP(x::Vector{Float64}) = MetaMDP(
+    3,
+    rescale(x[1], 1, 5),
+    10 ^ rescale(x[2], -5, -3),
+    rescale(x[3], 1, 10)
+)
+
+true_logp = plogp(true_policy, 0.05)
+candidates = [MetaGreedy(MetaMDP(rand(3))) for i in 1:960]
+@time logps = pmap(candidates) do pol
+    logp(pol, 0.05)
+end;
+best = candidates[argmax(logps)].m
+cv_logp = plogp(MetaGreedy(best), 0.05)
 # %% ====================  ====================
-println(candidates[argmax(logps)])
+using Printf
+display("")
 println(true_mdp)
-logp(MetaGreedy(true_mdp), 0.1))
+@printf "%.1f vs. %.1f vs. %.1f\n" true_logp maximum(logps) cv_logp
+@printf "obs_sigma    %.1f vs. %.1f\n" true_mdp.obs_sigma true_mdp.obs_sigma
+@printf "sample_cost  %.1f vs. %.1f\n" log(true_mdp.sample_cost) log(best.sample_cost)
+@printf "switch_cost  %.1f vs. %.1f\n" true_mdp.switch_cost best.switch_cost
 
-obs_sigma = [p.m.obs_sigma for p in candidates]
-sample_cost = [p.m.sample_cost for p in candidates]
-switch_cost = [p.m.switch_cost for p in candidates]
-
-# include("binning.jl")
-# bin_by(Binning(obs_sigma, 5), obs_sigma, logps) .|> maximum
-idx = sortperm(-logps)
-pol = candidates[idx[1]]
 # %% ====================  ====================
+fake_trials = simulate_experiment(true_policy, (μ_emp, σ_emp), 5)
+sim = simulate_experiment(MetaGreedy(best), (μ_emp, σ_emp), 5)
+# Go to plots.jl to see results...
+# %% ====================  ====================
+
 
 # include("features.jl")
 function plot_feature(f, pol)
