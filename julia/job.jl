@@ -42,6 +42,7 @@ function save(job::Job, name::Symbol, value)
     open(file, "w") do f
         write(f, JSON.json(d))
     end
+    serialize(job, name, value)
     println("Wrote $file")
     return file
 end
@@ -57,9 +58,7 @@ end
 
 function Serialization.deserialize(job::Job, name::Symbol)
     file = result_file(job, name) * ".jls"
-    open(file) do f
-        deserialize(f)
-end
+    open(deserialize, file)
 end
 
 if length(ARGS) == 2
