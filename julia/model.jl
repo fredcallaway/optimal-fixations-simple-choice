@@ -104,12 +104,12 @@ function voi1(b::Belief, c::Computation)
     expect_max_dist(d, cv) - maximum(b.mu)
 end
 
-function vpi(b; n_sample=5000)
+function vpi(b; n_sample=50000)
     # Use pre-allocated arrays efficiency
     R = mem_zeros(n_sample, length(b.mu))
     max_samples = mem_zeros(n_sample)
 
-    R[:] = mem_randn(n_sample, length(b.mu))
+    copyto!(R, mem_randn(n_sample, length(b.mu)))
     R .*= (b.lam .^ -0.5)' .+ b.mu'
 
     maximum!(max_samples, R)
