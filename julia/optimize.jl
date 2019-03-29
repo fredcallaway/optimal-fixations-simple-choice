@@ -10,19 +10,19 @@ using LatinHypercubeSampling
 using Printf
 
 
-
 # Optimization.
 function x2theta(x)
-    cost_weight = x[1]
-    voi_weights = diff([0; sort(collect(x[2:end])); 1])
-    [cost_weight; voi_weights]
+    cost_weights = x[1:2]
+
+    voi_weights = diff([0; sort(collect(x[3:end])); 1])
+    [cost_weights; voi_weights]
 end
 
 function max_cost(m::MetaMDP)
-    theta = Float64[1, 0, 0, 1]
+    theta = Float64[1, 0, 0, 0, 1]
     s = State(m)
     b = Belief(s)
-    computes() = SlowPolicy(m, theta)(b) != TERM
+    computes() = Policy(m, theta)(b, slow=true) != TERM
 
     while computes()
         theta[1] *= 2
@@ -50,7 +50,7 @@ function optimize(job::Job; verbose=true)
     function loss(x; nr=n_roll)
         policy = Policy(m, x2theta(x))
         reward, secs = @timed @distributed (+) for i in 1:nr
-            rollout(policy, max_steps=1000).reward
+            rollout(policy, max_steps=100).reward
         end
         reward /= nr
         if verbose
@@ -60,7 +60,8 @@ function optimize(job::Job; verbose=true)
         end
         - reward
     end
-    bounds = [ (0., max_cost(m)), (0., 1.), (0., 1.) ]
+    mc = max_cost(m)
+    bounds = [(0., mc), (0., mc), (0., 1.), (0., 1.)]
     n_latin = max(2, cld(n_iter, 4))
     opt = skopt.Optimizer(bounds, random_state=seed, n_initial_points=n_latin)
 
@@ -79,7 +80,8 @@ function optimize(job::Job; verbose=true)
     end
 
     x1, y1 = expected_minimum(opt)
-    return (X=opt[:Xi], y=opt[:yi], x1=x1, y1=y1)
+    println("Exepected best: ", round.(x2theta(x); digits=2), "  ", -round(y1; digits=3))
+    return (X=opt.Xi, y=opt.yi, x1=x1, y1=y1)
 end
 
 

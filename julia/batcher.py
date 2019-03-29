@@ -32,12 +32,12 @@ julia -p {cpus_per_task} {file} {job_name} $SLURM_ARRAY_TASK_ID
 def params(quick):
     return dict_product({
         'n_arm': 3,
-        'n_iter': 10 if quick else 100,
+        'n_iter': 10 if quick else 200,
         'n_roll': 100 if quick else 1000,
-        'obs_sigma': [3,5,7],
-        'sample_cost': [0.002, 0.001],
-        'switch_cost': [4, 8, 12],
-        'seed': [0]
+        'obs_sigma': [5],
+        'sample_cost': [0.001, 0.002, 0.004],
+        'switch_cost': [4, 8],
+        'seed': [1,2,3,4]
 })
 
 from scipy.stats import uniform
@@ -45,7 +45,7 @@ def rand_params(quick):
     for i in range(1000):
         yield {
             'n_arm': 3,
-            'n_iter': 10 if quick else 100,
+            'n_iter': 10 if quick else 200,
             'n_roll': 100 if quick else 1000,
             'obs_sigma': uniform(1, 20).rvs().round(3),
             'sample_cost': uniform(.001, .009).rvs().round(6),
@@ -64,7 +64,7 @@ def main(file, job_name, quick, **slurm_args):
     os.makedirs(f'runs/{job_name}/jobs', exist_ok=True)
     os.makedirs(f'runs/{job_name}/out', exist_ok=True)
     import json
-    for i, prm in enumerate(rand_params(quick), start=1):
+    for i, prm in enumerate(params(quick), start=1):
         prm['group'] = job_name
         with open(f'runs/{job_name}/jobs/{i}.json', 'w+') as f:
             json.dump(prm, f)

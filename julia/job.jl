@@ -11,7 +11,7 @@ using Serialization
     sample_cost::Float64 = 0.001
     switch_cost::Float64 = 1
 
-    n_iter::Int = 100
+    n_iter::Int = 200
     n_roll::Int = 1000
     seed::Int = 0
     group::String = "dummy"
