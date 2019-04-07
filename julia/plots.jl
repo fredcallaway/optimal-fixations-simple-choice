@@ -1,5 +1,5 @@
 using Distributed
-addprocs(50)
+addprocs(100)
 @everywhere begin
     cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
     include("model.jl")
@@ -62,7 +62,6 @@ mean(length.(sim.fixations) .> 3)
 mean(length.(trials.fixations) .> 3)
 
 # %% ====================  ====================
-
 map(all_sims) do sim
     x = fourth_rank(sim)
     ismissing(x) ? -1. : x[2][1]
@@ -109,7 +108,6 @@ end
 #     bar(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
 #        fill=:white, color=:black, label="")
 # end
-
 function plot_human(bins, x, y, type=:line)
     vals = bin_by(bins, x, y)
     if type == :line
@@ -118,7 +116,7 @@ function plot_human(bins, x, y, type=:line)
               color=:black,
               label="",)
     elseif type == :discrete
-        bar(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
+        Plots.bar(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
               grid=:none,
               fill=:white,
               color=:black,
@@ -163,6 +161,7 @@ function fig(f, name)
     _fig
 end
 
+# quantile(trials.rt, 0.05:0.1:0.95)
 # %% ====================  ====================
 fig("value_choice") do
     plot_comparison(value_choice, sim)
@@ -208,6 +207,8 @@ fig("gaze_cascade") do
     ylabel!("Proportion of fixations\nto chosen item")
 end
 
+
+CUTOFF = 2000
 fig("fixate_on_best") do
     plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
     xlabel!("Time (ms)")
@@ -366,24 +367,6 @@ cross!(0, 1/3)
 xlabel!("Last fixated item relative value")
 ylabel!("Probability of choosing\nlast fixated item")
 
-# %% ====================  ====================
-
-function bar(t)::Vector{Float64}
-    x = zeros(3)
-    nfix = length(t.fixations)
-    mid = cld(nfix, 2)
-    for i in mid:nfix
-        x[t.fixations[i]] += t.fix_times[i]
-    end
-    return x
-end
-
-function foo(trials)
-    mapmany(trials) do t
-        tft = bar(t)
-        invert((t.value .- mean(t.value), tft ./ sum(tft)))
-    end |> invert
-end
 
 # %% ====================  ====================
 
@@ -448,6 +431,77 @@ sim1 = all_sims[my_best]
 plot_comparison(fixate_on_best, sim1, Binning(0:CUTOFF/7:CUTOFF))
 
 # plot_comparison(fixation_value, sim, Binning(0:3970/20:3970))
+
+# %% ====================  ====================
+
+histogram(length.(sim.fixations))
+
+sim
+# %% ====================  ====================
+map(sim) do t
+    t.choice == argmax(t.value)
+end |> mean
+
+# %% ====================  ====================
+function nth_rank(n)
+    return trials -> begin
+        x = Int[]
+        for t in trials
+            if length(t.fixations) >= n
+                ranks = sortperm(sortperm(-t.value))
+                push!(x, ranks[t.fixations[n]])
+            end
+        end
+        if length(x) == 0
+            return missing
+        end
+        cx = counts(x, 3)
+        1:3, cx / sum(cx)
+    end
+end
+plot_comparison(nth_rank(3), sim, :integer, :discrete)
+
+# %% ====================  ====================
+x = Bool[]
+for t in sim
+    if unique_values(t)
+        ranks = sortperm(sortperm(-t.value))
+        push!(x, ranks[t.fixations[1]] == 1)
+    end
+end
+# %% ====================  ====================
+success, n = sum(x), length(x)
+success/n
+using RCall
+R"binom.test($success, $n, 1/3)"
+
+# %% ====================  ====================
+
+@everywhere function nfix_by_time(trials)
+    x, y = Float64[], Int[]
+    for t in trials
+        for (i, ft) in enumerate(cumsum(t.fix_times))
+            push!(x, ft)
+            push!(y, i)
+        end
+    end
+    x, y
+end
+
+@everywhere myloss = make_loss(nfix_by_time, Binning(0:100:3000))
+my_losses = pmap(all_sims) do sim1
+    ismissing(sim1) ? Inf : myloss(sim1)
+end
+nbt_best = argmin(my_losses)
+
+jobs[nbt_best]
+# %% ====================  ====================
+fig("nfix_by_time") do
+    plot_comparison(nfix_by_time, all_sims[nbt_best], Binning(0:100:3000))
+    xlabel!("Time (ms)")
+    ylabel!("Number of fixations")
+end
+
 # %% ====================  ====================
 
 # myloss = make_loss(fixation_value, Binning(0:3970/20:3970))
