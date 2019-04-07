@@ -9,20 +9,11 @@ import JSON
 using LatinHypercubeSampling
 using Printf
 
-
-# Optimization.
-function x2theta(x)
-    cost_weights = x[1:2]
-
-    voi_weights = diff([0; sort(collect(x[3:end])); 1])
-    [cost_weights; voi_weights]
-end
-
 function max_cost(m::MetaMDP)
-    theta = Float64[1, 0, 0, 0, 1]
+    theta = [1., 0, 0, 0, 0, 1]
     s = State(m)
     b = Belief(s)
-    computes() = Policy(m, theta)(b, slow=true) != TERM
+    computes() = Policy(m, theta)(b) != TERM
 
     while computes()
         theta[1] *= 2
@@ -47,10 +38,20 @@ function optimize(job::Job; verbose=true)
     Random.seed!(seed)
     m = MetaMDP(job)
 
+    function x2theta(x)
+        cost_weights = x[1:job.cost_features]
+        voi_weights = diff([0; sort(collect(x[end-1:end])); 1])
+        θ = [cost_weights; zeros(3-job.cost_features); voi_weights]
+        if job.cost_features == 3
+            θ[3] = exp(θ[3])
+        end
+        θ
+    end
+
     function loss(x; nr=n_roll)
         policy = Policy(m, x2theta(x))
         reward, secs = @timed @distributed (+) for i in 1:nr
-            rollout(policy, max_steps=100).reward
+            rollout(policy, max_steps=200).reward
         end
         reward /= nr
         if verbose
@@ -60,16 +61,22 @@ function optimize(job::Job; verbose=true)
         end
         - reward
     end
+
     mc = max_cost(m)
-    bounds = [(0., mc), (0., mc), (0., 1.), (0., 1.)]
+    bounds = [
+        [(0., mc), (0., mc), (-8., -1.)][1:job.cost_features] ;
+        [(0., 1.), (0., 1.)]
+    ]
     n_latin = max(2, cld(n_iter, 4))
     opt = skopt.Optimizer(bounds, random_state=seed, n_initial_points=n_latin)
 
     # Choose initial samples (1/4) by Latin Hypersquare sampling.
-    upper_bounds = [b[2] for b in bounds]
+    lb, ub = invert(bounds)
+    db = ub .- lb
+    rescale(x) = lb .+ (x ./ n_latin) .* db
     latin_points = LHCoptim(n_latin, length(bounds), 1000)[1]
     for i in 1:n_latin
-        x = latin_points[i, :] ./ n_latin .* upper_bounds
+        x = rescale(latin_points[i, :])
         tell(opt, x, loss(x))
     end
 
@@ -80,8 +87,9 @@ function optimize(job::Job; verbose=true)
     end
 
     x1, y1 = expected_minimum(opt)
-    println("Exepected best: ", round.(x2theta(x); digits=2), "  ", -round(y1; digits=3))
-    return (X=opt.Xi, y=opt.yi, x1=x1, y1=y1)
+    θ1 = x2theta(x1)
+    println("Exepected best: ", round.(θ1; digits=2), "  ", -round(y1; digits=3))
+    return (θ_i=x2theta.(opt.Xi), r_i=-opt.yi, θ1=θ1, r1=-y1)
 end
 
 

@@ -131,9 +131,11 @@ end
 #     mean(max_samples) - maximum(b.mu)
 # end
 
+n_obs(m::MetaMDP, b::Belief) = Int(round((sum(b.lam) - m.n_arm) * m.obs_sigma ^ 2))
 
 function features(m::MetaMDP, b::Belief)
     vpi_ = vpi(b)
+
     phi(c) = [
         -1,
         -(b.focused != c),
@@ -151,7 +153,7 @@ noisy(x, ε=1e-10) = x .+ ε .* rand(length(x))
 "A metalevel policy that uses the BMPS features"
 struct Policy
     m::MetaMDP
-    θ::SVector{5,Float64}
+    θ::SVector{6,Float64}
 end
 "Selects a computation to perform in a given belief."
 (π::Policy)(b::Belief; slow=false) = (slow ? slow_act : fast_act)(π, b)
@@ -164,23 +166,28 @@ function slow_act(π::Policy, b::Belief)
 end
 
 function fast_voc(π::Policy, b::Belief)
-    phi(c) = [
-        -1,
-        -(b.focused != c),
-        voi1(b, c),
-        voi_action(b, c),
-    ]
-    θ = π.θ[1:4]'
-    [θ * phi(c) for c in 1:π.m.n_arm]
+    θ = π.θ
+    map(1:π.m.n_arm) do c
+        -θ[1] +  # future cost
+        -θ[2] * max(0, (1 - θ[3] * n_obs(π.m, b))) * (b.focused != c) +  # extra switch penalty
+        θ[4] * voi1(b, c) + θ[5] * voi_action(b, c)  # value of information
+    end
+end
+
+function voc(π::Policy, b::Belief)
+    fast_voc(π, b) .+ π.θ[6] * vpi(b)
 end
 
 function fast_act(π::Policy, b::Belief)
     voc = fast_voc(π, b)
     v, c = findmax(noisy(voc))
     v > 0 && return c
-    # No computation is good enough without VPI. Does adding VPI push it over the edge?
-    v += π.θ[5] * vpi(b)
-    v > 0 ? c : TERM
+    # No computation is good enough without VPI.
+    # Try putting VPI weight on VOI_action (a lower bound on VPI)
+    v + π.θ[6] * voi_action(b, c) > 0 && return c
+    # Still no luck. Try VPI.
+    v + π.θ[6] * vpi(b) > 0 && return c
+    return TERM
 end
 
 struct MetaGreedy

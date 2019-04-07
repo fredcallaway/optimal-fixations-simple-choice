@@ -35,9 +35,10 @@ def params(quick):
         'n_iter': 10 if quick else 200,
         'n_roll': 100 if quick else 1000,
         'obs_sigma': [5],
-        'sample_cost': [0.001, 0.002, 0.004],
+        'sample_cost': [0.002, 0.004],
         'switch_cost': [4, 8],
-        'seed': [1,2,3,4]
+        'seed': [1,2,3],
+        'cost_features': [1,2,3]
 })
 
 from scipy.stats import uniform
@@ -50,7 +51,7 @@ def rand_params(quick):
             'obs_sigma': uniform(1, 20).rvs().round(3),
             'sample_cost': uniform(.001, .009).rvs().round(6),
             'switch_cost': uniform(1, 14).rvs().round(3),
-            'seed': 0
+            'seed': 0,
         }
 
 @click.command()
