@@ -1,8 +1,8 @@
 include("model.jl")
 
-m = MetaMDP(switch_cost=3)
-s = State(m)
-b = Belief(s)
+# m = MetaMDP(switch_cost=3)
+# s = State(m)
+# b = Belief(s)
 
 function voi1_sigma(lam, obs_sigma)
     obs_lam = obs_sigma ^ -2
@@ -17,18 +17,19 @@ function voi1(b::Belief, c::Computation)
     expect_max_dist(d, cv) - maximum(b.mu)
 end
 
-voi1_sigma(1, m.obs_sigma/√1)
+# voi1_sigma(1, m.obs_sigma/√1)
 
 function voi_n(b::Belief, c::Computation, n::Int)
     cv = competing_value(b.mu, c)
-    d = Normal(b.mu[c], voi1_sigma(b.lam[c], b.obs_sigma[c] / √n))
+    d = Normal(b.mu[c], voi1_sigma(b.lam[c], b.obs_sigma / √n))
     expect_max_dist(d, cv) - maximum(b.mu)
 end
 
-function int_line_search(start, f)
+function int_line_search(start, f; max_i=1000)
     i = start; last_val = -Inf; val = f(start)
     while val > last_val
         i += 1
+        i > max_i && break
         last_val, val = val, f(i)
     end
     (i-1, last_val)
