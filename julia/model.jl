@@ -1,6 +1,6 @@
 using Distributions
 using Memoize
-import Random
+using Random
 using Parameters
 import Base
 using Cuba
@@ -67,7 +67,7 @@ end
 # ---------- BMPS Features ---------- #
 
 @memoize function mem_randn(d1, d2; seed=1)
-    randn(Random.MersenneTwister(seed), d1, d2)
+    randn(MersenneTwister(seed), d1, d2)
 end
 
 @memoize mem_zeros(d1) = zeros(d1)
@@ -107,18 +107,41 @@ function voi1(b::Belief, c::Computation)
     expect_max_dist(d, cv) - maximum(b.mu)
 end
 
-function vpi(b)
-    μ, σ = b.mu, b.lam .^ -0.5
-    dists = Normal.(μ, σ)
-    low, high = μ .- (5 .* σ), μ .+ (5 .* σ)
-    mult = prod(high - low)
-    g(x, v) = begin
-        x .= low .+ (high-low) .* x
-        v .= maximum(x; dims=1) .* prod(pdf.(dists, x); dims=1) .* mult
-    end
-     # hcubature(g, zeros(3), ones(3), atol=1e-4);
-     cuhre(g, 3, nvec=1000).integral[1] - maximum(μ)
+function vpi2(b::Belief, n_sample)
+    R = randn!(mem_zeros(n_sample, length(b.mu)))
+    R .*= (b.lam .^ -0.5)' .+ b.mu'
+    max_samples = maximum!(mem_zeros(n_sample), R)
+    mean(max_samples) - maximum(b.mu), std(max_samples)
 end
+
+mutable struct VPI
+    b::Belief
+    µ::Float64
+    σ::Float64
+    n::Int
+end
+VPI(b::Belief) = VPI(b, 0., 0., 0.)
+
+function step!(v::VPI, n_sample=100)
+    n1 = v.n + n_sample
+    μ, σ = vpi2(v.b, n_sample)
+    v.μ = v.n/n1 * v.μ + n_sample/n1 * μ
+    v.σ = v.n/n1 * v.σ + n_sample/n1 * σ
+    v.n = n1
+end
+sem(v::VPI) = v.σ / √v.n
+# function vpi(b)
+#     μ, σ = b.mu, b.lam .^ -0.5
+#     dists = Normal.(μ, σ)
+#     low, high = μ .- (5 .* σ), μ .+ (5 .* σ)
+#     mult = prod(high - low)
+#     g(x, v) = begin
+#         x .= low .+ (high-low) .* x
+#         v .= maximum(x; dims=1) .* prod(pdf.(dists, x); dims=1) .* mult
+#     end
+#      # hcubature(g, zeros(3), ones(3), atol=1e-4);
+#      cuhre(g, 3, nvec=1000).integral[1] - maximum(μ)
+# end
 # function vpi(b; n_sample=50000)
 #     # Use pre-allocated arrays efficiency
 #     R = mem_zeros(n_sample, length(b.mu))
@@ -168,6 +191,7 @@ end
 function fast_voc(π::Policy, b::Belief)
     θ = π.θ
     map(1:π.m.n_arm) do c
+        -cost(π.m, b, c) +  # current cost
         -θ[1] +  # future cost
         -θ[2] * max(0, (1 - θ[3] * n_obs(π.m, b))) * (b.focused != c) +  # extra switch penalty
         θ[4] * voi1(b, c) + θ[5] * voi_action(b, c)  # value of information
@@ -185,10 +209,21 @@ function fast_act(π::Policy, b::Belief)
     # No computation is good enough without VPI.
     # Try putting VPI weight on VOI_action (a lower bound on VPI)
     v + π.θ[6] * voi_action(b, c) > 0 && return c
+
     # Still no luck. Try VPI.
-    v + π.θ[6] * vpi(b) > 0 && return c
+    π.θ[6] == 0. && return TERM  # skip VPI
+    vpi = VPI(b)
+    for i in 1:100000  # Iteratively refine estimate until confident in choice.
+        step!(vpi, 500)
+        μ_v = v + π.θ[6] * vpi.μ
+        sem_v = π.θ[6] * sem(vpi)
+        (sem_v < 0.0001 || abs(μ_v - 0) > 3sem_v) && break
+        # (i == 100000) && println("Warning: VPI estimation did not converge.")
+    end
+    v + π.θ[6] * vpi.μ > 0 && return c
     return TERM
 end
+
 
 struct MetaGreedy
     m::MetaMDP
