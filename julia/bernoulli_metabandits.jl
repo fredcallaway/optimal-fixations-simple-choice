@@ -4,16 +4,17 @@ import Random
 using Parameters
 import Base
 using Printf
+using SplitApplyCombine
 # using StaticArrays
 
 @with_kw struct MetaMDP
     n_arm::Int = 3
     sample_cost::Float64 = 0.001
     switch_cost::Float64 = 1
+    max_obs::Int = 20
 end
-# n_arm(m::MetaMDP{N}) where {N} = N
-# MetaMDP(;kws...) = MetaMDP{3}(;kws...)  # 3 arms by default
-actions(m) = 0:m.n_arm
+
+
 
 struct Belief
     value::Vector{Tuple{Int, Int}}
@@ -32,6 +33,8 @@ Base.getindex(b::Belief, idx) = b.value[idx]
 Base.length(b::Belief) = length(b.value)
 Base.iterate(b::Belief) = iterate(b.value)
 Base.iterate(b::Belief, i) = iterate(b.value, i)
+n_obs(b::Belief) = sum(map(sum, b)) - 2length(b)
+actions(m::MetaMDP, b::Belief) = n_obs(b) >= m.max_obs ? (0:0) : (0:length(b))
 
 function Base.show(io::IO, b::Belief)
     print(io, "[ ")
@@ -40,9 +43,6 @@ function Base.show(io::IO, b::Belief)
         i == b.focused ? @sprintf("<%02d %02d>", h, t) : @sprintf(" %02d %02d ", h, t)
     end
     print(io, join(value, " "))
-    # for a in b.arms
-        # print(io, a[1], " ", a[2])
-    # end
     print(io, " ]")
 end
 
@@ -50,10 +50,18 @@ end
 
 function update(b::Belief, arm::Int, heads::Bool)::Belief
     value = copy(b.value)
-    a, b = value[arm]
-    value[arm] = heads ? (a+1, b) : (a, b+1)
+    h, t = value[arm]
+    value[arm] = heads ? (h+1, t) : (h, t+1)
     Belief(value, arm)
 end
+
+function update!(b, c)
+    h, t = b.value[c]
+    heads = rand() < p_heads((h, t))
+    b.value[c] = heads ? (h+1, t) : (h, t+1)
+    b
+end
+
 
 function cost(m::MetaMDP, b::Belief, c::Int)::Float64
     m.sample_cost * (c != b.focused ? m.switch_cost : 1)
@@ -77,7 +85,6 @@ function results(m::MetaMDP, b::Belief, c::Int)::Vector{Result}
     [(p0, update(b, c, false), r),
      (p1, update(b, c, true), r)]
 end
-
 
 # %% ==================== Features ====================
 
@@ -105,59 +112,117 @@ function expected_max_beta_constant(h, t, k)
     sum(px .* max.(x, k))
 end
 
-# update(INITIAL, 1, true)
-# results(INITIAL, 1)
-# term_reward(INITIAL)
-#
+function features(m::MetaMDP, b::Belief)
+    vpi_ = vpi(m, b)
+    vpi_ = 0
+    phi(c) = [
+        -1,
+        voi1(m, b, c),
+        voi_action(m, b, c),
+        vpi_,
+    ]
+    combinedims([phi(c) for c in 1:m.n_arm])
+end
+
 # # %% ==================== Solution ====================
-# function Q(b::Belief, c::Int)::Float64
-#     sum(p * (r + V(s1)) for (p, s1, r) in results(b, c))
-# end
-#
-# function _V(b::Belief)::Float64
-#     b == TERM_STATE && return 0
-#     sum(sum.(b.value)) > 30 && return term_reward(b)
-#     maximum(Q(b, a) for a in ACTIONS)
-# end
-#
-# policy(b::Belief) = ACTIONS[argmax([Q(b, a) for a in ACTIONS])]
-#
-# # Cache b values
-# struct ValueFunction
-#     cache::Dict{UInt64, Float64}
-# end
-# ValueFunction() = ValueFunction(Dict{UInt64, Float64}())
-#
-# function symmetry_breaking_hash(s::Belief)
-#     key = UInt64(0)
-#     for i in 1:length(s.arms)
-#         key += (hash(s.arms[i]) << 3(i == s.focused))
-#     end
-#     key
-# end
-#
-# function (V::ValueFunction)(s::Belief)::Float64
-#     key = symmetry_breaking_hash(s)
-#     haskey(V.cache, key) && return V.cache[key]
-#     v = _V(s)
-#     V.cache[key] = v
-#     return v
-# end
-# V = ValueFunction()
-#
-# # %% ==================== Features ====================
-# using Distributions
-#
-# function voi_action(b, c)
-#     vals = [p_win(arm) for arm in b.value]
-#     best, second = sortperm(-vals)
-#     competing_val = c == best ? vals[second] : vals[best]
-#     a, b = b.value[c]
-#     expected_max_beta_constant(a, b, competing_val)
-# end
-#
-# function expected_max_beta_constant(a, b, c)
-#     x = 0:0.001:1
-#     px = pdf(Beta(a, b), x) ./ length(x)
-#     sum(px .* max.(x, c))
-# end
+function symmetry_breaking_hash(s::Belief)
+    key = UInt64(0)
+    for i in 1:length(s.value)
+        key += (hash(s.value[i]) << 3(i == s.focused))
+    end
+    key
+end
+
+struct ValueFunction
+    m::MetaMDP
+    cache::Dict{UInt64, Float64}
+end
+ValueFunction(m::MetaMDP) = ValueFunction(m, Dict{UInt64, Float64}())
+
+function Q(V::ValueFunction, b::Belief, c::Int)::Float64
+    c == TERM_ACTION && return term_reward(b)
+    sum(p * (r + V(s1)) for (p, s1, r) in results(V.m, b, c))
+end
+
+function (V::ValueFunction)(b::Belief)::Float64
+    key = symmetry_breaking_hash(b)
+    haskey(V.cache, key) && return V.cache[key]
+    return V.cache[key] = maximum(Q(V, b, c) for c in actions(m, b))
+end
+
+# %% ==================== Policy ====================
+function argmaxes(f, x::AbstractArray{T})::Set{T} where T
+    r = Set{T}()
+    fx = f.(x)
+    mfx = maximum(fx)
+    for i in eachindex(x)
+        if fx[i] == mfx
+            push!(r, x[i])
+        end
+    end
+    r
+end
+# argmax(a->Q(b,a), actions(m, b))
+# policy(b::Belief) = [argmax([Q(b, a) for a in ACTIONS])]
+
+
+abstract type Policy end
+function act(pol::Policy, b::Belief)
+    rand(actions(pol, b))
+end
+
+struct OptimalPolicy <: Policy
+    m::MetaMDP
+    V::ValueFunction
+end
+OptimalPolicy(m::MetaMDP) = OptimalPolicy(m, ValueFunction(m))
+(pol::OptimalPolicy)(b::Belief) = act(pol, b)
+
+function actions(pol::OptimalPolicy, b::Belief)
+    argmaxes(c->Q(pol.V, b, c), actions(pol.m, b))
+end
+
+struct BMPSPolicy2 <: Policy
+    m::MetaMDP
+    θ::Vector{Float64}
+end
+(pol::BMPSPolicy2)(b::Belief) = act(pol, b)
+
+function voc(pol, b::Belief)
+    m = pol.m
+    x = (pol.θ' * features(m, b))'
+    x .-= [cost(m, b, c) for c in 1:m.n_arm]
+    x
+end
+
+function actions(pol::BMPSPolicy2, b::Belief)
+    voc_ = voc(pol, b)
+    argmaxes(actions(pol.m, b)) do c
+        c == 0 && return 0
+        voc_[c]
+    end
+end
+
+
+function rollout(policy; b=nothing, max_steps=1000, callback=(b, c)->nothing)
+    m = policy.m
+    if b == nothing
+        b = Belief(m)
+    end
+    reward = 0
+    # print('x')
+    for step in 1:m.max_obs+1
+        c = (step == max_steps) ? TERM_ACTION : policy(b)
+        callback(b, c)
+        if c == TERM_ACTION
+            reward += term_reward(b)
+            return (reward=reward, steps=step, belief=b)
+        else
+            reward -= cost(m, b, c)
+            update!(b, c)
+        end
+
+    end
+end
+
+rollout(callback::Function, policy; kws...) = rollout(policy; kws..., callback=callback)
