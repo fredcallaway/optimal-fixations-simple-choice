@@ -31,8 +31,8 @@
 \urlstyle{same}  % don't use monospace font for urls
 
 % \usepackage[natbibapa]{apacite}
-\usepackage{natbib}
 % \bibliographystyle{apacite}
+\usepackage{natbib}
 \bibliographystyle{apalike}
 % \citationstyle{apacite}
 % \bibpunct{[}{]}{,}{n}{}{;}
@@ -102,7 +102,7 @@
 %   \headrule
 %   \setheadrule{0.3pt}
 % }
-% \pagestyle{fancy}  
+% \pagestyle{fancy}
 
 \title{\vspace{-2em}Attention in value-based choice\\
        as optimal sequential sampling}
@@ -110,9 +110,14 @@
 
 \date{\vspace{-1em}}
 
+
 \begin{document}
+
 \maketitle
 
+\begin{abstract}
+  When faced with a decision between several options, people rarely fully consider every alternative. Instead, we direct our attention to the most promising candidates, focusing our limited cognitive resources on evaluating the options that we are most likely to choose. A growing body of empirical work has shown that attention plays an important role in human decision making, but it is still unclear how people choose with option to attend to at each moment in the decision making process. In this paper, we present an analysis of how a rational decision maker should allocate her attention. We cast attention allocation in decision making as a sequential sampling problem, in which the decision maker iteratively selects from which distribution to sample in order to update her beliefs about the values of the available alternatives. By approximating the optimal solution to this problem, we derive a model in which both the selection and integration of evidence are rational. This model predicts choices and reaction times, as well as sequences of visual fixations. Applying the model to a ternary-choice dataset, we find that its predictions align well with human data.
+\end{abstract}
 
 \input{commands.tex}
 
@@ -180,9 +185,9 @@ R(b_t, c_t) = -\samplecost - \mathbf{1}(c_t \neq c_{t-1}) \switchcost
 \,,
 \end{equation}
 %
-where the first term captures the cost of sampling and the second captures an additional switching cost for considering a different item than the one considered on the previous time step. To maintain the Markov property, we simply add the previous computation, $c_{t-1}$, as an auxiliary state variable. 
+where the first term captures the cost of sampling and the second captures an additional switching cost for considering a different item than the one considered on the previous time step. To maintain the Markov property, we simply add the previous computation, $c_{t-1}$, as an auxiliary state variable.
 % ${\text{cost}_\text{sample}}$ and ${\text{cost}_\text{switch}}$ are free parameters.
-The metalevel reward function captures decision quality by assigning a reward to the termination action, $\bot$. When this action is selected, the agent chooses the best item given her current beliefs, $i^*(t) = \arg\max_i \mu_i(t)$. 
+The metalevel reward function captures decision quality by assigning a reward to the termination action, $\bot$. When this action is selected, the agent chooses the best item given her current beliefs, $i^*(t) = \arg\max_i \mu_i(t)$.
 The reward for terminating is thus $R(b_t, \bot) = u_{i^*(t)}$.
 
 
@@ -193,9 +198,9 @@ The VOC is nearly equivalent to the state-action value function (often denoted $
 
 Because the belief state space is continuous, standard dynamic programming or tabular reinforcement learning techniques cannot be applied; function approximation methods are necessary. We employ a recently developed policy search method that was developed specifically for meta-MDPs \citep{callaway2018learning}. The method approximates the VOC as a weighted sum of features. The value of information to be gained from further computation is captured by the expected improvement in decision quality that would be gained from (1) a single computation, (2) learning everything about one item, and (3) learning everything about all items. The cost of future computations is approximated by a single intercept term. With a sum-to-one constraint on the first three feature weights, this results in a three-dimensional policy, the weights of which are optimized to maximize metalevel return. The method has been shown to find near-optimal policies in a similar meta-MDP to the one above (with Bernoulli observations instead of Gaussian).
 
-% For any belief-computation pair, the true value of information is necessarily a convex combination of these features, although the weights of each component may differ for different belief-computation pairs. The method simply assumes that the weigahts are constant for all belief-computation pairs and learns the 
+% For any belief-computation pair, the true value of information is necessarily a convex combination of these features, although the weights of each component may differ for different belief-computation pairs. The method simply assumes that the weigahts are constant for all belief-computation pairs and learns the
 
- % uses hand-designed \emph{value of information} features. 
+ % uses hand-designed \emph{value of information} features.
 
 
  % for the value of executing a single computation, the value of acquiring perfect knowledge about one item, and the value of acquiring perfect knowledge about all items. The first feature is lower bound on the $VOC$ and the third is an upper bound. The VOC is then approximated as a convex combination of these features, with an additional term to capture expected future costs. We optimize the policy's three parameters (two free parameters for the convex combination and one for cost) to maximize the expected total metalevel reward that the policy receives on random decision problems.%
@@ -304,7 +309,7 @@ Importantly, this prediction only holds for decisions between three or more item
 \end{figure}
 
 
-% \begin{verbatim} to be fixating on 
+% \begin{verbatim} to be fixating on
 %                   Figure 0
 
 % Mechanism #1: attention -> estimated value -> choice

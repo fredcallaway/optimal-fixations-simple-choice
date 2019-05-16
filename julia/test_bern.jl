@@ -5,6 +5,50 @@ Q(s, 1)
 @time println(V(INITIAL));
 
 # %% ====================  ====================
+s = State([(1,1), (1,1), (1,1)], 1)
+using Random: rand!
+a = 1
+voi_action(s, a)
+using Memoize
+@memoize mem_zeros(shape...) = zeros(shape...)
+# %% ====================  ====================
+
+function argmaxes(x)
+    r = Set{Int}()
+    m = maximum(x)
+    for i in eachindex(x)
+        if x[i] == m
+            push!(r, i)
+        end
+    end
+    r
+end
+
+
+# %% ====================  ====================
+p = 1
+θ = [0., 1., 0., 0.]
+s = INITIAL
+
+possible = argmaxes(voc(θ, s))
+p /= length(possible)
+for a in possible
+    if a == TERM
+        v += p * term_reward(s)
+    else
+        rec(s, p)
+    end
+end
+results(s, a)
+
+function value(θ)
+    function rec(s)
+
+    end
+end
+
+
+# %% ====================  ====================
 using StatsBase
 
 function roll()
@@ -51,31 +95,8 @@ function Base.show(io::IO, s::State)
     print(io, " ]")
 end
 # %% ====================  ====================
+m = MetaMDP(sample_cost=0.001, max_obs=10)
+ValueFunction(m)(Belief(m))
+expectation
 
 
-[2 1  1 1  (3 4)]
-
-roll()
-
-
-# %% ====================  ====================
-D = Dict(s=>1)
-s1 = State([(10,10), (3, 1), (10,4)], 1)
-haskey(D, s1)
-hash(s1) == hash(s)
-# _V[INITIAL]
-# %% ====================  ====================
-@code_warntype Q(INITIAL, 1)
-@code_warntype V(INITIAL)
-# %% ====================  ====================
-State_
-
-println(1)
-using Profile
-s = ([(10,10), (10,10)], 1)
-Profile.clear()
-@profile Q(INITIAL, 1);
-Profile.print()
-
-0.7058041883646557
-  0.241321 seconds (2.00 M allocations: 59.743 MiB, 5.63% gc time)

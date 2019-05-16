@@ -6,7 +6,7 @@ using Dates: now
 using Serialization
 
 @with_kw struct Job
-    n_arm::Int = 2
+    n_arm::Int = 3
     obs_sigma::Float64 = 1
     sample_cost::Float64 = 0.001
     switch_cost::Float64 = 1
@@ -61,6 +61,12 @@ function Serialization.deserialize(job::Job, name::Symbol)
     file = result_file(job, name) * ".jls"
     open(deserialize, file)
 end
+
+function exists(job::Job, name::Symbol)
+    file = result_file(job, name) * ".jls"
+    isfile(file)
+end
+
 
 if length(ARGS) == 2
     job_group, job_id = ARGS

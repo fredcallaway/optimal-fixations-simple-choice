@@ -6,6 +6,7 @@ import Base
 using Printf
 using SplitApplyCombine
 # using StaticArrays
+using Memoize
 
 @with_kw struct MetaMDP
     n_arm::Int = 3
@@ -14,13 +15,10 @@ using SplitApplyCombine
     max_obs::Int = 20
 end
 
-
-
 struct Belief
     value::Vector{Tuple{Int, Int}}
     focused::Int
 end
-
 
 Belief(m::MetaMDP) = begin
     value = [(1,1) for _ in 1:m.n_arm]
@@ -97,24 +95,27 @@ function voi_action(m::MetaMDP, b::Belief, c)
     best, second = sortperm(-vals)
     competing_val = c == best ? vals[second] : vals[best]
     h, t = b.value[c]
-    expected_max_beta_constant(h, t, competing_val) - term_reward(b)
+    expected_max_constant(Beta(h, t), competing_val) - term_reward(b)
 end
 
-function vpi(m::MetaMDP, b; n_sample=10000)
-    dists = [Beta(a...) for a in b.value]
-    x = rand.(dists, 10000)
-    mean(max.(x[1], x[2], x[3])) - term_reward(b)
+function vpi(m::MetaMDP, b::Belief; n_sample=10000)
+    dists = Tuple(Beta(a...) for a in sort(b.value))
+    vpi(dists, n_sample) - term_reward(b)
 end
 
-function expected_max_beta_constant(h, t, k)
+@memoize function vpi(dists::Tuple{Vararg{Beta}}, n_sample)
+    x = rand.(dists, n_sample)
+    mean(max.(x[1], x[2], x[3]))
+end
+
+@memoize function expected_max_constant(d, k)
     x = 0:0.001:1
-    px = pdf(Beta(h, t), x) ./ length(x)
+    px = pdf.(d, x) ./ length(x)
     sum(px .* max.(x, k))
 end
 
 function features(m::MetaMDP, b::Belief)
     vpi_ = vpi(m, b)
-    vpi_ = 0
     phi(c) = [
         -1,
         voi1(m, b, c),
@@ -147,7 +148,7 @@ end
 function (V::ValueFunction)(b::Belief)::Float64
     key = symmetry_breaking_hash(b)
     haskey(V.cache, key) && return V.cache[key]
-    return V.cache[key] = maximum(Q(V, b, c) for c in actions(m, b))
+    return V.cache[key] = maximum(Q(V, b, c) for c in actions(V.m, b))
 end
 
 # %% ==================== Policy ====================
@@ -176,17 +177,18 @@ struct OptimalPolicy <: Policy
     V::ValueFunction
 end
 OptimalPolicy(m::MetaMDP) = OptimalPolicy(m, ValueFunction(m))
+OptimalPolicy(V::ValueFunction) = OptimalPolicy(V.m, V)
 (pol::OptimalPolicy)(b::Belief) = act(pol, b)
 
 function actions(pol::OptimalPolicy, b::Belief)
     argmaxes(c->Q(pol.V, b, c), actions(pol.m, b))
 end
 
-struct BMPSPolicy2 <: Policy
+struct BMPSPolicy <: Policy
     m::MetaMDP
     θ::Vector{Float64}
 end
-(pol::BMPSPolicy2)(b::Belief) = act(pol, b)
+(pol::BMPSPolicy)(b::Belief) = act(pol, b)
 
 function voc(pol, b::Belief)
     m = pol.m
@@ -195,7 +197,7 @@ function voc(pol, b::Belief)
     x
 end
 
-function actions(pol::BMPSPolicy2, b::Belief)
+function actions(pol::BMPSPolicy, b::Belief)
     voc_ = voc(pol, b)
     argmaxes(actions(pol.m, b)) do c
         c == 0 && return 0

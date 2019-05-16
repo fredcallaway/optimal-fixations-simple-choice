@@ -1,5 +1,7 @@
 # %%
+pwd()
 cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
+include("model.jl")
 using Distributed
 addprocs(96)
 @everywhere include("inference_helpers.jl")

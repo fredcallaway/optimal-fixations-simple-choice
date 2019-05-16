@@ -58,6 +58,11 @@ for d in 1:20
     @time println("d = $d;  ", n_belief(q, d, .001, 1), " unique states");
 end
 # %% ====================  ====================
+m = MetaMDP{3}(quantization=4, μ_digits=1)
+b = Belief(m)
+c = 1
+results(m, b, c)
+
 
 # q, d = 5, 5  with SVector
 # 10.171716 seconds (44.22 M allocations: 2.001 GiB, 6.86% gc time)

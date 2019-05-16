@@ -1,30 +1,29 @@
 using Distributed
 using SplitApplyCombine
 # cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
-@everywhere include("simulations.jl")
-@everywhere include("loss.jl")
+@everywhere begin
+    include("simulations.jl")
+    include("loss.jl")
 
-@everywhere function optimize_prior(job)
-    pol = optimized_policy(job)
-    if ismissing(pol)
-        return
+    function optimize_prior(job)
+        pol = optimized_policy(job)
+        if ismissing(pol)
+            return
+        end
+
+        μs = [0:0.1:μ_emp; μ_emp]
+        ismissing(pol) && return missing
+        @time x = map(μs) do μ
+            # (prior=(μ, σ_emp), sim=nothing, loss=rand())
+            sim = simulate_experiment(pol, (µ, σ_emp))
+            (prior=(μ, σ_emp), sim=sim, losses=breakdown_loss(sim))
+        end
+        serialize(job, :simulations_alt, x)
     end
-    candidates = collect(0:0.2:μ_emp)
-    push!(candidates, μ_emp)
-    sims, losses = map(candidates) do μ
-        sim = simulate_experiment(pol, (μ, σ_emp), 1)
-        l = loss(sim)
-        (sim, l)
-    end |> invert
-    serialize(job, :sims_and_loss, (sims, losses))
-    best = argmin(losses)
-    μ_opt = candidates[best]
-    opt = (μ_opt, σ_emp), losses[best]
-    serialize(job, :optimized_prior, opt)
-end
 
-# const pol = optimized_policy(job)
-# @time println(optimize_prior(pol))
+end # everywhere
+
+# %% ====================  ====================
 
 using Glob
 files = glob("runs/rando/jobs/*")

@@ -81,6 +81,7 @@ function optimize(job::Job; verbose=true)
     end
 
     # Bayesian optimization.
+    println("Begin Bayesian optimization.")
     for i in 1:(n_iter - n_latin)
         x = ask(opt)
         tell(opt, x, loss(x))

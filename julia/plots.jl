@@ -1,13 +1,12 @@
 using Distributed
-addprocs(100)
+addprocs()
 @everywhere begin
     cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
     include("model.jl")
     include("job.jl")
+    include("human.jl")
     include("simulations.jl")
     include("loss.jl")
-    CUTOFF = 2000
-    using DistributedArrays
 end
 
 using Plots
@@ -15,13 +14,33 @@ plot([1,2])
 
 # %% ====================  ====================
 using Glob
-files = glob("runs/rando/jobs/*")
+files = glob("runs/rando1000/jobs/*")
 jobs = Job.(files)
-policies = optimized_policy.(jobs) |> skipmissing |> collect
 
-@time all_sims = @DArray [simulate_experiment(pol, (µ_emp, σ_emp), 1)
-                          for pol in policies];
+job = jobs[1]
+all_loss = map(jobs) do job
+    try
+        xs = deserialize(job, :simulations)
+        loss = map(xs) do x
+            sum(x.losses)
+        end
+        findmin(loss)
+    catch
+        (Inf, -1)
+    end
+end
 
+results = []
+for job in jobs
+    # m = MetaMDP(job)
+    try
+        push!(results, deserialize(job, ))
+    catch
+        missing
+    end
+end |> skipmissing |> collect
+
+# %% ====================  ====================
 # all_sims = pmap(jobs) do job
 #     prior = (μ_emp, σ_emp)
 #     pol = optimized_policy(job)
@@ -32,7 +51,6 @@ policies = optimized_policy.(jobs) |> skipmissing |> collect
 # end
 
 # %% ====================  ====================
-@everywhere include("loss.jl")
 @everywhere _loss_funcs = [
     make_loss(value_choice),
     make_loss(fixation_bias),
@@ -40,6 +58,7 @@ policies = optimized_policy.(jobs) |> skipmissing |> collect
     make_loss(fourth_rank, :integer),
     make_loss(first_fixation_duration),
     make_loss(last_fixation_duration),
+    make_loss(difference_time),
     # make_loss(difference_nfix),
     make_loss(fixation_times, :integer),
     make_loss(last_fix_bias),
@@ -48,7 +67,57 @@ policies = optimized_policy.(jobs) |> skipmissing |> collect
     # make_loss(old_value_choice, :integer),
     # make_loss(fixation_value, Binning(0:3970/20:3970)),
 ]
+@everywhere loss(sim) = sum(ℓ(sim) for ℓ in _loss_funcs)
+@everywhere breakdown_loss(sim) = [ℓ(sim) for ℓ in _loss_funcs]
 
+# %% ====================  ====================
+@everywhere µs = 0:0.1:µ_emp
+sim_results = pmap(jobs) do job
+    pol = load_policy(job)
+    ismissing(pol) && return missing
+    @time x = map(μs) do μ
+        # (prior=(μ, σ_emp), sim=nothing, loss=rand())
+        sim = simulate_experiment(pol, (µ, σ_emp))
+        (prior=(μ, σ_emp), sim=sim, losses=breakdown_loss(sim))
+    end
+    serialize(job, :simulations, x)
+    x
+end
+
+# %% ====================  ====================
+
+all_losses = pmap(jobs) do job
+    try
+        sims = deserialize(job, :simulations)
+        println("o")
+        map(sims) do x
+            map(_loss_funcs) do l
+                l(x.sim)
+            end
+        end
+    catch
+        println("x")
+        return missing
+    end
+end
+
+sum(ismissing.(all_losses))
+
+length(losses)
+
+# %% ====================  ====================
+findmin([3,2,1])
+skipmissing(new_losses) .|> minimum |> minimum
+best = map(new_losses) do ls
+    ismissing(ls) && return (Inf, 0)
+    findmin(ls)
+end
+job_idx = argmin(best)
+job = jobs[job_idx]
+sims = deserialize(job, :simulations);
+prior, sim = sims[best[job_idx][2]]
+
+# %% ====================  ====================
 L = map(all_sims) do sim
     map(_loss_funcs) do loss
         loss(sim)
@@ -68,6 +137,7 @@ map(all_sims) do sim
 end |> argmax
 fourth_rank(all_sims[7])
 
+quantile(trials.rt, 0.1:0.1:0.9)
 # # %% ====================  ====================
 # new_losses = pmap(all_sims) do sim
 #     try
@@ -208,7 +278,6 @@ fig("gaze_cascade") do
 end
 
 
-CUTOFF = 2000
 fig("fixate_on_best") do
     plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
     xlabel!("Time (ms)")
@@ -220,7 +289,6 @@ fig("first_fixation_duration") do
     xlabel!("Duration of first fixation")
     ylabel!("Probability of choice")
 end
-
 
 # argmin(L[4, :])
 # sim1 = simulate_experiment(policies[71],  (μ_emp, σ_emp), 10)

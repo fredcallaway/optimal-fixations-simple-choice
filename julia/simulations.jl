@@ -55,35 +55,10 @@ function x2theta(x)
 end
 
 function optimized_policy(job)
+    m = MetaMDP(job)
     try
-        m = MetaMDP(job)
-        optim = load(job, :optim)
-        # Policy(m, x2theta(X[argmin(y)]))
-        Policy(m, x2theta(optim["x1"]))
+        Policy(m, deserialize(job, :optim).θ1)
     catch
         missing
     end
 end
-
-
-#
-# # %% ==================== Optimize prior ====================
-# # using BlackBoxOptim
-#
-# function make_prior_loss(pol)
-#     x -> begin
-#         μ, σ = x
-#         loss(simulate_experiment(pol; μ=μ, σ=σ))
-#     end
-# end
-#
-# function optimize_prior(pol; max_func_evals=500)
-#     bounds = [(0., μ_emp), (.1, 5.)]
-#     my_loss = make_prior_loss(pol)
-#     options = []
-#     res = bboptimize(my_loss;
-#       SearchRange=bounds, Method=:dxnes, MaxFuncEvals=max_func_evals, PopulationSize=20,
-#       TraceInterval=10)
-#     μ, σ = best_candidate(res)
-#     (μ=μ, σ=σ)
-# end

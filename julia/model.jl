@@ -129,7 +129,6 @@ function step!(v::VPI, n_sample=100)
     v.σ = v.n/n1 * v.σ + n_sample/n1 * σ
     v.n = n1
 end
-sem(v::VPI) = v.σ / √v.n
 # function vpi(b)
 #     μ, σ = b.mu, b.lam .^ -0.5
 #     dists = Normal.(μ, σ)
@@ -216,7 +215,7 @@ function fast_act(π::Policy, b::Belief)
     for i in 1:100000  # Iteratively refine estimate until confident in choice.
         step!(vpi, 500)
         μ_v = v + π.θ[6] * vpi.μ
-        sem_v = π.θ[6] * sem(vpi)
+        sem_v = π.θ[6] * (vpi.σ / √vpi.n)
         (sem_v < 0.0001 || abs(μ_v - 0) > 3sem_v) && break
         # (i == 100000) && println("Warning: VPI estimation did not converge.")
     end
