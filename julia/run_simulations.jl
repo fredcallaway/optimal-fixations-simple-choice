@@ -36,7 +36,7 @@ using Distributed
     ]
     loss(sim) = sum(ℓ(sim) for ℓ in _loss_funcs)
     breakdown_loss(sim) = [ℓ(sim) for ℓ in _loss_funcs]
-    µs = 0:0.1:µ_emp
+    μs = 0:0.1:μ_emp
 end
 # %% ====================  ====================
 

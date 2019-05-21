@@ -1,5 +1,4 @@
 using Distributed
-addprocs()
 @everywhere begin
     cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
     include("model.jl")
@@ -17,145 +16,64 @@ using Glob
 files = glob("runs/rando1000/jobs/*")
 jobs = Job.(files)
 
-job = jobs[1]
-all_loss = map(jobs) do job
-    try
-        xs = deserialize(job, :simulations)
-        loss = map(xs) do x
-            sum(x.losses)
-        end
-        findmin(loss)
-    catch
-        (Inf, -1)
-    end
+all_losses = map(jobs) do job
+    exists(job, :losses) ? deserialize(job, :losses) : missing
 end
-
-results = []
-for job in jobs
-    # m = MetaMDP(job)
-    try
-        push!(results, deserialize(job, ))
-    catch
-        missing
-    end
-end |> skipmissing |> collect
+drop = ismissing.(all_losses)
+jobs = jobs[.!drop]
+all_losses = all_losses[.!drop]
 
 # %% ====================  ====================
-# all_sims = pmap(jobs) do job
-#     prior = (μ_emp, σ_emp)
-#     pol = optimized_policy(job)
-#     if ismissing(pol)
-#         return missing
-#     end
-#     simulate_experiment(pol, prior, 10)
-# end
-
-# %% ====================  ====================
-@everywhere _loss_funcs = [
-    make_loss(value_choice),
-    make_loss(fixation_bias),
-    make_loss(value_bias),
-    make_loss(fourth_rank, :integer),
-    make_loss(first_fixation_duration),
-    make_loss(last_fixation_duration),
-    make_loss(difference_time),
-    # make_loss(difference_nfix),
-    make_loss(fixation_times, :integer),
-    make_loss(last_fix_bias),
-    make_loss(gaze_cascade, :integer),
-    make_loss(fixate_on_best, Binning(0:CUTOFF/7:CUTOFF)),
-    # make_loss(old_value_choice, :integer),
-    # make_loss(fixation_value, Binning(0:3970/20:3970)),
+loss_names = [
+    :value_choice,
+    :fixation_bias,
+    :value_bias,
+    :fourth_rank,
+    :first_fixation_duration,
+    :last_fixation_duration,
+    :difference_time,
+    :difference_nfix,
+    :fixation_times,
+    :last_fix_bias,
+    :gaze_cascade,
+    :fixate_on_best,
 ]
-@everywhere loss(sim) = sum(ℓ(sim) for ℓ in _loss_funcs)
-@everywhere breakdown_loss(sim) = [ℓ(sim) for ℓ in _loss_funcs]
 
-# %% ====================  ====================
-@everywhere µs = 0:0.1:µ_emp
-sim_results = pmap(jobs) do job
-    pol = load_policy(job)
-    ismissing(pol) && return missing
-    @time x = map(μs) do μ
-        # (prior=(μ, σ_emp), sim=nothing, loss=rand())
-        sim = simulate_experiment(pol, (µ, σ_emp))
-        (prior=(μ, σ_emp), sim=sim, losses=breakdown_loss(sim))
-    end
-    serialize(job, :simulations, x)
-    x
+function choose(use)
+    (best, prior_idx), job_idx = map(all_losses) do prior_losses
+        map(prior_losses) do losses
+            sum(losses[[l in use for l in loss_names]])
+        end |> findmin
+    end |> findmin
+    x = deserialize(jobs[job_idx], :simulations)[prior_idx]
+    jobs[job_idx], x.prior, x.sim
 end
+use = [
+    :value_choice,
+    # :fourth_rank,
+    :fixation_times,
+    # :difference_nfix,
+    # :difference_time,
+    # :value_bias,
+    # :fixate_on_best,
+    # :gaze_cascade,
+    # :last_fix_bias
+]
+μs = 0:0.1:μ_emp
 
-# %% ====================  ====================
+job, prior, sim = choose(use)
+mdp = MetaMDP(job)
+println(mdp)
+println(prior)
+policy = Policy(mdp, deserialize(job, :optim).θ1)
+sim = simulate_experiment(policy, prior)
 
-all_losses = pmap(jobs) do job
-    try
-        sims = deserialize(job, :simulations)
-        println("o")
-        map(sims) do x
-            map(_loss_funcs) do l
-                l(x.sim)
-            end
-        end
-    catch
-        println("x")
-        return missing
-    end
-end
+job_idx = argmax(jobs .== [job])
+prior_idx = argmax(prior[1] .== μs)
 
-sum(ismissing.(all_losses))
+all_losses[job_idx][prior_idx][[l in use for l in loss_names]]
+make_loss(fixation_times)(sim)
 
-length(losses)
-
-# %% ====================  ====================
-findmin([3,2,1])
-skipmissing(new_losses) .|> minimum |> minimum
-best = map(new_losses) do ls
-    ismissing(ls) && return (Inf, 0)
-    findmin(ls)
-end
-job_idx = argmin(best)
-job = jobs[job_idx]
-sims = deserialize(job, :simulations);
-prior, sim = sims[best[job_idx][2]]
-
-# %% ====================  ====================
-L = map(all_sims) do sim
-    map(_loss_funcs) do loss
-        loss(sim)
-    end
-end
-L = combinedims(convert(Array, L))
-
-best = argmin(sum(L; dims=1)[:])  # 65
-# sim = simulate_experiment(policies[63],  (μ_emp, σ_emp), 10)
-mean(length.(sim.fixations) .> 3)
-mean(length.(trials.fixations) .> 3)
-
-# %% ====================  ====================
-map(all_sims) do sim
-    x = fourth_rank(sim)
-    ismissing(x) ? -1. : x[2][1]
-end |> argmax
-fourth_rank(all_sims[7])
-
-quantile(trials.rt, 0.1:0.1:0.9)
-# # %% ====================  ====================
-# new_losses = pmap(all_sims) do sim
-#     try
-#         ismissing(sim) ? Inf : loss(sim)
-#     catch
-#         return missing
-#     end
-# end
-#
-# best = argmin(new_losses)
-# sim = all_sims[best]
-
-# current best: 63
-# policy = optimized_policy(jobs[best])
-# sim = simulate_experiment(policy, (μ_emp, σ_emp), 10)
-# fixation_bias, value_choice, value_bias: 91
-# fixation_bias value_choice last_fix_bias value_bias fixation_value: 28
-sim = all_sims[63]
 # %% ====================  ====================
 pyplot()
 Plots.scalefontsizes()
@@ -252,17 +170,43 @@ fig("value_bias") do
     ylabel!("Proportion fixation time")
 end
 
+fig("fourth_rank") do
+    plot_comparison(fourth_rank, sim, :integer, :discrete)
+    xlabel!("Value rank of fourth-fixated item")
+    ylabel!("Proportion")
+    xticks!(1:3, ["best", "middle", "worst"])
+end
+
+fig("first_fixation_duration") do
+    plot_comparison(first_fixation_duration, sim)
+    xlabel!("Duration of first fixation")
+    ylabel!("Probability of choice")
+end
+
+fig("last_fixation_duration") do
+    plot_comparison(last_fixation_duration, sim)
+    xlabel!("Chosen item time advantage\nbefore last fixation")
+    ylabel!("Last fixation duration")
+end
+
 fig("difference_time") do
     plot_comparison(difference_time, sim)
     xlabel!("Maximum relative item value")
     ylabel!("Total fixation time")
 end
-#
-# fig("difference_nfix") do
-#     plot_comparison(difference_nfix, sim)
-#     xlabel!("Maxium relative item value")
-#     ylabel!("Number of fixations")
-# end
+
+fig("difference_nfix") do
+    plot_comparison(difference_nfix, sim)
+    xlabel!("Maxium relative item value")
+    ylabel!("Number of fixations")
+end
+
+fig("fixation_times") do
+    plot_comparison(fixation_times, sim, :integer, :discrete)
+    xticks!(1:4, ["first", "second", "middle", "last"])
+    xlabel!("Fixation type")
+    ylabel!("Fixation duration")
+end
 
 fig("last_fix_bias") do
     plot_comparison(last_fix_bias, sim)
@@ -277,40 +221,14 @@ fig("gaze_cascade") do
     ylabel!("Proportion of fixations\nto chosen item")
 end
 
-
 fig("fixate_on_best") do
     plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
     xlabel!("Time (ms)")
     ylabel!("Probability of fixating\non highest-value item")
 end
 
-fig("first_fixation_duration") do
-    plot_comparison(first_fixation_duration, sim)
-    xlabel!("Duration of first fixation")
-    ylabel!("Probability of choice")
-end
-
 # argmin(L[4, :])
 # sim1 = simulate_experiment(policies[71],  (μ_emp, σ_emp), 10)
-fig("fourth_rank") do
-    plot_comparison(fourth_rank, sim, :integer, :discrete)
-    xlabel!("Value rank of fourth-fixated item")
-    ylabel!("Proportion")
-    xticks!(1:3, ["best", "middle", "worst"])
-end
-
-fig("fixation_times") do
-    plot_comparison(fixation_times, sim, :integer, :discrete)
-    xticks!(1:4, ["first", "second", "middle", "last"])
-    xlabel!("Fixation type")
-    ylabel!("Fixation duration")
-end
-
-fig("3b_alt") do
-    plot_comparison(last_fixation_duration, sim)
-    xlabel!("Chosen item time advantage\nbefore last fixation")
-    ylabel!("Last fixation duration")
-end
 
 
 # %% ====================  ====================
