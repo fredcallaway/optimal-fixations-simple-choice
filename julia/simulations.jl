@@ -33,9 +33,10 @@ function parse_fixations(samples, time_per_sample)
     fixations, fix_times
 end
 
-function simulate_experiment(policy, (μ, σ), n_repeat=N_SIM)
+function simulate_experiment(policy, (μ, σ), n_repeat=N_SIM; parallel=false)
+    mymap = parallel ? pmap : map
     samples, choice, value = map(1:n_repeat) do i
-        map(trials.value) do v
+        mymap(trials.value) do v
             sim = simulate(policy, (v .- μ) ./ σ)
             sim.value[:] = v  # we want the un-normalized values
             sim

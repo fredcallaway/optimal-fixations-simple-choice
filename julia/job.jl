@@ -49,12 +49,12 @@ function save(job::Job, name::Symbol, value)
 end
 load(job::Job, name::Symbol) = JSON.parsefile(result_file(job, name) * ".json")["value"]
 
-function Serialization.serialize(job::Job, name::Symbol, value)
+function Serialization.serialize(job::Job, name::Symbol, value; verbose=true)
     file = result_file(job, name) * ".jls"
     open(file, "w") do f
         serialize(f, value)
     end
-    println("Wrote $file")
+    verbose && println("Wrote $file")
 end
 
 function Serialization.deserialize(job::Job, name::Symbol)
@@ -67,6 +67,7 @@ function exists(job::Job, name::Symbol)
     isfile(file)
 end
 
+Base.:*(a::Symbol, b) = Symbol(string(a, b))
 
 if length(ARGS) == 2
     job_group, job_id = ARGS

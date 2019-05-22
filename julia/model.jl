@@ -170,6 +170,11 @@ end
 
 
 # ---------- Policy ---------- #
+
+struct AbstractPolicy end
+
+reset!(pol::AbstractPolicy) = nothing
+
 noisy(x, ε=1e-10) = x .+ ε .* rand(length(x))
 
 "A metalevel policy that uses the BMPS features"
@@ -245,8 +250,31 @@ Noisy(ε, π) = Noisy(ε, π, π.m)
     rand() < π.ε ? rand(1:length(b.mu)) : π.π(b)
 end
 
+# %% ====================  ====================
+mutable struct FixedPolicy
+    m::MetaMDP
+    plan::Vector{Int}
+    state::Int
+end
+FixedPolicy(m, plan) = FixedPolicy(m, plan, 1)
+
+(pol::FixedPolicy)(b::Belief) = begin
+    pol.state > length(pol.plan) && return TERM
+    c = pol.plan[pol.state]
+    pol.state += 1
+    c
+end
+
+function reset!(pol::FixedPolicy)
+    pol.state = 1
+end
+
+
+# %% ====================  ====================
+
 
 function rollout(policy; state=nothing, max_steps=1000, callback=(b, c)->nothing)
+    reset!(policy)
     m = policy.m
     s = state == nothing ? State(m) : state
     b = Belief(s)

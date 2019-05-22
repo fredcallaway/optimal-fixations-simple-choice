@@ -1,5 +1,7 @@
 include("binning.jl")
 
+const CUTOFF = 2000
+
 function make_bins(bins, hx)
     if bins == :integer
         return Binning(minimum(hx)-0.5:1:maximum(hx)+0.5)
@@ -161,9 +163,12 @@ function fourth_rank(trials)
     if length(x) == 0
         return missing
     end
-    cx = counts(x, 3)
-    1:3, cx / sum(cx)
+    n = length(x)
+    p = counts(x, 3) ./ n
+    std_ = @. √(p * (1 - p) / n)
+    1:3, p, std_
 end
+
 
 function last_fixation_duration(trials)
     map(trials) do t
@@ -176,3 +181,49 @@ function last_fixation_duration(trials)
         (adv, t.fix_times[end])
     end |> skipmissing |> collect |> invert
 end
+
+function make_featurizer(feature::Function, bins=nothing)
+    hx, hy = feature(trials)
+    bins = make_bins(bins, hx)
+    (sim) -> begin
+        try
+            mxy = feature(sim)
+            bin_by(bins, mxy...) .|> mean
+        catch
+            missing
+        end
+    end
+end
+
+function n_fix_hist(trials)
+    1:10, counts(length.(trials.fix_times), 10)
+end
+
+rt_hist = let
+    n = 8
+    bins = make_bins(n, trials.rt)
+    function rt_hist(sim)
+        rt = sum.(sim.fix_times)
+        x = bins.(rt) |> skipmissing |> collect |> counts
+        1:n, x / length(rt)
+    end
+end
+
+featurizers = Dict(
+    :value_choice => make_featurizer(value_choice),
+    :fixation_bias => make_featurizer(fixation_bias),
+    :value_bias => make_featurizer(value_bias),
+    :fourth_rank => make_featurizer(fourth_rank, :integer),
+    :first_fixation_duration => make_featurizer(first_fixation_duration),
+    :last_fixation_duration => make_featurizer(last_fixation_duration),
+    :difference_time => make_featurizer(difference_time),
+    :difference_nfix => make_featurizer(difference_nfix),
+    :fixation_times => make_featurizer(fixation_times, :integer),
+    :last_fix_bias => make_featurizer(last_fix_bias),
+    :gaze_cascade => make_featurizer(gaze_cascade, :integer),
+    :fixate_on_best => make_featurizer(fixate_on_best, Binning(0:CUTOFF/7:CUTOFF)),
+    :n_fix_hist => make_featurizer(n_fix_hist, :integer),
+    :rt_hist => make_featurizer(rt_hist, :integer)
+)
+
+compute_features(sim) = Dict(name => f(sim) for (name, f) in featurizers)

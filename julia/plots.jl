@@ -1,4 +1,5 @@
 using Distributed
+addprocs()
 @everywhere begin
     cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
     include("model.jl")
@@ -14,17 +15,143 @@ plot([1,2])
 # %% ====================  ====================
 using Glob
 files = glob("runs/rando1000/jobs/*")
-jobs = Job.(files)
-
-all_losses = map(jobs) do job
-    exists(job, :losses) ? deserialize(job, :losses) : missing
+jobs = Job[]
+Features = Dict{Symbol,Union{Missing, Vector{Float64}}}
+all_features = Vector{Features}[]
+@time for f in files
+    job = Job(f)
+    try
+        push!(all_features, deserialize(job, :features))
+        push!(jobs, job)
+    catch end
 end
-drop = ismissing.(all_losses)
-jobs = jobs[.!drop]
-all_losses = all_losses[.!drop]
+println(length(jobs), " jobs")
+# %% ====================  ====================
+# feature = value_bias
+feature = last_fixation_duration
+hx, hy = feature(trials)
+bins = make_bins(nothing, hx)
+
+h_mean, h_std = bin_by(bins, hx, hy) .|> juxt(mean, std) |> invert
+m = all_features[1][1][Symbol(feature)]
+err = (h_mean .- m) ./ h_std
 
 # %% ====================  ====================
-loss_names = [
+
+
+function make_feature_loss(feature::Function, bins=nothing)
+    h = feature(trials)
+    h_mean, h_std = if length(h) == 3
+        h[2:3]
+    else
+        hx, hy = h
+        bins = make_bins(bins, hx)
+        bin_by(bins, hx, hy) .|> juxt(mean, std) |> invert
+    end
+    (m_mean) -> begin
+        try
+            # total = visual_error(h_mean, m_mean)
+            err = (h_mean .- m_mean) ./ h_std
+            total  = mean(abs.(err))
+            # total = mean(err .^ 2)
+            isnan(total) ? Inf : total
+        catch
+            Inf
+        end
+    end
+end
+#
+# function make_feature_loss(feature::Function, bins=nothing)
+#     hx, hy = feature(trials)
+#     bins = make_bins(bins, hx)
+#     h = bin_by(bins, hx, hy) .|> mean
+#     (m) -> begin
+#         try
+#             err = visual_error(h, m)
+#             isnan(err) ? Inf : err
+#         catch
+#             Inf
+#         end
+#     end
+# end
+
+feature_names = collect(keys(featurizers))
+feature_losses = Dict(
+    :value_choice => make_feature_loss(value_choice),
+    :fixation_bias => make_feature_loss(fixation_bias),
+    :value_bias => make_feature_loss(value_bias),
+    :fourth_rank => make_feature_loss(fourth_rank, :integer),
+    :first_fixation_duration => make_feature_loss(first_fixation_duration),
+    :last_fixation_duration => make_feature_loss(last_fixation_duration),
+    :difference_time => make_feature_loss(difference_time),
+    :difference_nfix => make_feature_loss(difference_nfix),
+    :fixation_times => make_feature_loss(fixation_times, :integer),
+    :last_fix_bias => make_feature_loss(last_fix_bias),
+    :gaze_cascade => make_feature_loss(gaze_cascade, :integer),
+    :fixate_on_best => make_feature_loss(fixate_on_best, Binning(0:CUTOFF/7:CUTOFF)),
+    :n_fix_hist => make_feature_loss(n_fix_hist, :integer),
+)
+
+@time feature_losses[:fourth_rank](sim);
+@time feature_losses[:fourth_rank](sim);
+
+
+# %% ====================  ====================
+function namedtuple(d::Dict)
+    ks = Tuple(map(Symbol, collect(keys(d))))
+    NamedTuple{ks}(values(d))
+end
+
+function pprint(x::NamedTuple)
+    for (i, a) in pairs(x)
+        println(i, ":  ", a)
+    end
+end
+
+
+@time all_losses = map(all_features) do job_features
+    map(job_features) do prior_features
+        map(feature_names) do f
+            f => feature_losses[f](prior_features[f])
+        end |> Dict
+    end
+end;
+
+L = flatten(all_losses) .|> namedtuple |> Table
+# %% ====================  ====================
+
+map(columns(L)) do x
+    mean(x .== Inf)
+end |> pprint
+
+
+# %% ====================  ====================
+μs = 0:0.1:μ_emp
+
+function find_best(use)
+    job_bests = map(all_losses) do job_losses
+        map(job_losses) do prior_losses
+            sum(prior_losses[f] for f in use)
+        end |> findmin
+    end
+
+    (best_loss, prior_idx), job_idx = findmin(job_bests)
+    μ = μs[prior_idx]
+    sim = deserialize(jobs[job_idx], :sim_*μ)
+    sim, best_loss, job_idx, prior_idx
+end
+
+old = [
+    :value_choice,
+    :fixation_bias,
+    :value_bias,
+    :difference_time,
+    :last_fix_bias,
+    :gaze_cascade,
+    :fixate_on_best,
+]
+
+use = [
     :value_choice,
     :fixation_bias,
     :value_bias,
@@ -35,44 +162,18 @@ loss_names = [
     :difference_nfix,
     :fixation_times,
     :last_fix_bias,
-    :gaze_cascade,
-    :fixate_on_best,
-]
-
-function choose(use)
-    (best, prior_idx), job_idx = map(all_losses) do prior_losses
-        map(prior_losses) do losses
-            sum(losses[[l in use for l in loss_names]])
-        end |> findmin
-    end |> findmin
-    x = deserialize(jobs[job_idx], :simulations)[prior_idx]
-    jobs[job_idx], x.prior, x.sim
-end
-use = [
-    :value_choice,
-    # :fourth_rank,
-    :fixation_times,
-    # :difference_nfix,
-    # :difference_time,
-    # :value_bias,
-    # :fixate_on_best,
     # :gaze_cascade,
-    # :last_fix_bias
+    :fixate_on_best,
+    # :n_fix_hist,
 ]
-μs = 0:0.1:μ_emp
 
-job, prior, sim = choose(use)
+sim, best_loss, job_idx, prior_idx = find_best(use)
+job = jobs[job_idx]
 mdp = MetaMDP(job)
-println(mdp)
-println(prior)
 policy = Policy(mdp, deserialize(job, :optim).θ1)
-sim = simulate_experiment(policy, prior)
-
-job_idx = argmax(jobs .== [job])
-prior_idx = argmax(prior[1] .== μs)
-
-all_losses[job_idx][prior_idx][[l in use for l in loss_names]]
-make_loss(fixation_times)(sim)
+display(all_losses[job_idx][prior_idx])
+# @time sim = simulate_experiment(policy, (μs[prior_idx], σ_emp); parallel=true);
+fixate_on_best(trials)
 
 # %% ====================  ====================
 pyplot()
@@ -149,7 +250,6 @@ function fig(f, name)
     _fig
 end
 
-# quantile(trials.rt, 0.05:0.1:0.95)
 # %% ====================  ====================
 fig("value_choice") do
     plot_comparison(value_choice, sim)
@@ -222,6 +322,7 @@ fig("gaze_cascade") do
 end
 
 fig("fixate_on_best") do
+    # FIXME Incorrect error bars!
     plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
     xlabel!("Time (ms)")
     ylabel!("Probability of fixating\non highest-value item")
@@ -232,7 +333,7 @@ end
 
 
 # %% ====================  ====================
-function fig3b(trials)
+ function fig3b(trials)
     map(trials) do t
         last = t.fixations[end]
         # last != t.choice && return missing
