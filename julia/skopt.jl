@@ -25,18 +25,29 @@ function gp_minimize(f, dim, n_latin, n_bo)
 
     latin_points = LHCoptim(n_latin, length(bounds), 1000)[1] ./ n_latin
 
-    print("LHC: ")
+    iter = 1
+    function g(x)
+        fx, elapsed = @timed f(x)
+        println("($iter)  ", round.(x; digits=3),
+                " => ", round(fx; digits=4),
+                "   ", round(elapsed; digits=1), " seconds")
+        iter += 1
+        fx
+    end
+
+
+    # print("LHC: ")
     for i in 1:n_latin
         x = latin_points[i, :]
-        print(".")
-        tell(opt, x, f(x))
+        # print(".")
+        tell(opt, x, g(x))
     end
-    print("\nBO: ")
+    # print("\nBO: ")
     for i in 1:n_bo
-        print(".")
+        # print(".")
         x = ask(opt)
-        tell(opt, x, f(x))
+        tell(opt, x, g(x))
     end
-    print("\n")
+    # print("\n")
     return opt
 end

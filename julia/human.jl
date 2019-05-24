@@ -1,7 +1,7 @@
 # %%
 using TypedTables
 using SplitApplyCombine
-using StatsBase
+using Statistics
 using Serialization
 include("utils.jl")
 
