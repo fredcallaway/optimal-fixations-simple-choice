@@ -4,7 +4,6 @@ include("job.jl")
 
 const N_SIM = 10
 const human_mean_fixation_time = mean(sum.(trials.fix_times))
-const μ_emp, σ_emp = juxt(mean, std)(flatten(trials.value))
 
 # const human_mean_fix = mean([length(t.fixations) for t in trials])
 # const human_mean_value = mean([t.value[t.choice] for t in trials])

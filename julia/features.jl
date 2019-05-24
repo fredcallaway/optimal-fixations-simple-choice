@@ -75,9 +75,14 @@ end
 # %% ==================== First fixation duration -> choose first fixated ====================
 
 function first_fixation_duration(trials)
-    map(trials) do t
-        t.fix_times[1], t.choice == t.fixations[1]
-    end |> invert
+    x, y = Float64[], Bool[]
+    for t in trials
+        if length(t.fixations) > 0
+            push!(x, t.fix_times[1])
+            push!(y, t.choice == t.fixations[1])
+        end
+    end
+    x, y
 end
 
 
@@ -86,10 +91,15 @@ end
 choose_last_fixated(t) = t.fixations[end] == t.choice
 
 function last_fix_bias(trials)
-    map(trials) do t
-        last = t.fixations[end]
-        t.value[last] - mean(t.value), t.choice == last
-    end |> invert
+    x, y = Float64[], Bool[]
+    for t in trials
+        if length(t.fixations) > 0
+            last = t.fixations[end]
+            push!(x, t.value[last] - mean(t.value))
+            push!(y, t.choice == last)
+        end
+    end
+    x, y
 end
 
 
@@ -98,7 +108,7 @@ end
 function value_bias(trials)
     mapmany(trials) do t
         tft = total_fix_time(t)
-        invert((t.value .- mean(t.value), tft ./ sum(tft)))
+        invert((t.value .- mean(t.value), tft ./ (sum(tft) + eps())))
     end |> invert
 end
 

@@ -1,5 +1,6 @@
 include("model.jl")
-
+include("utils.jl")
+using StatsBase
 # m = MetaMDP(switch_cost=3)
 # s = State(m)
 # b = Belief(s)
@@ -11,45 +12,70 @@ function voi1_sigma(lam, obs_sigma)
     w * sample_sigma
 end
 
-function voi1(b::Belief, c::Computation)
-    cv = competing_value(b.mu, c)
-    d = Normal(b.mu[c], voi1_sigma(b.lam[c], b.obs_sigma[c]))
-    expect_max_dist(d, cv) - maximum(b.mu)
-end
-
-# voi1_sigma(1, m.obs_sigma/√1)
-
 function voi_n(b::Belief, c::Computation, n::Int)
     cv = competing_value(b.mu, c)
     d = Normal(b.mu[c], voi1_sigma(b.lam[c], b.obs_sigma / √n))
     expect_max_dist(d, cv) - maximum(b.mu)
 end
 
-function int_line_search(start, f; max_i=1000)
-    i = start; last_val = -Inf; val = f(start)
-    while val > last_val
-        i += 1
-        i > max_i && break
-        last_val, val = val, f(i)
-    end
-    (i-1, last_val)
-end
+# function int_line_search(f, lower, upper; max_i=1000)
+#     i = lower; last_val = -Inf; val = f(lower)
+#     while val > last_val
+#         i += 1
+#         i > max_i && break
+#         last_val, val = val, f(i)
+#     end
+#     (i-1, last_val)
+# end
+
+# function int_line_search(start, f; max_i=1000)
+#     i = start; last_val = -Inf; val = f(start)
+#     while val > last_val
+#         i += 1
+#         i > max_i && break
+#         last_val, val = val, f(i)
+#     end
+#     (i-1, last_val)
+# end
 
 function voc_blinkered(m::MetaMDP, b::Belief, c::Computation)
+    c == TERM && return 0.
     voc_n(n) = voi_n(b, c, n) - (cost(m, b, c) + (n-1) * m.sample_cost)
-    int_line_search(1, voc_n)[2]
+    # int_line_search(1, voc_n)[2]
+    maximum(voc_n.(1:100))
 end
 
 struct Blinkered
     m::MetaMDP
 end
-(π::Blinkered)(b::Belief) = begin
-    voc = [voc_blinkered(π.m, b, c) for c in 1:π.m.n_arm]
+(pol::Blinkered)(b::Belief) = begin
+    voc = [voc_blinkered(pol.m, b, c) for c in 1:pol.m.n_arm]
     v, c = findmax(noisy(voc))
     v <= 0 ? TERM : c
 end
 
+# %% ====================  ====================
+struct SoftBlinkered
+    m::MetaMDP
+    α::Float64
+end
+voc(pol::SoftBlinkered, b::Belief) = [voc_blinkered(pol.m, b, c) for c in 0:pol.m.n_arm]
+action_probs(pol::SoftBlinkered, b::Belief) = softmax(pol.α * voc(pol, b))
+
+(pol::SoftBlinkered)(b::Belief) = begin
+    sample(0:pol.m.n_arm, Weights(action_probs(pol, b)))
+end
+
+
+
 # # %% ====================  ====================
+
+# voc(pol, Belief(State(true_mdp)))
+# pol = SoftBlinkered1(true_mdp, 10.)
+# b = Belief(State(true_mdp))
+# b.focused = 1
+# println(voc(pol, b))
+# countmap([pol(b) for i in 1:10000])
 # using Glob
 # include("job.jl")
 # files = glob("runs/rando/jobs/*")

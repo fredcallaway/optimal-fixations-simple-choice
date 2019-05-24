@@ -36,7 +36,7 @@ Belief(s::State) = Belief(
     zeros(length(s.value)),
     ones(length(s.value)),
     s.obs_sigma,
-    rand(1:length(s.value))
+    0
 )
 Base.copy(b::Belief) = Belief(copy(b.mu), copy(b.lam), b.obs_sigma, b.focused)
 
@@ -239,6 +239,18 @@ end
     v <= 0 ? TERM : c
 end
 
+# struct SoftMetaGreedy
+#     m::MetaMDP
+#     α::Float64
+# end
+
+# (π::SoftMetaGreedy)(b::Belief) = begin
+#     voc1 = [voi1(b, c) - cost(π.m, b, c) for c in 1:π.m.n_arm]
+#     sample(0:4, Weights(softmax([0; voc1])))
+#     v, c = findmax(noisy(voc1))
+#     v <= 0 ? TERM : c
+# end
+
 struct Noisy{T}
     ε::Float64
     π::T
@@ -274,7 +286,7 @@ end
 
 
 function rollout(policy; state=nothing, max_steps=1000, callback=(b, c)->nothing)
-    reset!(policy)
+    # reset!(policy)
     m = policy.m
     s = state == nothing ? State(m) : state
     b = Belief(s)

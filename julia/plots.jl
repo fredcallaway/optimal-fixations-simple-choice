@@ -176,6 +176,13 @@ display(all_losses[job_idx][prior_idx])
 fixate_on_best(trials)
 
 # %% ====================  ====================
+using Serialization
+include("blinkered.jl")
+µ = 2.3468155200178638
+policy = open(deserialize, "tmp/blinkered_policy.jls")
+@time sim = simulate_experiment(policy, (µ, σ_emp))
+
+# %% ====================  ====================
 pyplot()
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
@@ -249,6 +256,13 @@ function fig(f, name)
     savefig("figs/$name.pdf")
     _fig
 end
+# %% ====================  ====================
+feature = first_fixation_duration
+hx, hy = feature(trials)
+mx, my = feature(sim)
+bins = make_bins(nothing, hx)
+(bin_by(bins, mx, my))
+bins
 
 # %% ====================  ====================
 fig("value_choice") do
@@ -282,6 +296,8 @@ fig("first_fixation_duration") do
     xlabel!("Duration of first fixation")
     ylabel!("Probability of choice")
 end
+
+
 
 fig("last_fixation_duration") do
     plot_comparison(last_fixation_duration, sim)
