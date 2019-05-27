@@ -62,6 +62,7 @@ const N_OBS = sum(length(d.samples) + 1 for d in data)
 const RAND_LOSS = sum(rand_logp.(trials)) / N_OBS
 const MAX_LOSS = -10 * RAND_LOSS
 
+# %% ====================  ====================
 if get(ARGS, 1, "") == "worker"
     start_worker()
 else
@@ -80,34 +81,41 @@ else
         prm = Params(x)
         min(MAX_LOSS, -plogp(prm, particles) / N_OBS)
     end
-    println("Begin GP minimize")
-    @time res = gp_minimize(loss, 5, 500, 200)
 
-    open("tmp/blinkered_opt", "w+") do f
-        serialize(f, (
-            Xi = collect.(res.Xi),
-            yi = res.yi,
-            emin = expected_minimum(res)
-        ))
-    end
+
+    # println("Begin GP minimize")
+    # @time res = gp_minimize(loss, 5, 500, 200)
+
+    # open("tmp/blinkered_opt", "w+") do f
+    #     serialize(f, (
+    #         Xi = collect.(res.Xi),
+    #         yi = res.yi,
+    #         emin = expected_minimum(res)
+    #     ))
+    # end
+
+    res = open(deserialize, "tmp/blinkered_opt")
+
 
     # %% ==================== Check top 10 to find best ====================
     ranked = sortperm(res.yi)
     top20 = res.Xi[ranked[1:20]]
     top20_loss = map(top20) do x
-        loss(collect(x), particles=10000)
+        loss(x, 10000)
     end
-    best = collect(top20[argmin(top20_loss)])
+    println("Top 20")
+    println(top20_loss)
+    best = top20[argmin(top20_loss)]
 
     # %% ==================== Examine loss function around minimum ====================
-    diffs = -0.1:0.01:0.1
+    diffs = -0.2:0.02:0.2
 
     cross = map(1:5) do i
         map(diffs) do d
             x = copy(best)
             x[i] += d
             try
-                -plogp(Params(x), trials)
+                loss(x)
             catch
                 NaN
             end
@@ -115,7 +123,7 @@ else
     end
 
     using JSON
-    open("tmp/cross4.json", "w+") do f
+    open("tmp/cross5.json", "w+") do f
         write(f, json(cross))
     end
     using Serialization
