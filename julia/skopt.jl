@@ -1,6 +1,7 @@
 using PyCall
 using LatinHypercubeSampling
-
+using Serialization
+using Distributed
 skopt = pyimport("skopt")
 # Optimizer methods
 ask(opt)::Vector{Float64} = opt.ask()
@@ -19,22 +20,32 @@ def expected_minimum(opt):
 expected_minimum = py"expected_minimum"
 
 
-function gp_minimize(f, dim, n_latin, n_bo)
+function gp_minimize(f, dim, n_latin, n_bo; file="opt_xy")
     bounds = [(0., 1.) for i in 1:dim]
     opt = skopt.Optimizer(bounds, random_state=0, n_initial_points=n_latin)
 
     latin_points = LHCoptim(n_latin, length(bounds), 1000)[1] ./ n_latin
 
     iter = 1
+    Xi = Vector{Float64}[]
+    yi = Float64[]
+
     function g(x)
+        print("($iter)  ")
         fx, elapsed = @timed f(x)
-        println("($iter)  ", round.(x; digits=3),
+        println(round.(x; digits=3),
                 " => ", round(fx; digits=4),
-                "   ", round(elapsed; digits=1), " seconds")
+                "   ", round(elapsed; digits=1), " seconds",
+                " with ", nprocs(), " processes"
+                )
         iter += 1
+        push!(Xi, x)
+        push!(yi, fx)
+        open(file, "w+") do file
+            serialize(file, (Xi=Xi, yi=yi))
+        end
         fx
     end
-
 
     # print("LHC: ")
     for i in 1:n_latin

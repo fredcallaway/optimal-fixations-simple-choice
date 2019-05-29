@@ -2,6 +2,7 @@ using ClusterManagers, Sockets
 using Distributed
 
 myip = ip"10.2.159.72"
+# myip = ip"10.36.16.11"
 # println("my ip is $myip")
 
 # cookie = length(ARGS) > 0 ? ARGS[1] : "cookie"

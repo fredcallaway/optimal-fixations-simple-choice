@@ -29,6 +29,7 @@ function fixation_times(trials)
     x = Tuple{Int, Float64}[]
     for t in trials
         f = t.fix_times
+        length(f) == 0 && continue
         push!(x, (1, f[1]))
         length(f) > 1 && push!(x, (2, f[2]))
         for i in 3:length(f)-1
@@ -206,7 +207,8 @@ function make_featurizer(feature::Function, bins=nothing)
 end
 
 function n_fix_hist(trials)
-    1:10, counts(length.(trials.fix_times), 10)
+    n_fix = length.(trials.fix_times)
+    1:10, counts(n_fix, 10) ./ length(n_fix)
 end
 
 rt_hist = let

@@ -3,7 +3,6 @@ using Memoize
 using Random
 using Parameters
 import Base
-using Cuba
 using SplitApplyCombine
 using StaticArrays
 # ---------- MetaMDP Model ---------- #

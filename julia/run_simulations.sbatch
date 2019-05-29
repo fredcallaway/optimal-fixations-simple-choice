@@ -7,4 +7,4 @@
 #SBATCH --cpus-per-task=1
 
 module load julia
-julia run_simulations.jl
+julia run_simulations.jl worker

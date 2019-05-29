@@ -1,5 +1,5 @@
-
 using Distributions
+
 struct Particles{T}
     x::Vector{T}
     x1::Vector{T}

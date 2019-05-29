@@ -26,15 +26,6 @@ all_features = Vector{Features}[]
     catch end
 end
 println(length(jobs), " jobs")
-# %% ====================  ====================
-# feature = value_bias
-feature = last_fixation_duration
-hx, hy = feature(trials)
-bins = make_bins(nothing, hx)
-
-h_mean, h_std = bin_by(bins, hx, hy) .|> juxt(mean, std) |> invert
-m = all_features[1][1][Symbol(feature)]
-err = (h_mean .- m) ./ h_std
 
 # %% ====================  ====================
 
@@ -176,11 +167,14 @@ display(all_losses[job_idx][prior_idx])
 fixate_on_best(trials)
 
 # %% ====================  ====================
+bopt = open(deserialize, "tmp/blinkered_opt")
+best = bopt.Xi[argmin(bopt.yi)]
+
+# %% ====================  ====================
 using Serialization
 include("blinkered.jl")
-µ = 2.3468155200178638
-policy = open(deserialize, "tmp/blinkered_policy.jls")
-@time sim = simulate_experiment(policy, (µ, σ_emp))
+policy, prior = open(deserialize, "results/blinkered_policy.jls")
+@time sim = simulate_experiment(policy, prior)
 
 # %% ====================  ====================
 pyplot()
@@ -204,6 +198,7 @@ end
 #     bar(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
 #        fill=:white, color=:black, label="")
 # end
+
 function plot_human(bins, x, y, type=:line)
     vals = bin_by(bins, x, y)
     if type == :line
@@ -256,13 +251,6 @@ function fig(f, name)
     savefig("figs/$name.pdf")
     _fig
 end
-# %% ====================  ====================
-feature = first_fixation_duration
-hx, hy = feature(trials)
-mx, my = feature(sim)
-bins = make_bins(nothing, hx)
-(bin_by(bins, mx, my))
-bins
 
 # %% ====================  ====================
 fig("value_choice") do
@@ -297,8 +285,6 @@ fig("first_fixation_duration") do
     ylabel!("Probability of choice")
 end
 
-
-
 fig("last_fixation_duration") do
     plot_comparison(last_fixation_duration, sim)
     xlabel!("Chosen item time advantage\nbefore last fixation")
@@ -324,6 +310,18 @@ fig("fixation_times") do
     ylabel!("Fixation duration")
 end
 
+fig("n_fix_hist") do
+    plot_comparison(n_fix_hist, sim, :integer, :discrete)
+    xlabel!("Number of fixations")
+    ylabel!("Proportion of trials")
+end
+
+fig("rt_hist") do
+    plot_comparison(rt_hist, sim, :integer, :discrete)
+    xlabel!("Total fixation time")
+    ylabel!("Proportion of trials")
+end
+
 fig("last_fix_bias") do
     plot_comparison(last_fix_bias, sim)
     cross!(0, 1/3)
@@ -344,9 +342,67 @@ fig("fixate_on_best") do
     ylabel!("Probability of fixating\non highest-value item")
 end
 
+
+
 # argmin(L[4, :])
 # sim1 = simulate_experiment(policies[71],  (μ_emp, σ_emp), 10)
+# %% ====================  ====================
+display("")
 
+@show t.value
+@show ranks
+@show t.choice
+s = sortperm(-t.value)
+@show s
+
+nothing
+# %% ====================  ====================
+function louie_context(trials)
+    x = Float64[]
+    x1 = Float64[]
+    y = Bool[]
+    for t in trials
+        v = t.value
+        s = sortperm(-v)
+        t.choice == s[3] && continue  # chose one of top 2
+        v[s[1]] - v[s[2]] != 2. && continue
+        push!(x, v[s[3]] - v[s[2]])
+        push!(y, t.choice == s[1])
+        push!(x1, v[s[1]] - v[s[2]])
+    end
+    x, y
+end
+
+# %% ====================  ====================
+@everywhere include("blinkered.jl")
+@everywhere policy = $policy
+@everywhere function choice_probs(v, n=1000)
+    s = State(policy.m, v)
+    choices = zeros(3)
+    for i in 1:n
+        choices[rollout(policy, state=s).choice] += 1
+    end
+    choices / n
+end
+
+v, p = pmap(1:96*2) do i
+    v = sort!(randn(3))
+    cp = choice_probs(v)
+    v[1], cp[3] / cp[2]
+end |> invert
+scatter(v, p, ylim=(0, 10), label="")
+xlabel!("Worst item value")
+ylabel!("Pr(choose best) /\n Pr(choose middle)")
+
+# %% ====================  ====================
+t = trials[1]
+
+function value_rt(trials)
+    map(trials) do t
+        sum(t.value), sum(t.fix_times)
+    end |> invert
+end
+plot_comparison(value_rt, sim)
 
 # %% ====================  ====================
  function fig3b(trials)
