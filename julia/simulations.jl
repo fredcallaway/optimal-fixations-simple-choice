@@ -17,7 +17,7 @@ function simulate(policy, value)
 end
 
 
-function parse_fixations(samples, time_per_sample)
+function parse_fixations(samples, sample_time)
     fixations = Int[]
     fix_times = Float64[]
     prev = nothing
@@ -27,12 +27,13 @@ function parse_fixations(samples, time_per_sample)
             push!(fixations, x)
             push!(fix_times, 0.)
         end
-        fix_times[end] += time_per_sample
+        fix_times[end] += sample_time
     end
     fixations, fix_times
 end
 
-function simulate_experiment(policy, (μ, σ), n_repeat=N_SIM; parallel=false)
+function simulate_experiment(policy, (μ, σ), n_repeat=N_SIM;
+                             parallel=false, sample_time=nothing)
     mymap = parallel ? pmap : map
     samples, choice, value = map(1:n_repeat) do i
         mymap(trials.value) do v
@@ -41,8 +42,10 @@ function simulate_experiment(policy, (μ, σ), n_repeat=N_SIM; parallel=false)
             sim
         end
     end |> flatten |> invert
-    time_per_sample = human_mean_fixation_time / mean(length.(samples))
-    fixs, fix_times = parse_fixations.(samples, time_per_sample) |> invert
+    if sample_time == nothing
+        sample_time = human_mean_fixation_time / mean(length.(samples))
+    end
+    fixs, fix_times = parse_fixations.(samples, sample_time) |> invert
     Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
 end
 
