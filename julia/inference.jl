@@ -1,78 +1,93 @@
-# %%
 include("elastic.jl")
-include("human.jl")
-include("blinkered.jl")
-include("inference_helpers.jl")
-include("skopt.jl")
 
-using Serialization
-using JSON
-
-const N_PARTICLE = 500
-const N_LATIN = 200
-const N_BO = 100
-const SAMPLE_TIME = 30
-
-struct Datum
-    value::Vector{Float64}
-    samples::Vector{Int}
-    choice::Int
-end
-Datum(t::Trial) = Datum(
-    t.value,
-    discretize_fixations(t; sample_time=SAMPLE_TIME),
-    t.choice
-)
-
-struct Params
-    α::Float64
-    obs_sigma::Float64
-    sample_cost::Float64
-    switch_cost::Float64
-    µ::Float64
-    σ::Float64
+if get(ARGS, 1, "") == "master"
+    addprocs(topology=:master_worker)
+    # addprocs([("griffiths-gpu01.pni.princeton.edu", :auto)], tunnel=true, topology=:master_worker)
+    println(nprocs(), " processes")
 end
 
-rescale(x, low, high) = low + x * (high-low)
-Params(x::Vector{Float64}) = Params(
-    10 ^ rescale(x[1], 1, 2),
-    rescale(x[2], 1, 60),
-    10 ^ rescale(x[3], -5, -2),
-    rescale(x[4], 10, 60),
-    µ_emp * rescale(x[5], 0., 2),
-    σ_emp * 2 ^ rescale(x[6], -2, 2)
-)
+# necessary for @with_kw macro below
+@everywhere using Parameters
 
-MetaMDP(prm::Params) = MetaMDP(
-    3,
-    prm.obs_sigma,
-    prm.sample_cost,
-    prm.switch_cost,
-)
-SoftBlinkered(prm::Params) = SoftBlinkered(MetaMDP(prm), prm.α)
-value(prm::Params, d::Datum) = (d.value .- prm.µ) ./ prm.σ
+@everywhere begin
+    include("human.jl")
+    include("blinkered.jl")
+    include("inference_helpers.jl")
+    include("skopt.jl")
 
-function logp(prm::Params, d::Datum, particles=N_PARTICLE)
-    policy = SoftBlinkered(prm)
-    logp(policy, value(prm, d), d.samples, d.choice, particles)
+    using Serialization
+    using JSON
+
+    const N_PARTICLE = 500
+    const N_LATIN = 200
+    const N_BO = 100
+    const SAMPLE_TIME = 100
+
+    const OPTIMIZE = true
+    const RETEST = true
+    const N_PARAM = 6
+
+    struct Datum
+        value::Vector{Float64}
+        samples::Vector{Int}
+        choice::Int
+    end
+    Datum(t::Trial) = Datum(
+        t.value,
+        discretize_fixations(t; sample_time=SAMPLE_TIME),
+        t.choice
+    )
+
+    @with_kw struct Params
+        α::Float64
+        obs_sigma::Float64
+        sample_cost::Float64
+        switch_cost::Float64
+        µ::Float64
+        σ::Float64
+    end
+
+    rescale(x, low, high) = low + x * (high-low)
+    Params(x::Vector{Float64}) = Params(
+        10 ^ rescale(x[1], 1, 2),
+        rescale(x[2], 1, 60),
+        10 ^ rescale(x[3], -5, -2),
+        rescale(x[4], 1, 60),
+        µ_emp * rescale(x[5], 0., 2),
+        N_PARAM == 6 ? (σ_emp * 2 ^ rescale(x[6], -2, 2)) : σ_emp
+    )
+
+    MetaMDP(prm::Params) = MetaMDP(
+        3,
+        prm.obs_sigma,
+        prm.sample_cost,
+        prm.switch_cost,
+    )
+    SoftBlinkered(prm::Params) = SoftBlinkered(MetaMDP(prm), prm.α)
+    value(prm::Params, d::Datum) = (d.value .- prm.µ) ./ prm.σ
+
+    function logp(prm::Params, d::Datum, particles=N_PARTICLE)
+        policy = SoftBlinkered(prm)
+        logp(policy, value(prm, d), d.samples, d.choice, particles)
+    end
+
+    function logp(prm::Params, dd::Vector{Datum}, particles=N_PARTICLE)
+        map(dd) do d
+            logp(prm, d, particles)
+        end |> sum
+    end
+    const data = Datum.(trials)
+
+    const N_OBS = sum(length(d.samples) + 1 for d in data)
+    const RAND_LOSS = sum(rand_logp.(trials)) / N_OBS
+    const MAX_LOSS = -10 * RAND_LOSS
 end
-
-function logp(prm::Params, dd::Vector{Datum}, particles=N_PARTICLE)
-    map(dd) do d
-        logp(prm, d, particles)
-    end |> sum
-end
-const data = Datum.(trials)
-
-const N_OBS = sum(length(d.samples) + 1 for d in data)
-const RAND_LOSS = sum(rand_logp.(trials)) / N_OBS
-const MAX_LOSS = -10 * RAND_LOSS
-
 # %% ====================  ====================
+
 if get(ARGS, 1, "") == "worker"
     start_worker()
-else
-    start_master()
+elseif get(ARGS, 1, "") == "master"
+    start_master(wait=false)
 
     function plogp(prm, particles=N_PARTICLE)
         smap(eachindex(data)) do i
@@ -88,42 +103,41 @@ else
         min(MAX_LOSS, -plogp(prm, particles) / N_OBS)
     end
 
-
-    println("Begin GP minimize")
-    @time res = gp_minimize(loss, 6, N_LATIN, N_BO; file="results/opt_xy")
-    res = (
-        Xi = collect.(res.Xi),
-        yi = res.yi,
-        emin = expected_minimum(res)
-    )
-    open("results/blinkered_opt", "w+") do f
-        serialize(f, res)
+    if OPTIMIZE
+        println("Begin GP minimize")
+        @time res = gp_minimize(loss, N_PARAM, N_LATIN, N_BO; file="results/opt_xy_$(N_PARAM)")
+        res = (
+            Xi = collect.(res.Xi),
+            yi = res.yi,
+            emin = expected_minimum(res)
+        )
+        open("results/blinkered_opt", "w+") do f
+            serialize(f, res)
+        end
+    else
+        res = open(deserialize, "results/opt_xy_$(N_PARAM)")
     end
 
-
-    # res = open(deserialize, "results/blinkered_opt")
-    # res = open(deserialize, "results/opt_xy")
-
-
     # %% ==================== Check top 20 to find best ====================
-    # println("Computing loss for top 20.")
-    # ranked = sortperm(res.yi)
-    # top20 = res.Xi[ranked[1:20]]
-    # top20_loss = map(top20) do x
-    #     fx, elapsed = @timed loss(x, 10 * N_PARTICLE)
-    #     println(round.(x; digits=3),
-    #             " => ", round(fx; digits=4),
-    #             "   ", round(elapsed; digits=1), " seconds")
-    #     fx
-    # end
-    # println("Top 20")
-    # println(top20_loss)
-    # best = top20[argmin(top20_loss)]
+    if RETEST
+        println("Computing loss for top 20.")
+        ranked = sortperm(res.yi)
+        top20 = res.Xi[ranked[1:20]]
+        top20_loss = map(top20) do x
+            fx, elapsed = @timed loss(x, 10 * N_PARTICLE)
+            println(round.(x; digits=3),
+                    " => ", round(fx; digits=4),
+                    "   ", round(elapsed; digits=1), " seconds")
+            fx
+        end
+        best = top20[argmin(top20_loss)]
+    else
+        best = res.Xi[argmin(res.yi)]
+    end
 
-    best = res.Xi[argmin(res.yi)]
     prm = Params(best)
-
-    open("results/blinkered_policy.jls", "w+") do f
+    println("MLE ", prm)
+    open("results/blinkered_policy$(N_PARAM).jls", "w+") do f
         serialize(f, (
             policy=SoftBlinkered(prm),
             prior=(prm.µ, prm.σ)
@@ -132,9 +146,9 @@ else
 
     # %% ==================== Examine loss function around minimum ====================
     println("Explore loss function near discovered minimum.")
-    diffs = -0.2:0.02:0.2
+    diffs = -0.1:0.02:0.1
 
-    cross = map(1:6) do i
+    cross = map(1:N_PARAM) do i
         map(diffs) do d
             x = copy(best)
             x[i] += d
@@ -146,7 +160,7 @@ else
         end
     end
 
-    open("results/cross6.json", "w+") do f
+    open("results/cross.json", "w+") do f
         write(f, json(cross))
     end
 

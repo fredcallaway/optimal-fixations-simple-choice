@@ -7,8 +7,10 @@ addprocs()
     include("human.jl")
     include("simulations.jl")
     include("loss.jl")
+    include("blinkered.jl")
 end
 
+using Serialization
 using Plots
 plot([1,2])
 
@@ -171,10 +173,11 @@ bopt = open(deserialize, "tmp/blinkered_opt")
 best = bopt.Xi[argmin(bopt.yi)]
 
 # %% ====================  ====================
-using Serialization
-include("blinkered.jl")
-policy, prior = open(deserialize, "results/blinkered_policy.jls")
-@time sim = simulate_experiment(policy, prior)
+policy, prior = open(deserialize, "results/good_blinkered.jls")
+# policy, prior = open(deserialize, "results/blinkered_policy6.jls")
+@time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
+
+policy
 
 # %% ====================  ====================
 pyplot()
@@ -199,15 +202,15 @@ end
 #        fill=:white, color=:black, label="")
 # end
 
-function plot_human(bins, x, y, type=:line)
+function plot_human!(bins, x, y, type=:line)
     vals = bin_by(bins, x, y)
     if type == :line
-        plot(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
+        plot!(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
               grid=:none,
               color=:black,
               label="",)
     elseif type == :discrete
-        Plots.bar(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
+        Plots.bar!(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
               grid=:none,
               fill=:white,
               color=:black,
@@ -237,11 +240,12 @@ function cross!(x, y)
     hline!([y], line=(:grey, 0.7), label="")
 end
 
-function plot_comparison(feature, sim, bins=nothing, type=:line)
-    hx, hy = feature(trials)
-    mx, my = feature(sim)
+function plot_comparison(feature, sim, bins=nothing, type=:line; kws...)
+    hx, hy = feature(trials; kws...)
+    mx, my = feature(sim; kws...)
     bins = make_bins(bins, hx)
-    plot_human(bins, hx, hy, type)
+    plot()
+    plot_human!(bins, hx, hy, type)
     plot_model!(bins, mx, my, type)
     # title!(@sprintf "Loss = %.3f" make_loss(feature, bins)(sim))
 end
@@ -272,6 +276,13 @@ fig("value_bias") do
     ylabel!("Proportion fixation time")
 end
 
+fig("fixate_on_best") do
+    # FIXME Incorrect error bars!
+    plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
+    xlabel!("Time (ms)")
+    ylabel!("Probability of fixating\non highest-value item")
+end
+
 fig("fourth_rank") do
     plot_comparison(fourth_rank, sim, :integer, :discrete)
     xlabel!("Value rank of fourth-fixated item")
@@ -280,7 +291,7 @@ fig("fourth_rank") do
 end
 
 fig("first_fixation_duration") do
-    plot_comparison(first_fixation_duration, sim)
+    plot_comparison(first_fixation_duration, sim, Binning(50:100:550))
     xlabel!("Duration of first fixation")
     ylabel!("Probability of choice")
 end
@@ -334,18 +345,110 @@ fig("gaze_cascade") do
     xlabel!("Fixation number (aligned to choice)")
     ylabel!("Proportion of fixations\nto chosen item")
 end
+# %% ====================  ====================
+using StatsPlots
+flatten(trials.fix_times)
 
-fig("fixate_on_best") do
-    # FIXME Incorrect error bars!
-    plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
-    xlabel!("Time (ms)")
-    ylabel!("Probability of fixating\non highest-value item")
+# %% ====================  ====================
+x = 5000
+# plot_comparison(fixate_on_best, sim, Binning(0:x/7:x); cutoff=x)
+function fix_best(trials; keep=5, min_fix=-Inf, max_fix=Inf)
+    x, y = Int[], Bool[]
+    for t in trials
+        if min_fix <= length(t.fixations) <= max_fix
+            best = argmax(t.value)
+            k = min(keep, length(t.fixations))
+            push!(x, (1:k)...)
+            push!(y, (t.fixations .== best)[1:k]...)
+        end
+    end
+    x, y
 end
 
+plot_comparison(fix_best, sim, :integer)
+# %% ====================  ====================
+function fixation_bias(trials, min_v=-Inf, max_v=Inf)
+    x, y = Float64[], Bool[]
+    for t in trials
+        ft = total_fix_time(t)
+        ft .-= mean(ft)
+        for i in 1:3
+            if min_v <= t.value[i] <= max_v
+                push!(x, ft[i])
+                push!(y, t.choice == i)
+            end
+        end
+    end
+    x, y
+end
 
+# plot_comparison(low_fixation_bias, sim)
+# plot_comparison(fixation_bias, sim
 
+fig("split_fixation_bias") do
+    # a, b = quantile(V, [0.25, 0.75])
+    # a, b = quantile(V, [0.1, 0.9])
+    a = b = prior[1]
+    hx, hy = fixation_bias(trials, -Inf, Inf)
+    bins = make_bins(nothing, hx)
+    plot()
+    plot_human!(bins, fixation_bias(trials, -Inf, a)...)
+    plot_human!(bins, fixation_bias(trials, b, Inf)...)
+    plot_model!(bins, fixation_bias(sim, -Inf, a)...)
+    plot_model!(bins, fixation_bias(sim, b, Inf)...)
+    cross!(0, 1/3)
+    xlabel!("Relative fixation time")
+    ylabel!("Probability of choice")
+end
 # argmin(L[4, :])
 # sim1 = simulate_experiment(policies[71],  (μ_emp, σ_emp), 10)
+# %% ====================  ====================
+
+function all_bad(trials, max_v=prior[1])
+    x, y = Float64[], Bool[]
+    for t in trials
+        !all(t.value .< max_v) && continue
+        ft = total_fix_time(t)
+        ft .-= mean(ft)
+        for i in 1:3
+            push!(x, ft[i])
+            push!(y, t.choice == i)
+        end
+    end
+    x, y
+end
+fig("all_bad") do
+    plot_comparison(all_bad, sim)
+    xlabel!("Relative fixation time")
+    ylabel!("Probability of choice")
+end
+
+# %% ====================  ====================
+
+function foo()
+    x, y = Float64[], Bool[]
+    for i in 1:10000
+        v = -ones(3) .+ rand(3)
+        t = simulate(policy, v)
+        ft = counts(t.samples, 1:3)
+        ft = ft .- mean(ft)
+        for i in 1:3
+            push!(x, ft[i])
+            push!(y, t.choice == i)
+        end
+    end
+    x, y
+end
+
+mx, my = foo()
+fig("model_fixation_negative") do
+    bins = make_bins(nothing, mx)
+    plot()
+    plot_model!(bins, mx, my)
+    cross!(0, 1/3)
+    xlabel!("Relative fixation time")
+    ylabel!("Probability of choice")
+end
 # %% ====================  ====================
 display("")
 

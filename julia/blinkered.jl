@@ -3,10 +3,6 @@ include("utils.jl")
 using StatsBase
 using StatsFuns
 
-# m = MetaMDP(switch_cost=3)
-# s = State(m)
-# b = Belief(s)
-
 function voi1_sigma(lam, obs_lam)
     w = obs_lam / (lam + obs_lam)
     sample_sigma = √(1. / lam + 1. / obs_lam)

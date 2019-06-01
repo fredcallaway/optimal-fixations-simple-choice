@@ -141,12 +141,12 @@ function fixation_value(trials; sample_time=10)
     collect(1:k) .* sample_time, num ./ denom
 end
 
-function fixate_on_best(trials; sample_time=10, cutoff=CUTOFF)
+function fixate_on_best(trials; sample_time=10, cutoff=3000)
     # kind = [Tuple(diff(sort(v))) for v in trials.value]
     # trials = trials[kind .== [(1., 1.)]]
     tft = sum.(trials.fix_times)
     trials = trials[cutoff .< tft]
-    k = ceil(Int, CUTOFF / sample_time)
+    k = ceil(Int, cutoff / sample_time)
     denom = zeros(k)
     num = zeros(k)
     for t in trials
@@ -182,15 +182,19 @@ end
 
 
 function last_fixation_duration(trials)
-    map(trials) do t
+    x, y = Float64[], Float64[]
+    for t in trials
+        length(t.fixations) == 0 && continue
         last = t.fixations[end]
-        last != t.choice && return missing
+        last != t.choice && continue
         tft = total_fix_time(t)
         tft[last] -= t.fix_times[end]
         adv = 2 * tft[t.choice] - sum(tft)
         # adv = tft[t.choice] - mean(tft)
-        (adv, t.fix_times[end])
-    end |> skipmissing |> collect |> invert
+        push!(x, adv)
+        push!(y, t.fix_times[end])
+    end
+    x, y
 end
 
 function make_featurizer(feature::Function, bins=nothing)
