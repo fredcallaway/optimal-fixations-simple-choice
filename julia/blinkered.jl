@@ -1,33 +1,42 @@
 include("model.jl")
 include("utils.jl")
 using StatsBase
-using StatsFuns
+# m = MetaMDP(switch_cost=3)
+# s = State(m)
+# b = Belief(s)
 
-function voi1_sigma(lam, obs_lam)
+function voi1_sigma(lam, obs_sigma)
+    obs_lam = obs_sigma ^ -2
     w = obs_lam / (lam + obs_lam)
-    sample_sigma = √(1. / lam + 1. / obs_lam)
+    sample_sigma = √(1/lam + 1/obs_lam)
     w * sample_sigma
-end
-
-function slow_voi_n(b::Belief, c::Computation, n::Int)
-    cv = competing_value(b.mu, c)
-    obs_lam = b.obs_sigma ^ -2.
-    d = Normal(b.mu[c], voi1_sigma(b.lam[c], obs_lam * n))
-    expect_max_dist(d, cv) - maximum(b.mu)
 end
 
 function voi_n(b::Belief, c::Computation, n::Int)
     cv = competing_value(b.mu, c)
-    obs_lam = b.obs_sigma ^ -2.
-    µ, σ = b.mu[c], voi1_sigma(b.lam[c], obs_lam * n)
-    α = (cv - µ) / σ
-    p_improve = 1 - normcdf(α)
-    p_improve < eps() && return 0.0
-    amount_improve = µ + σ * normpdf(α) / p_improve
-    new_ev = (1 - p_improve) * cv + p_improve * amount_improve
-    new_ev - max(cv, µ)
+    d = Normal(b.mu[c], voi1_sigma(b.lam[c], b.obs_sigma / √n))
+    expect_max_dist(d, cv) - maximum(b.mu)
 end
 
+# function int_line_search(f, lower, upper; max_i=1000)
+#     i = lower; last_val = -Inf; val = f(lower)
+#     while val > last_val
+#         i += 1
+#         i > max_i && break
+#         last_val, val = val, f(i)
+#     end
+#     (i-1, last_val)
+# end
+
+# function int_line_search(start, f; max_i=1000)
+#     i = start; last_val = -Inf; val = f(start)
+#     while val > last_val
+#         i += 1
+#         i > max_i && break
+#         last_val, val = val, f(i)
+#     end
+#     (i-1, last_val)
+# end
 
 function voc_blinkered(m::MetaMDP, b::Belief, c::Computation)
     c == TERM && return 0.
