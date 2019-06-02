@@ -34,15 +34,20 @@ function max_cost(m::MetaMDP)
 end
 
 function optimize(job::Job; verbose=true)
-    @unpack seed, n_iter, n_roll = job
-    Random.seed!(seed)
+    @unpack seed, n_iter, n_roll, cost_features = job
     m = MetaMDP(job)
+    optimize(m, n_iter=n_iter, n_roll=n_roll, seed=seed,
+             cost_features=cost_features, verbose=verbose)
+end
 
+function optimize(m::MetaMDP; cost_features=1, n_iter=200, seed=1, n_roll=1000, verbose=true)
+    Random.seed!(seed)
     function x2theta(x)
-        cost_weights = x[1:job.cost_features]
+        x = collect(x)
+        cost_weights = x[1:cost_features]
         voi_weights = diff([0; sort(collect(x[end-1:end])); 1])
-        θ = [cost_weights; zeros(3-job.cost_features); voi_weights]
-        if job.cost_features == 3
+        θ = [cost_weights; zeros(3-cost_features); voi_weights]
+        if cost_features == 3
             θ[3] = exp(θ[3])
         end
         θ
@@ -64,7 +69,7 @@ function optimize(job::Job; verbose=true)
 
     mc = max_cost(m)
     bounds = [
-        [(0., mc), (0., mc), (-8., -1.)][1:job.cost_features] ;
+        [(0., mc), (0., mc), (-8., -1.)][1:cost_features] ;
         [(0., 1.), (0., 1.)]
     ]
     n_latin = max(2, cld(n_iter, 4))
@@ -100,6 +105,7 @@ function sum_reward(policy; n_roll=1000, seed=0)
         rollout(policy.m, policy, max_steps=200).reward
     end
 end
+
 
 function halving(m::MetaMDP)
     n = 500
