@@ -8,3 +8,4 @@ analysis/data
 julia/scratch.jl
 analysis/figs/
 analysis/figs1/
+julia/out/
