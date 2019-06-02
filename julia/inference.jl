@@ -25,7 +25,7 @@ end
 
     const OPTIMIZE = true
     const RETEST = true
-    const N_PARAM = 6
+    const N_PARAM = 5
 
     struct Datum
         value::Vector{Float64}
@@ -109,8 +109,8 @@ elseif get(ARGS, 1, "") == "master"
         min(MAX_LOSS, -plogp(prm, particles) / N_OBS)
     end
 
-    res = open(deserialize, "results/opt_xy")
-    loss(res.Xi[argmin(res.yi)])
+    # res = open(deserialize, "results/opt_xy")
+    # loss(res.Xi[argmin(res.yi)])
 
     if OPTIMIZE
         println("Begin GP minimize")
@@ -152,6 +152,11 @@ elseif get(ARGS, 1, "") == "master"
             prior=(prm.µ, prm.σ)
         ))
     end
+
+    lp = plogp(best, 100000)
+    println("Log Likelihood: ", lp)
+    println("BIC: ", log(N_OBS) * N_PARAM - 2 * lp)
+    println("AIC: ", 2 * N_PARAM - 2 * lp)
 
     # %% ==================== Examine loss function around minimum ====================
     println("Explore loss function near discovered minimum.")

@@ -169,16 +169,18 @@ display(all_losses[job_idx][prior_idx])
 fixate_on_best(trials)
 
 # %% ====================  ====================
-bopt = open(deserialize, "tmp/blinkered_opt")
-best = bopt.Xi[argmin(bopt.yi)]
+run_name = "fit6"
+mkdir("figs/$run_name")
+results = Dict(
+    "fit5" => "results/2019-06-02T11-49-47",
+    "fit6" => "results/2019-06-01T11-36-33/",
+)[run_name]
 
-# %% ====================  ====================
-policy, prior = open(deserialize, "results/good_blinkered.jls")
+policy, prior = open(deserialize, "$results/blinkered_policy.jls")
+
+# policy = open(deserialize, "results/2019-06-01T11-36-33/bmps_policy")
 # policy, prior = open(deserialize, "results/blinkered_policy6.jls")
 @time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
-
-prior
-
 # %% ====================  ====================
 pyplot()
 Plots.scalefontsizes()
@@ -252,7 +254,7 @@ end
 
 function fig(f, name)
     _fig = f()
-    savefig("figs/$name.pdf")
+    savefig("figs/$run_name/$name.pdf")
     _fig
 end
 
@@ -345,6 +347,7 @@ fig("gaze_cascade") do
     xlabel!("Fixation number (aligned to choice)")
     ylabel!("Proportion of fixations\nto chosen item")
 end
+
 # %% ====================  ====================
 using StatsPlots
 flatten(trials.fix_times)
@@ -498,14 +501,25 @@ xlabel!("Worst item value")
 ylabel!("Pr(choose best) /\n Pr(choose middle)")
 
 # %% ====================  ====================
-t = trials[1]
+function value_last(trials)
+    x, y = Float64[], Bool[]
+    for t in trials
+        isempty(t.fixations) && continue
+        push!(x, mean(t.value))
+        push!(y, t.fixations[end] == t.choice)
+    end
+    x, y
+end
+plot_comparison(value_last, sim)
+
+# %% ====================  ====================
 
 function value_rt(trials)
     map(trials) do t
-        sum(t.value), sum(t.fix_times)
+        mean(t.value), sum(t.fix_times)
     end |> invert
 end
-plot_comparison(value_rt, sim)
+plot_comparison(value_rt, sim, 3)
 
 # %% ====================  ====================
  function fig3b(trials)

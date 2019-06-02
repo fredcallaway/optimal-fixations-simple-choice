@@ -141,7 +141,7 @@ function fixation_value(trials; sample_time=10)
     collect(1:k) .* sample_time, num ./ denom
 end
 
-function fixate_on_best(trials; sample_time=10, cutoff=3000)
+function fixate_on_best(trials; sample_time=10, cutoff=CUTOFF)
     # kind = [Tuple(diff(sort(v))) for v in trials.value]
     # trials = trials[kind .== [(1., 1.)]]
     tft = sum.(trials.fix_times)
