@@ -1,9 +1,6 @@
 include("model.jl")
 include("utils.jl")
 using StatsBase
-# m = MetaMDP(switch_cost=3)
-# s = State(m)
-# b = Belief(s)
 
 function voi1_sigma(lam, obs_sigma)
     obs_lam = obs_sigma ^ -2
@@ -18,25 +15,6 @@ function voi_n(b::Belief, c::Computation, n::Int)
     expect_max_dist(d, cv) - maximum(b.mu)
 end
 
-# function int_line_search(f, lower, upper; max_i=1000)
-#     i = lower; last_val = -Inf; val = f(lower)
-#     while val > last_val
-#         i += 1
-#         i > max_i && break
-#         last_val, val = val, f(i)
-#     end
-#     (i-1, last_val)
-# end
-
-# function int_line_search(start, f; max_i=1000)
-#     i = start; last_val = -Inf; val = f(start)
-#     while val > last_val
-#         i += 1
-#         i > max_i && break
-#         last_val, val = val, f(i)
-#     end
-#     (i-1, last_val)
-# end
 
 function voc_blinkered(m::MetaMDP, b::Belief, c::Computation)
     c == TERM && return 0.
@@ -65,41 +43,3 @@ action_probs(pol::SoftBlinkered, b::Belief) = softmax(pol.α * voc(pol, b))
 (pol::SoftBlinkered)(b::Belief) = begin
     sample(0:pol.m.n_arm, Weights(action_probs(pol, b)))
 end
-
-
-
-# # %% ====================  ====================
-
-# voc(pol, Belief(State(true_mdp)))
-# pol = SoftBlinkered1(true_mdp, 10.)
-# b = Belief(State(true_mdp))
-# b.focused = 1
-# println(voc(pol, b))
-# countmap([pol(b) for i in 1:10000])
-# using Glob
-# include("job.jl")
-# files = glob("runs/rando/jobs/*")
-# # %% ====================  ====================
-# display("")
-# job = Job(files[15])
-# m = MetaMDP(job)
-# pol = optimized_policy(job)
-# blinkered = Blinkered(m)
-# Random.seed!(0)
-# @time println(mean(rollout(pol).reward for i in 1:1000))
-# Random.seed!(0)
-# @time println(mean(rollout(blinkered).reward for i in 1:1000))
-#
-# # %% ====================  ====================
-# b.mu[1] = 1
-# b.focused = 2
-# cost(m, b, c)
-# voc_n(n) = voi_n(b, c, n) - (cost(m, b, c) + (n-1) * m.sample_cost)
-# voc_n(1)
-#
-# # %% ====================  ====================
-# y = [voi_n(b, 2, i) for i in x] .- m.sample_cost * x
-# plot(x, y)
-# hline!([voi1(b, 2) - m.sample_cost])
-# # hline!([voi_action(b, 2)])
-# hline!([voc_blinkered(m, b, 2)])

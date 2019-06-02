@@ -52,7 +52,7 @@ end
         10 ^ rescale(x[1], 1, 2),
         rescale(x[2], 1, 60),
         10 ^ rescale(x[3], -5, -2),
-        rescale(x[4], 1, 60),
+        rescale(x[4], 10, 60),
         µ_emp * rescale(x[5], 0., 2),
         N_PARAM == 6 ? (σ_emp * 2 ^ rescale(x[6], -2, 2)) : σ_emp
     )
@@ -89,6 +89,12 @@ if get(ARGS, 1, "") == "worker"
 elseif get(ARGS, 1, "") == "master"
     start_master(wait=false)
 
+    using Dates
+    timestamp = replace(split(string(now()), ".")[1], ':' => '-')
+    results = "results/$timestamp"
+    mkdir(results)
+    println("Saving results to $results/")
+
     function plogp(prm, particles=N_PARTICLE)
         smap(eachindex(data)) do i
             logp(prm, data[i], particles)
@@ -103,19 +109,22 @@ elseif get(ARGS, 1, "") == "master"
         min(MAX_LOSS, -plogp(prm, particles) / N_OBS)
     end
 
+    res = open(deserialize, "results/opt_xy")
+    loss(res.Xi[argmin(res.yi)])
+
     if OPTIMIZE
         println("Begin GP minimize")
-        @time res = gp_minimize(loss, N_PARAM, N_LATIN, N_BO; file="results/opt_xy_$(N_PARAM)")
+        @time res = gp_minimize(loss, N_PARAM, N_LATIN, N_BO; file="$results/opt_xy")
         res = (
             Xi = collect.(res.Xi),
             yi = res.yi,
             emin = expected_minimum(res)
         )
-        open("results/blinkered_opt", "w+") do f
+        open("$results/blinkered_opt", "w+") do f
             serialize(f, res)
         end
     else
-        res = open(deserialize, "results/opt_xy_$(N_PARAM)")
+        res = open(deserialize, "$results/opt_xy")
     end
 
     # %% ==================== Check top 20 to find best ====================
@@ -137,7 +146,7 @@ elseif get(ARGS, 1, "") == "master"
 
     prm = Params(best)
     println("MLE ", prm)
-    open("results/blinkered_policy$(N_PARAM).jls", "w+") do f
+    open("$results/blinkered_policy.jls", "w+") do f
         serialize(f, (
             policy=SoftBlinkered(prm),
             prior=(prm.µ, prm.σ)
@@ -160,7 +169,7 @@ elseif get(ARGS, 1, "") == "master"
         end
     end
 
-    open("results/cross.json", "w+") do f
+    open("$results/cross.json", "w+") do f
         write(f, json(cross))
     end
 

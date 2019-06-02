@@ -177,7 +177,7 @@ policy, prior = open(deserialize, "results/good_blinkered.jls")
 # policy, prior = open(deserialize, "results/blinkered_policy6.jls")
 @time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
 
-policy
+prior
 
 # %% ====================  ====================
 pyplot()
