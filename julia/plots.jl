@@ -168,19 +168,41 @@ display(all_losses[job_idx][prior_idx])
 # @time sim = simulate_experiment(policy, (μs[prior_idx], σ_emp); parallel=true);
 fixate_on_best(trials)
 
-# %% ====================  ====================
+# %% ==================== Load Blinkered ====================
 run_name = "fit6"
-mkdir("figs/$run_name")
+mkpath("figs/$run_name")
 results = Dict(
     "fit5" => "results/2019-06-02T11-49-47",
     "fit6" => "results/2019-06-01T11-36-33/",
 )[run_name]
 
 policy, prior = open(deserialize, "$results/blinkered_policy.jls")
-
 # policy = open(deserialize, "results/2019-06-01T11-36-33/bmps_policy")
 # policy, prior = open(deserialize, "results/blinkered_policy6.jls")
 @time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
+# %% ==================== Load individual fit blinkered ====================
+
+run_name = "indiv"
+results = "results/2019-06-02T22-35-51"
+fits = open(deserialize, "$results/individual_fits")
+@everywhere fits = $fits
+function simulate_indiv(fits, n_repeat=N_SIM;
+                             parallel=false, sample_time=100)
+    mymap = parallel ? pmap : map
+    samples, choice, value = map(1:n_repeat) do i
+        mymap(trials.subject, trials.value) do s, v
+            policy, (µ, σ) = fits[s]
+            sim = simulate(policy, (v .- μ) ./ σ)
+            sim.value[:] = v  # we want the un-normalized values
+            sim
+        end
+    end |> flatten |> invert
+    fixs, fix_times = parse_fixations.(samples, sample_time) |> invert
+    Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
+end
+
+sim = simulate_indiv(fits)
+
 # %% ====================  ====================
 pyplot()
 Plots.scalefontsizes()
@@ -258,6 +280,17 @@ function fig(f, name)
     _fig
 end
 
+using KernelDensity
+
+# %% ====================  ====================
+function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
+    plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
+end
+
+function kdeplot!(x; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95); kws...)
+    kdeplot!(kde(x), xmin, xmax; kws...)
+end
+
 # %% ====================  ====================
 fig("value_choice") do
     plot_comparison(value_choice, sim)
@@ -281,7 +314,7 @@ end
 fig("fixate_on_best") do
     # FIXME Incorrect error bars!
     plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
-    xlabel!("Time (ms)")
+    xlabel!("Time since trial onset")
     ylabel!("Probability of fixating\non highest-value item")
 end
 
@@ -348,9 +381,138 @@ fig("gaze_cascade") do
     ylabel!("Proportion of fixations\nto chosen item")
 end
 
+fig("rt_kde") do
+    plot(xlabel="Total fixation time", ylabel="Probability density")
+    kdeplot!(sum.(trials.fix_times), xmin=0, xmax=5000, line=(:black,), )
+    kdeplot!(sum.(sim.fix_times), xmin=0, xmax=5000, line=(:red, :dash), )
+end
+
 # %% ====================  ====================
-using StatsPlots
-flatten(trials.fix_times)
+
+function all_ranks(trials)
+    early, late = Int[], Int[]
+    for t in trials
+        if length(t.fixations) > 3
+            ranks = sortperm(sortperm(-t.value))
+            for i in eachindex(t.fixations)
+                x = i < 4 ? early : late
+                push!(x, ranks[t.fixations[i]])
+            end
+        end
+    end
+    # n = length(x)
+    counts(early, 3) ./ length(early), counts(late, 3) ./ length(late)
+    # std_ = @. √(p * (1 - p) / n)
+    # 1:3, p, std_
+end
+
+# %% ====================  ====================
+
+# for i in eachindex(t.fixations)
+#     x = i < 4 ? early : late
+#     x[ranks[t.fixations[i]]] += t.fix_times[i]
+# end
+
+# %% ====================  ====================
+
+function find_switch(fixations)
+    seen = Set()
+    for i in eachindex(fixations)
+        push!(seen, fixations[i])
+        length(seen) == 3 && return i
+    end
+    return 1000
+end
+
+
+
+
+
+function early_late_proportion(trials)
+    x = Int[]
+    y = Float64[]
+    for t in trials
+        switch = find_switch(t.fixations)
+        length(t.fixations) > switch || continue
+        # length(unique(t.fixations[1:3])) == 3 || continue
+        ranks = sortperm(-t.value)
+        time_on_best = float(ranks[t.fixations] .== 1) .* t.fix_times
+        push!(x, 1, 2)
+        push!(y, sum(time_on_best[1:switch]) / sum(t.fix_times[1:switch]))
+        push!(y, sum(time_on_best[switch+1:end]) / sum(t.fix_times[switch+1:end]))
+    end
+    x, y
+end
+
+plot_comparison(early_late_proportion, sim, :integer, :discrete)
+hline!([1/3], line=(:grey, 0.7), label="")
+xticks!(1:2, ["Early", "Late"])
+ylabel!("Proportion fixation time on best")
+
+
+# %% ====================  ====================
+function dwell_time(trials)
+    chosen, other = Float64[], Float64[]
+    for t in trials
+        for i in eachindex(t.fixations)
+            if t.fixations[i] == t.choice
+                push!(chosen, t.fix_times[i])
+            else
+                push!(other, t.fix_times[i])
+            end
+        end
+    end
+    chosen, other
+end
+
+let
+    kd(x) = kde(x; bandwidth=100)
+    chosen, other = dwell_time(trials)
+    plot()
+    kdeplot!(kd(chosen), 0, 1000, line=(:black))
+    kdeplot!(kd(other), 0, 1000, line=(:black, :dot))
+
+    chosen, other = dwell_time(sim)
+    kdeplot!(kd(chosen), 0, 1000, line=(:red))
+    kdeplot!(kd(other), 0, 1000, line=(:red, :dot))
+end
+# %% ====================  ====================
+function dwell_time(trials)
+    chosen, fix_times = Bool[], Float64[]
+    for t in trials
+        for i in eachindex(t.fixations)
+            push!(chosen, t.fixations[i] == t.choice)
+            push!(fix_times, t.fix_times[i])
+        end
+    end
+    chosen, fix_times
+end
+
+fig("chosen_unchosen_duration") do
+    plot_comparison(dwell_time, sim, :integer, :discrete)
+    xticks!([0, 1], ["Unchosen", "Chosen"])
+    ylabel!("Fixation duration")
+end
+
+# %% ====================  ====================
+
+function dwell_number(trials)
+    chosen, fix_nums = Bool[], Int[]
+    for t in trials
+        nfix = counts(t.fixations, 1:3)
+        for i in eachindex(nfix)
+            push!(chosen, t.choice == i)
+            push!(fix_nums, nfix[i])
+        end
+    end
+    chosen, fix_nums
+end
+# %% ====================  ====================
+fig("dwell_number") do
+    plot_comparison(dwell_number, sim, :integer, :discrete)
+    xticks!([0, 1], ["Unchosen", "Chosen"])
+    ylabel!("Number of fixations")
+end
 
 # %% ====================  ====================
 x = 5000
@@ -452,16 +614,7 @@ fig("model_fixation_negative") do
     xlabel!("Relative fixation time")
     ylabel!("Probability of choice")
 end
-# %% ====================  ====================
-display("")
 
-@show t.value
-@show ranks
-@show t.choice
-s = sortperm(-t.value)
-@show s
-
-nothing
 # %% ====================  ====================
 function louie_context(trials)
     x = Float64[]
@@ -524,6 +677,7 @@ plot_comparison(value_rt, sim, 3)
 # %% ====================  ====================
  function fig3b(trials)
     map(trials) do t
+        isempty(t.fixations) && return missing
         last = t.fixations[end]
         # last != t.choice && return missing
         tft = total_fix_time(t)
@@ -559,13 +713,12 @@ end
 plot_comparison(neg_fixation_bias, sim)
 
 # %% ====================  ====================
-using StatPlots
+# using StatPlots
 
 function fixate_probs(trials; k=6)
     X = zeros(Int, k, 3)
     for t in trials
-        # length(t.fixations) < k && continue
-        length(unique(t.value)) != length(t.value) && continue
+        3 < length(t.fixations) <= k || continue
         ranks = sortperm(-t.value)
         for i in 1:min(k, length(t.fixations))
             r = ranks[t.fixations[i]]
@@ -591,7 +744,35 @@ fig("4a_alt") do
     ylabel!("Proportion of fixations")
 end
 # %% ====================  ====================
-Xh .- Xm
+function fixate_probs(trials; k=4)
+    X = zeros(Int, k, 3)
+    for t in trials
+        # length(t.fixations) != k && continue
+        # length(t.fixations) < k && continue
+        ranks = sortperm(-t.value)
+        best, middle = t.value[ranks[1:2]]
+        best - middle < 2 && continue
+        for i in 1:min(k, length(t.fixations))
+            r = ranks[t.fixations[i]]
+            X[i, r] += 1
+        end
+    end
+    X ./ sum(X, dims=2)
+end
+Xh = fixate_probs(trials)
+Xm = fixate_probs(sim)
+
+plot(Xh[:, 1], color=:black)
+plot!(Xm[:, 1], line=(:red, :dash))
+
+# %% ====================  ====================
+fig("4a_alt") do
+    plot(Xh[:, [1,3]], color=:black, label=["best" "worst"], ls=[:solid :dash])
+    plot!(Xm[:, [1,3]], color=:red, label="", ls=[:solid :dash])
+    xlabel!("Fixation number")
+    ylabel!("Proportion of fixations")
+end
+
 
 # %% ====================  ====================
 function fixate_probs_from_end(trials; k=6)
@@ -626,22 +807,6 @@ fig("4b_alt") do
     xlabel!("Fixation number")
     ylabel!("Proportion of fixations")
 end
-
-# %% ====================  ====================
-function last_fix_bias(trials)
-    map(trials) do t
-        last = t.fixations[end]
-        if t.value[last] > μ_emp
-            return missing
-        end
-        return (t.value[last] - mean(t.value), t.choice == last)
-    end |> skipmissing |> collect |> invert
-end
-
-plot_comparison(last_fix_bias, sim)
-cross!(0, 1/3)
-xlabel!("Last fixated item relative value")
-ylabel!("Probability of choosing\nlast fixated item")
 
 
 # %% ====================  ====================
@@ -764,16 +929,8 @@ R"binom.test($success, $n, 1/3)"
     x, y
 end
 
-@everywhere myloss = make_loss(nfix_by_time, Binning(0:100:3000))
-my_losses = pmap(all_sims) do sim1
-    ismissing(sim1) ? Inf : myloss(sim1)
-end
-nbt_best = argmin(my_losses)
-
-jobs[nbt_best]
-# %% ====================  ====================
 fig("nfix_by_time") do
-    plot_comparison(nfix_by_time, all_sims[nbt_best], Binning(0:100:3000))
+    plot_comparison(nfix_by_time, sim, Binning(0:100:3000))
     xlabel!("Time (ms)")
     ylabel!("Number of fixations")
 end
