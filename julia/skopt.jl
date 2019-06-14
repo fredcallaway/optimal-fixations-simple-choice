@@ -1,5 +1,5 @@
 using PyCall
-using LatinHypercubeSampling
+using LatinHypercubeSampling: LHCoptim
 using Serialization
 using Distributed
 skopt = pyimport("skopt")
@@ -19,6 +19,10 @@ def expected_minimum(opt):
 """
 expected_minimum = py"expected_minimum"
 
+# using Memoize
+# @memoize function get_latin_points(n_latin, dim)
+#     LHCoptim(n_latin, length(bounds), 1000)[1] ./ n_latin
+# end
 
 function gp_minimize(f, dim, n_latin, n_bo; file="opt_xy")
     bounds = [(0., 1.) for i in 1:dim]
@@ -31,9 +35,10 @@ function gp_minimize(f, dim, n_latin, n_bo; file="opt_xy")
     yi = Float64[]
 
     function g(x)
-        print("($iter)  ")
+        # print("($iter)  ")
         fx, elapsed = @timed f(x)
-        println(round.(x; digits=3),
+        println("($iter)  ",
+                round.(x; digits=3),
                 " => ", round(fx; digits=4),
                 "   ", round(elapsed; digits=1), " seconds",
                 " with ", nprocs(), " processes"

@@ -1,4 +1,3 @@
-# %%
 import CSV
 using TypedTables
 using SplitApplyCombine
@@ -6,9 +5,8 @@ using SplitApplyCombine
 using StatsBase
 using Lazy: @>>
 include("utils.jl")
-# include("model.jl")
 
-data = Table(CSV.File("../krajbich_PNAS_2011/data.csv"; allowmissing=:none));
+
 
 function reduce_trial(t::Table)
     r = t[1]
@@ -33,7 +31,8 @@ function normalize_values!(trials)
 end
 
 const trials = @>> begin
-    data
+    CSV.File("../krajbich_PNAS_2011/data.csv")
+    Table
     group(x->(x.subject, x.trial))
     values
     map(reduce_trial)
