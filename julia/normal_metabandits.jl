@@ -10,7 +10,7 @@ using StaticArrays
     sample_cost::Float64 = 0.001
     switch_cost::Float64 = 1
     quantization::Int = 3
-    μ_digits::Int = 2
+    μ_digits::Int = -1
 end
 n_arm(m::MetaMDP{N}) where {N} = N
 actions(m) = 0:n_arm(m)
@@ -54,9 +54,6 @@ end
 end
 # @isdefined(DRAND) || const DRAND = discretized_randn()
 
-function get_μ(m::MetaMDP, μ_dist::Normal)
-    round(rand(μ_dist), digits=1)
-end
 
 function posterior(m::MetaMDP, prior::Normal)
     λ, λ_obs = (prior.σ, m.σ_obs) .^ -2;
@@ -70,7 +67,9 @@ function update(m::MetaMDP{N}, b::Belief, c::Int, sample::Float64=randn())::Beli
     v = collect(b.value)
     μ_dist, σ = posterior(m, b[c])
     μ = μ_dist.μ + μ_dist.σ * sample
-    μ = round(μ; digits=m.μ_digits)
+    if m.μ_digts != -1
+        μ = round(μ; digits=m.μ_digits)
+    end
     Belief{N}(setindex(b.value, Normal(µ, σ), c), c)
 end
 
@@ -92,7 +91,6 @@ function results(m::MetaMDP, b::Belief, c::Int)::Vector{Result}
     [(p, update(m, b, c, x), r)
      for (p, x) in discretized_randn(m.quantization)]
 end
-
 
 # %% ==================== Features ====================
 
