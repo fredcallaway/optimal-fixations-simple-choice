@@ -1,3 +1,4 @@
+
 include("elastic.jl")
 
 if get(ARGS, 1, "") == "master"
@@ -18,14 +19,14 @@ end
     using Serialization
     using JSON
 
-    const N_PARTICLE = 500
+    const N_PARTICLE = 1000
     const N_LATIN = 200
     const N_BO = 100
     const SAMPLE_TIME = 100
 
     const OPTIMIZE = true
-    const RETEST = true
-    const N_PARAM = 5
+    const RETEST = false
+    const N_PARAM = 6
 
     struct Datum
         value::Vector{Float64}
@@ -53,8 +54,8 @@ end
         rescale(x[2], 1, 60),
         10 ^ rescale(x[3], -5, -2),
         rescale(x[4], 10, 60),
-        µ_emp * rescale(x[5], 0., 2),
-        N_PARAM == 6 ? (σ_emp * 2 ^ rescale(x[6], -2, 2)) : σ_emp
+        length(x) >= 5 ? µ_emp * rescale(x[5], 0., 2) : μ_emp,
+        length(x) >= 6 ? (σ_emp * 2 ^ rescale(x[6], -2, 2)) : σ_emp
     )
 
     MetaMDP(prm::Params) = MetaMDP(
@@ -72,9 +73,9 @@ end
     end
 
     function logp(prm::Params, dd::Vector{Datum}, particles=N_PARTICLE)
-        map(dd) do d
+        mapreduce(+, dd) do d
             logp(prm, d, particles)
-        end |> sum
+        end
     end
     const data = Datum.(trials)
 
@@ -83,6 +84,7 @@ end
     const MAX_LOSS = -10 * RAND_LOSS
 end
 # %% ====================  ====================
+
 
 if get(ARGS, 1, "") == "worker"
     start_worker()
@@ -145,18 +147,20 @@ elseif get(ARGS, 1, "") == "master"
     end
 
     prm = Params(best)
-    println("MLE ", prm)
-    open("$results/blinkered_policy.jls", "w+") do f
-        serialize(f, (
-            policy=SoftBlinkered(prm),
-            prior=(prm.µ, prm.σ)
-        ))
-    end
-
-    lp = plogp(best, 100000)
+    lp = plogp(prm, 100000)
     println("Log Likelihood: ", lp)
     println("BIC: ", log(N_OBS) * N_PARAM - 2 * lp)
     println("AIC: ", 2 * N_PARAM - 2 * lp)
+
+    println("MLE ", prm)
+    open("$results/mle", "w+") do f
+        serialize(f, (
+            policy=SoftBlinkered(prm),
+            prior=(prm.µ, prm.σ),
+            logp=lp
+        ))
+    end
+
 
     # %% ==================== Examine loss function around minimum ====================
     println("Explore loss function near discovered minimum.")

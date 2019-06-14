@@ -1,5 +1,5 @@
 using Distributed
-addprocs()
+nprocs() == 1 && addprocs()
 @everywhere begin
     cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
     include("model.jl")
@@ -13,195 +13,6 @@ end
 using Serialization
 using Plots
 plot([1,2])
-
-# %% ====================  ====================
-using Glob
-files = glob("runs/rando1000/jobs/*")
-jobs = Job[]
-Features = Dict{Symbol,Union{Missing, Vector{Float64}}}
-all_features = Vector{Features}[]
-@time for f in files
-    job = Job(f)
-    try
-        push!(all_features, deserialize(job, :features))
-        push!(jobs, job)
-    catch end
-end
-println(length(jobs), " jobs")
-
-# %% ====================  ====================
-
-
-function make_feature_loss(feature::Function, bins=nothing)
-    h = feature(trials)
-    h_mean, h_std = if length(h) == 3
-        h[2:3]
-    else
-        hx, hy = h
-        bins = make_bins(bins, hx)
-        bin_by(bins, hx, hy) .|> juxt(mean, std) |> invert
-    end
-    (m_mean) -> begin
-        try
-            # total = visual_error(h_mean, m_mean)
-            err = (h_mean .- m_mean) ./ h_std
-            total  = mean(abs.(err))
-            # total = mean(err .^ 2)
-            isnan(total) ? Inf : total
-        catch
-            Inf
-        end
-    end
-end
-#
-# function make_feature_loss(feature::Function, bins=nothing)
-#     hx, hy = feature(trials)
-#     bins = make_bins(bins, hx)
-#     h = bin_by(bins, hx, hy) .|> mean
-#     (m) -> begin
-#         try
-#             err = visual_error(h, m)
-#             isnan(err) ? Inf : err
-#         catch
-#             Inf
-#         end
-#     end
-# end
-
-feature_names = collect(keys(featurizers))
-feature_losses = Dict(
-    :value_choice => make_feature_loss(value_choice),
-    :fixation_bias => make_feature_loss(fixation_bias),
-    :value_bias => make_feature_loss(value_bias),
-    :fourth_rank => make_feature_loss(fourth_rank, :integer),
-    :first_fixation_duration => make_feature_loss(first_fixation_duration),
-    :last_fixation_duration => make_feature_loss(last_fixation_duration),
-    :difference_time => make_feature_loss(difference_time),
-    :difference_nfix => make_feature_loss(difference_nfix),
-    :fixation_times => make_feature_loss(fixation_times, :integer),
-    :last_fix_bias => make_feature_loss(last_fix_bias),
-    :gaze_cascade => make_feature_loss(gaze_cascade, :integer),
-    :fixate_on_best => make_feature_loss(fixate_on_best, Binning(0:CUTOFF/7:CUTOFF)),
-    :n_fix_hist => make_feature_loss(n_fix_hist, :integer),
-)
-
-@time feature_losses[:fourth_rank](sim);
-@time feature_losses[:fourth_rank](sim);
-
-
-# %% ====================  ====================
-function namedtuple(d::Dict)
-    ks = Tuple(map(Symbol, collect(keys(d))))
-    NamedTuple{ks}(values(d))
-end
-
-function pprint(x::NamedTuple)
-    for (i, a) in pairs(x)
-        println(i, ":  ", a)
-    end
-end
-
-
-@time all_losses = map(all_features) do job_features
-    map(job_features) do prior_features
-        map(feature_names) do f
-            f => feature_losses[f](prior_features[f])
-        end |> Dict
-    end
-end;
-
-L = flatten(all_losses) .|> namedtuple |> Table
-# %% ====================  ====================
-
-map(columns(L)) do x
-    mean(x .== Inf)
-end |> pprint
-
-
-# %% ====================  ====================
-μs = 0:0.1:μ_emp
-
-function find_best(use)
-    job_bests = map(all_losses) do job_losses
-        map(job_losses) do prior_losses
-            sum(prior_losses[f] for f in use)
-        end |> findmin
-    end
-
-    (best_loss, prior_idx), job_idx = findmin(job_bests)
-    μ = μs[prior_idx]
-    sim = deserialize(jobs[job_idx], :sim_*μ)
-    sim, best_loss, job_idx, prior_idx
-end
-
-old = [
-    :value_choice,
-    :fixation_bias,
-    :value_bias,
-    :difference_time,
-    :last_fix_bias,
-    :gaze_cascade,
-    :fixate_on_best,
-]
-
-use = [
-    :value_choice,
-    :fixation_bias,
-    :value_bias,
-    :fourth_rank,
-    :first_fixation_duration,
-    :last_fixation_duration,
-    :difference_time,
-    :difference_nfix,
-    :fixation_times,
-    :last_fix_bias,
-    # :gaze_cascade,
-    :fixate_on_best,
-    # :n_fix_hist,
-]
-
-sim, best_loss, job_idx, prior_idx = find_best(use)
-job = jobs[job_idx]
-mdp = MetaMDP(job)
-policy = Policy(mdp, deserialize(job, :optim).θ1)
-display(all_losses[job_idx][prior_idx])
-# @time sim = simulate_experiment(policy, (μs[prior_idx], σ_emp); parallel=true);
-fixate_on_best(trials)
-
-# %% ==================== Load Blinkered ====================
-run_name = "fit6"
-mkpath("figs/$run_name")
-results = Dict(
-    "fit5" => "results/2019-06-02T11-49-47",
-    "fit6" => "results/2019-06-01T11-36-33/",
-)[run_name]
-
-policy, prior = open(deserialize, "$results/blinkered_policy.jls")
-# policy = open(deserialize, "results/2019-06-01T11-36-33/bmps_policy")
-# policy, prior = open(deserialize, "results/blinkered_policy6.jls")
-@time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
-# %% ==================== Load individual fit blinkered ====================
-
-run_name = "indiv"
-results = "results/2019-06-02T22-35-51"
-fits = open(deserialize, "$results/individual_fits")
-@everywhere fits = $fits
-function simulate_indiv(fits, n_repeat=N_SIM;
-                             parallel=false, sample_time=100)
-    mymap = parallel ? pmap : map
-    samples, choice, value = map(1:n_repeat) do i
-        mymap(trials.subject, trials.value) do s, v
-            policy, (µ, σ) = fits[s]
-            sim = simulate(policy, (v .- μ) ./ σ)
-            sim.value[:] = v  # we want the un-normalized values
-            sim
-        end
-    end |> flatten |> invert
-    fixs, fix_times = parse_fixations.(samples, sample_time) |> invert
-    Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
-end
-
-sim = simulate_indiv(fits)
 
 # %% ====================  ====================
 pyplot()
@@ -282,7 +93,7 @@ end
 
 using KernelDensity
 
-# %% ====================  ====================
+
 function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
     plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
 end
@@ -290,6 +101,43 @@ end
 function kdeplot!(x; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95); kws...)
     kdeplot!(kde(x), xmin, xmax; kws...)
 end
+
+# %% ==================== Load Blinkered ====================
+
+run_name = "fit_new"
+mkpath("figs/$run_name")
+results = Dict(
+    "fit5" => "results/2019-06-02T11-49-47",
+    "fit6" => "results/2019-06-01T11-36-33/",
+    "fit4" => "results/2019-06-13T15-01-18/",
+    "fit_new" => "results/2019-06-13T17-29-40/"
+)[run_name]
+
+# policy, prior = open(deserialize, "$results/blinkered_policy.jls")
+policy, prior = open(deserialize, "$results/mle")
+@time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
+# %% ==================== Load individual fit blinkered ====================
+
+run_name = "indiv"
+results = "results/2019-06-02T22-35-51"
+fits = open(deserialize, "$results/individual_fits")
+@everywhere fits = $fits
+function simulate_indiv(fits, n_repeat=N_SIM;
+                             parallel=false, sample_time=100)
+    mymap = parallel ? pmap : map
+    samples, choice, value = map(1:n_repeat) do i
+        mymap(trials.subject, trials.value) do s, v
+            policy, (µ, σ) = fits[s]
+            sim = simulate(policy, (v .- μ) ./ σ)
+            sim.value[:] = v  # we want the un-normalized values
+            sim
+        end
+    end |> flatten |> invert
+    fixs, fix_times = parse_fixations.(samples, sample_time) |> invert
+    Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
+end
+
+sim = simulate_indiv(fits)
 
 # %% ====================  ====================
 fig("value_choice") do
@@ -388,6 +236,27 @@ fig("rt_kde") do
 end
 
 # %% ====================  ====================
+using RCall
+function choice_glm(trials)
+    rv = Float64[]
+    rft = Float64[]
+    choice = Bool[]
+    for t in trials
+        ft = total_fix_time(t)
+        push!(rv, (t.value .- mean(t.value))...)
+        push!(rft, (ft .- mean(ft))...)
+        push!(choice, (1:3 .== t.choice)...)
+    end
+    R"""
+    summary(glm($choice ~ $rv + $rft, family="binomial"))
+    """
+end
+display("")
+println("------ Human ------")
+println(choice_glm(trials))
+println("------ Model ------")
+println(choice_glm(sim))
+# %% ====================  ====================
 
 function all_ranks(trials)
     early, late = Int[], Int[]
@@ -423,10 +292,6 @@ function find_switch(fixations)
     end
     return 1000
 end
-
-
-
-
 
 function early_late_proportion(trials)
     x = Int[]
@@ -549,11 +414,13 @@ end
 
 # plot_comparison(low_fixation_bias, sim)
 # plot_comparison(fixation_bias, sim
+V = flatten(trials.value)
 
 fig("split_fixation_bias") do
     # a, b = quantile(V, [0.25, 0.75])
     # a, b = quantile(V, [0.1, 0.9])
-    a = b = prior[1]
+    # a = b = prior[1]
+    a = b = μ_emp
     hx, hy = fixation_bias(trials, -Inf, Inf)
     bins = make_bins(nothing, hx)
     plot()
