@@ -1,3 +1,4 @@
+
 using Distributed
 nprocs() == 1 && addprocs()
 @everywhere begin
@@ -113,9 +114,37 @@ results = Dict(
     "fit_new" => "results/2019-06-13T17-29-40/"
 )[run_name]
 
-# policy, prior = open(deserialize, "$results/blinkered_policy.jls")
-policy, prior = open(deserialize, "$results/mle")
-@time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
+try
+    policy, prior = open(deserialize, "$results/mle")
+catch
+    policy, prior = open(deserialize, "$results/blinkered_policy.jls")
+end
+# @time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
+# %% ====================  ====================
+m = policy.m
+s = State(m)
+display("")
+b = rollout(policy; state=s).belief
+println(s.value)
+println(b.mu)
+println(b.lam)
+println(maximum(softmax(policy.α .* b.mu)))
+# action_probs(policy, b)
+
+# %% ====================  ====================
+# b = Belief(State(policy.m))
+# b = rollout(policy; state=s).belief
+b = rollout(policy).belief
+f = plot()
+colors = [:red :blue :green]
+voc(policy, b)
+for c in 1:3
+    voc_n(n) = voi_n(b, c, n) - (cost(m, b, c) + (n-1) * m.sample_cost)
+    plot!(voc_n.(1:200), c=colors[c], label=@sprintf("N(%.4f, %.4f)", b.mu[c], b.lam[c]^-0.5))
+    # hline!([b.mu[c]], line=(colors[c], :dash), label="")
+end
+hline!([0], c=:black, label="")
+f
 # %% ==================== Load individual fit blinkered ====================
 
 run_name = "indiv"

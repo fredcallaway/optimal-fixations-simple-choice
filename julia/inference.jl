@@ -19,9 +19,9 @@ end
     using Serialization
     using JSON
 
-    const N_PARTICLE = 1000
+    const N_PARTICLE = 2000
     const N_LATIN = 200
-    const N_BO = 100
+    const N_BO = 200
     const SAMPLE_TIME = 100
 
     const OPTIMIZE = true
@@ -53,7 +53,7 @@ end
         10 ^ rescale(x[1], 1, 2),
         rescale(x[2], 1, 60),
         10 ^ rescale(x[3], -5, -2),
-        rescale(x[4], 10, 60),
+        rescale(x[4], 1, 60),
         length(x) >= 5 ? µ_emp * rescale(x[5], 0., 2) : μ_emp,
         length(x) >= 6 ? (σ_emp * 2 ^ rescale(x[6], -2, 2)) : σ_emp
     )
