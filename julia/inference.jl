@@ -26,7 +26,7 @@ end
 
     const OPTIMIZE = true
     const RETEST = false
-    const N_PARAM = 6
+    const N_PARAM = 4
 
     struct Datum
         value::Vector{Float64}
@@ -179,6 +179,22 @@ elseif get(ARGS, 1, "") == "master"
     end
 
     open("$results/cross.json", "w+") do f
+        write(f, json(cross))
+    end
+
+    cross = map(1:N_PARAM) do i
+        map(0:0.1:1) do d
+            x = copy(best)
+            x[i] = d
+            try
+                loss(x)
+            catch
+                NaN
+            end
+        end
+    end
+
+    open("$results/cross_full.json", "w+") do f
         write(f, json(cross))
     end
 
