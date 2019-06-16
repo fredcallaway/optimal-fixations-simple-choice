@@ -5,6 +5,12 @@ if get(ARGS, 1, "") == "master"
     addprocs(topology=:master_worker)
     # addprocs([("griffiths-gpu01.pni.princeton.edu", :auto)], tunnel=true, topology=:master_worker)
     println(nprocs(), " processes")
+
+    using Dates
+    timestamp = replace(split(string(now()), ".")[1], ':' => '-')
+    results = "results/$timestamp"
+    mkdir(results)
+    println("Saving results to $results/")
 end
 
 # necessary for @with_kw macro below
@@ -26,7 +32,7 @@ end
 
     const OPTIMIZE = true
     const RETEST = false
-    const N_PARAM = 4
+    const N_PARAM = 3
 
     struct Datum
         value::Vector{Float64}
@@ -50,10 +56,11 @@ end
 
     rescale(x, low, high) = low + x * (high-low)
     Params(x::Vector{Float64}) = Params(
-        10 ^ rescale(x[1], 1, 2),
-        rescale(x[2], 1, 60),
-        10 ^ rescale(x[3], -5, -2),
-        rescale(x[4], 1, 60),
+        100.,
+        # 10 ^ rescale(x[1], 1, 2),
+        rescale(x[1], 1, 60),
+        10 ^ rescale(x[2], -5, -2),
+        rescale(x[3], 1, 60),
         length(x) >= 5 ? µ_emp * rescale(x[5], 0., 2) : μ_emp,
         length(x) >= 6 ? (σ_emp * 2 ^ rescale(x[6], -2, 2)) : σ_emp
     )
@@ -90,12 +97,6 @@ if get(ARGS, 1, "") == "worker"
     start_worker()
 elseif get(ARGS, 1, "") == "master"
     start_master(wait=false)
-
-    using Dates
-    timestamp = replace(split(string(now()), ".")[1], ':' => '-')
-    results = "results/$timestamp"
-    mkdir(results)
-    println("Saving results to $results/")
 
     function plogp(prm, particles=N_PARTICLE)
         smap(eachindex(data)) do i
