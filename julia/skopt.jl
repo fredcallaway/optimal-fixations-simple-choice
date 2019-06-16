@@ -53,7 +53,10 @@ function gp_minimize(f, dim, n_latin, n_bo; file="opt_xy")
     end
 
     # print("LHC: ")
-    for i in 1:n_latin
+
+
+    # for i in 1:n_latin
+    asyncmap(1:n_latin; ntasks=3) do i
         x = latin_points[i, :]
         # print(".")
         tell(opt, x, g(x))
