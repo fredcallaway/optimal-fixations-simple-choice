@@ -33,6 +33,7 @@ end
     const OPTIMIZE = true
     const RETEST = false
     const N_PARAM = 3
+    const REWEIGHT = false
 
     struct Datum
         value::Vector{Float64}
@@ -76,7 +77,8 @@ end
 
     function logp(prm::Params, d::Datum, particles=N_PARTICLE)
         policy = SoftBlinkered(prm)
-        logp(policy, value(prm, d), d.samples, d.choice, particles)
+        logp(policy, value(prm, d), d.samples, d.choice, particles;
+             reweight=REWEIGHT)
     end
 
     function logp(prm::Params, dd::Vector{Datum}, particles=N_PARTICLE)
