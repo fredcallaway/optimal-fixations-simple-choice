@@ -28,12 +28,12 @@ end
     const N_PARTICLE = 2000
     const N_LATIN = 200
     const N_BO = 200
-    const SAMPLE_TIME = 100
+    const SAMPLE_TIME = 200
 
     const OPTIMIZE = true
     const RETEST = false
-    const N_PARAM = 3
-    const REWEIGHT = false
+    const N_PARAM = 5
+    const REWEIGHT = true
 
     struct Datum
         value::Vector{Float64}
@@ -62,8 +62,8 @@ end
         rescale(x[1], 1, 60),
         10 ^ rescale(x[2], -5, -2),
         rescale(x[3], 1, 60),
-        length(x) >= 5 ? µ_emp * rescale(x[5], 0., 2) : μ_emp,
-        length(x) >= 6 ? (σ_emp * 2 ^ rescale(x[6], -2, 2)) : σ_emp
+        length(x) >= 5 ? µ_emp * rescale(x[4], 0., 2) : μ_emp,
+        length(x) >= 6 ? (σ_emp * 2 ^ rescale(x[5], -2, 2)) : σ_emp
     )
 
     MetaMDP(prm::Params) = MetaMDP(
@@ -150,12 +150,13 @@ elseif get(ARGS, 1, "") == "master"
     end
 
     prm = Params(best)
-    lp = plogp(prm, 100000)
+    println("MLE ", prm)
+
+    lp = plogp(prm, 10000)
     println("Log Likelihood: ", lp)
     println("BIC: ", log(N_OBS) * N_PARAM - 2 * lp)
     println("AIC: ", 2 * N_PARAM - 2 * lp)
 
-    println("MLE ", prm)
     open("$results/mle", "w+") do f
         serialize(f, (
             policy=SoftBlinkered(prm),

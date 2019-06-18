@@ -1,39 +1,10 @@
 include("utils.jl")
 include("model.jl")
 include("SIR.jl")
-# include("ParticleFilters.jl")
-# include("job.jl")
-# include("human.jl")
-# include("simulations.jl")
 
-function ParticleFilter(policy, ε::Float64, value::Vector{Float64})
+function logp(policy, v, samples, choice, n_particle=10000; reweight=true)
     m = policy.m
-    s = State(m, value)
-    init() = Belief(s)
-    transition(b, c) = begin
-        step!(m, b, s, c)
-        b
-    end
-    obs_p(b, c) = begin
-        prediction = rand() < ε ? rand(0:m.n_arm) : policy(b)
-        Int(prediction == c)
-    end
-    ParticleFilter(init, transition, obs_p)
-end
-
-# function old_logp(policy, ε, value, samples, choice; n_particle=10000)
-#     pf = ParticleFilter(policy, ε, value)
-#     ps = run!(pf, [samples; 0]; n_particle=n_particle)
-#     for p in ps
-#         # choice probability
-#         p.w *= softmax(1e10 * p.x.mu)[choice]
-#     end
-#     log(mean(p.w for p in ps))
-# end
-
-function logp(policy, value, samples, choice, n_particle=10000)
-    m = policy.m
-    s = State(m, value)
+    s = State(m, v)
     init() = Belief(s)
     transition(b, c) = begin
         step!(m, b, s, c)
@@ -46,12 +17,20 @@ function logp(policy, value, samples, choice, n_particle=10000)
 
     # Termination and choice
     step!(sir, 0)
+    lp += log(reweight!(sir.P))
+    resample!(sir.P)
+
     x, w = sir.P.x, sir.P.w
     for i in 1:length(x)
         w[i] *= softmax(policy.α * x[i].mu)[choice]
     end
-    lp += log(reweight!(sir.P))
-    lp
+    if reweight
+        sample_logp = lp / (length(samples) + 1)
+        choice_logp = log(reweight!(sir.P))
+        return sample_logp + choice_logp
+    else
+        return lp + log(reweight!(sir.P))
+    end
 end
 
 function rand_logp(t::Trial)

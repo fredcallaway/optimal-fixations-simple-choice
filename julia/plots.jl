@@ -99,19 +99,25 @@ function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
     plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
 end
 
-function kdeplot!(x; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95); kws...)
+function kdeplot!(x; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95), kws...)
     kdeplot!(kde(x), xmin, xmax; kws...)
 end
 
 # %% ==================== Load Blinkered ====================
-
-run_name = "fit_new"
+using Serialization
+run_name = "fit6"
 mkpath("figs/$run_name")
 results = Dict(
     "fit5" => "results/2019-06-02T11-49-47",
-    "fit6" => "results/2019-06-01T11-36-33/",
-    "fit4" => "results/2019-06-13T15-01-18/",
-    "fit_new" => "results/2019-06-13T17-29-40/"
+    "fit6" => "results/2019-06-01T11-36-33",
+    "fit4" => "results/2019-06-13T15-01-18",
+    "fit_new" => "results/2019-06-13T17-29-40",
+    "intensive" => "results/2019-06-14T13-09-01",
+    "reweight" => "results/2019-06-14T17-39-42",
+    "fit4-2000" => "results/2019-06-15T13-34-26/",
+    "fit3" => "results/2019-06-16T19-01-26/",
+    "fit5-alpha-100" => "results/2019-06-17T15-50-40/",
+    "fit5-alpha-100-reweight" => "results/2019-06-17T21-52-40/",
 )[run_name]
 
 try
@@ -119,54 +125,27 @@ try
 catch
     policy, prior = open(deserialize, "$results/blinkered_policy.jls")
 end
-# @time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
+
+
+
+@time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
+
 # %% ====================  ====================
-m = policy.m
-s = State(m)
 display("")
-b = rollout(policy; state=s).belief
-println(s.value)
-println(b.mu)
-println(b.lam)
-println(maximum(softmax(policy.α .* b.mu)))
-# action_probs(policy, b)
-
+μ, σ = prior
+pol = Blinkered(policy.m)
+v = sim[6].value
+s = State(policy.m, (v .- μ) ./ σ)
+rollout(pol; state=s) do b, c
+    println(b)
+end
+nothing
 # %% ====================  ====================
-# b = Belief(State(policy.m))
-# b = rollout(policy; state=s).belief
-b = rollout(policy).belief
-f = plot()
-colors = [:red :blue :green]
-voc(policy, b)
-for c in 1:3
-    voc_n(n) = voi_n(b, c, n) - (cost(m, b, c) + (n-1) * m.sample_cost)
-    plot!(voc_n.(1:200), c=colors[c], label=@sprintf("N(%.4f, %.4f)", b.mu[c], b.lam[c]^-0.5))
-    # hline!([b.mu[c]], line=(colors[c], :dash), label="")
+pol = Blinkered(policy.m)
+N = 10000
+@distributed (+) for i in 1:N
+    rollout(policy).reward
 end
-hline!([0], c=:black, label="")
-f
-# %% ==================== Load individual fit blinkered ====================
-
-run_name = "indiv"
-results = "results/2019-06-02T22-35-51"
-fits = open(deserialize, "$results/individual_fits")
-@everywhere fits = $fits
-function simulate_indiv(fits, n_repeat=N_SIM;
-                             parallel=false, sample_time=100)
-    mymap = parallel ? pmap : map
-    samples, choice, value = map(1:n_repeat) do i
-        mymap(trials.subject, trials.value) do s, v
-            policy, (µ, σ) = fits[s]
-            sim = simulate(policy, (v .- μ) ./ σ)
-            sim.value[:] = v  # we want the un-normalized values
-            sim
-        end
-    end |> flatten |> invert
-    fixs, fix_times = parse_fixations.(samples, sample_time) |> invert
-    Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
-end
-
-sim = simulate_indiv(fits)
 
 # %% ====================  ====================
 fig("value_choice") do

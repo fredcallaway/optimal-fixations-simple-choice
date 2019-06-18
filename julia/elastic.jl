@@ -1,14 +1,17 @@
 using ClusterManagers, Sockets
 using Distributed
 
-myip = ip"10.2.159.72"
-# myip = ip"10.36.16.11"
-# myip = getipaddr()
+# MY_IP = ip"10.36.16.11"
+# MY_IP = getipaddr()
 
-# println("my ip is $myip")
-
+# println("my ip is $MY_IP")
 # cookie = length(ARGS) > 0 ? ARGS[1] : "cookie"
-cookie = "cookie"
+
+const COOKIE = "cookie"
+# const COOKIE = "cookie"
+const MY_IP = ip"10.2.159.72"
+# const PORT = 58005
+const PORT = 58857
 
 function smap(f, xs)
     pmap(f, xs;
@@ -18,12 +21,12 @@ function smap(f, xs)
     )
 end
 
-function start_master(;wait=true, test=false)
+function start_master(cookie=COOKIE; wait=true, test=false)
     println("Creating ElasticManager")
     em = ElasticManager(
-        addr=myip,
-        port=58856,
-        cookie=cookie,
+        addr=MY_IP,
+        port=PORT,
+        cookie=COOKIE,
         topology=:master_worker
     )
     if wait
@@ -44,7 +47,7 @@ function start_master(;wait=true, test=false)
     return em
 end
 
-function start_worker()
-    println("Beginning work for: ", cookie)
-    elastic_worker(cookie, myip, 58856)
+function start_worker(cookie=COOKIE)
+    println("Beginning work for: ", COOKIE)
+    elastic_worker(COOKIE, MY_IP, PORT)
 end
