@@ -148,6 +148,8 @@ N = 10000
 end
 
 # %% ====================  ====================
+# TODO: total value -> n fixation
+
 fig("value_choice") do
     plot_comparison(value_choice, sim)
     xlabel!("Relative item value")

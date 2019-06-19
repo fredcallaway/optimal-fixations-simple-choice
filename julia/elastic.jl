@@ -9,6 +9,7 @@ using Distributed
 
 const COOKIE = "cookie"
 # const COOKIE = "cookie"
+# const MY_IP = ip"10.0.20.16"  # scotty
 const MY_IP = ip"10.2.159.72"
 # const PORT = 58005
 const PORT = 58857

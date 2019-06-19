@@ -4,12 +4,26 @@ include("blinkered.jl")
 
 
 # %% ==================== Simulate data ====================
-function simulate(policy, value)
+
+true_prm = Params(
+    α = 52.73019415710551,
+    obs_sigma = 13.985483892291345,
+    sample_cost = 0.0009382165229567387,
+    switch_cost = 54.48621024645527,
+    μ = 4.517473715259105,
+    σ = 0.6309531499105546,
+)
+
+value(prm::Params, v::Vector{Float64}) = (v .- prm.µ) ./ prm.σ
+function simulate(prm, v)::Datum
+    policy = SoftBlinkered(prm)
     cs = Int[]
-    s = State(policy.m, value)
+    s = State(policy.m, value(prm, v))
     roll = rollout(policy, state=s, callback=(b,c)->push!(cs, c); max_steps=1000)
-    (samples=cs[1:end-1], choice=roll.choice, value=value)
+    Datum(v, cs[1:end-1], roll.choice)
 end
+
+data = simulate.(true_prm, trials.value[1:10])
 
 true_mdp = MetaMDP(obs_sigma=10, switch_cost=8, sample_cost=0.001)
 true_α = 100.

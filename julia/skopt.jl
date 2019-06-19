@@ -37,8 +37,8 @@ function gp_minimize(f, dim, n_latin, n_bo; file="opt_xy")
     latin_points = get_latin_points(n_latin, dim)
 
     iter = 1
-    # Xi = Vector{Float64}[]
-    # yi = Float64[]
+    Xi = Vector{Float64}[]
+    yi = Float64[]
 
     function g(x)
         # print("($iter)  ")
@@ -50,11 +50,11 @@ function gp_minimize(f, dim, n_latin, n_bo; file="opt_xy")
                 " with ", nprocs(), " processes"
                 )
         iter += 1
-        # push!(Xi, x)
-        # push!(yi, fx)
-        # open(file, "w+") do file
-        #     serialize(file, (Xi=Xi, yi=yi))
-        # end
+        push!(Xi, x)
+        push!(yi, fx)
+        open(file, "w+") do file
+            serialize(file, (Xi=Xi, yi=yi))
+        end
         fx
     end
 
@@ -120,10 +120,6 @@ function gp_minimize(f, dim, n_latin, n_bo; file="opt_xy")
     end
     master()
 
-
-    open(file, "w+") do file
-        serialize(file, (Xi=map(collect, opt.Xi), yi=opt.yi))
-    end
     println("gp_minimize complete")
     return opt
 end

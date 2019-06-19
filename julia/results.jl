@@ -1,48 +1,33 @@
-import JSON
-using UUIDs: uuid4
-using Dates: now
+using Dates
+using Serialization
 
-function save(job::Job, name::Symbol, value)
-    d = Dict(
-        :job => job,
-        :time => now(),
-        :value => value
-    )
-    open(result_file(job, name), "w") do f
-        write(f, JSON.json(d))
-    end
-    println("Wrote $(result_file(job, name))")
+struct Results
+    name::String
+    timestamp::DateTime
 end
-load(job::Job, name::Symbol) = JSON.parsefile(result_file(job, name))[string(name)]
+Base.isless(r1::Results, r2::Results) = isless(r1.timestamp, r2.timestamp)
 
-function save(group, table, entry)
-    id = uuid4()
-    path = "runs/$group/results/$table"
-    println(path)
-    mkpath(path)
-    file = "$path/$id.json"
-    d[:write_time] = now()
+function Results(name)
+    r = Results(name, now())
+    mkpath(dir(r))
+    println("Saving results to ", dir(r))
+    save(r, :_r, r; verbose=false)
+    r
+end
+
+dir(r::Results) = "results/$(r.name)/" * replace(split(string(r.timestamp), ".")[1], ':' => '-')
+get_result(name, timestamp) = open(deserialize, "results/$name/$timestamp/_r")
+get_results(name) = sort!(get_result.(name, readdir("results/$name")))
+
+function save(r::Results, name::Symbol, value; verbose=true)
+    file = "$(dir(r))/$name"
     open(file, "w") do f
-        write(f, JSON.json(d))
+        serialize(f, value)
     end
-    println(path)
-    JLD.save(file, "entry", entry)
+    verbose && println("Wrote $file")
 end
 
-function save(g, t, entry::NamedTuple)
-
-end
-
-entry = (x=1, y=2)
-
-Dict(entry)
-
-JLD.save("test.jld", "foo", )
-JLD.save("test.jld", Dict("foo" => (x=1, y=2)))
-
-save("foo", "bar", (x=1, y=2))
-
-using Glob
-function load(group, table)
-
+function load(r::Results, name::Symbol)
+    file = "$(dir(r))/$name"
+    open(deserialize, file)
 end
