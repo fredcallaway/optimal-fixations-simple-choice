@@ -2,6 +2,7 @@
 include("elastic.jl")
 
 if get(ARGS, 1, "") == "master"
+    include("results.jl")
     addprocs(topology=:master_worker)
     # addprocs([("griffiths-gpu01.pni.princeton.edu", :auto)], tunnel=true, topology=:master_worker)
     println(nprocs(), " processes")
@@ -13,17 +14,13 @@ end
     include("inference.jl")
     const SAMPLE_TIME = 100
     const N_PARTICLE = 2000
-    const N_LATIN = 200
-    const N_BO = 200
+    const N_LATIN = 400
+    const N_BO = 400
 
     const RETEST = false
-    const N_PARAM = 5
-    const REWEIGHT = true
-    const data = Datum.(trials)
-
-    const N_OBS = sum(length(d.samples) + 1 for d in data)
-    const RAND_LOSS = sum(rand_logp.(trials)) / N_OBS
-    const MAX_LOSS = -10 * RAND_LOSS
+    const N_PARAM = 6
+    const REWEIGHT = false
+    const data = Datum.(trials, SAMPLE_TIME)
 end
 # %% ====================  ====================
 
@@ -44,6 +41,9 @@ elseif get(ARGS, 1, "") == "master"
     )
     save(results, :space, space)
 
+    const RAND_LOGP = sum(rand_logp.(data))
+    const MAX_LOSS = 10
+
     function plogp(prm, particles=N_PARTICLE)
         smap(eachindex(data)) do i
             logp(prm, data[i], particles)
@@ -52,7 +52,7 @@ elseif get(ARGS, 1, "") == "master"
 
     function loss(x, particles=N_PARTICLE)
         prm = Params(;space(x)...)
-        min(MAX_LOSS, -plogp(prm, particles) / N_OBS)
+        min(MAX_LOSS, plogp(prm, particles) / RAND_LOGP)
     end
 
     println("Begin GP minimize")
@@ -82,13 +82,13 @@ elseif get(ARGS, 1, "") == "master"
         best = res.Xi[argmin(res.yi)]
     end
 
-    prm = Params(best)
+    prm = Params(;space(best)...)
     println("MLE ", prm)
 
     lp = plogp(prm, 10000)
     println("Log Likelihood: ", lp)
-    println("BIC: ", log(N_OBS) * N_PARAM - 2 * lp)
-    println("AIC: ", 2 * N_PARAM - 2 * lp)
+    # println("BIC: ", log(N_OBS) * N_PARAM - 2 * lp)
+    # println("AIC: ", 2 * N_PARAM - 2 * lp)
 
     save(results, :mle, (
         policy=SoftBlinkered(prm),
