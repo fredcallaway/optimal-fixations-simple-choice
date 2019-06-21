@@ -4,32 +4,28 @@ using Serialization
 
 function gp_minimize(f, d; verbose=true, file="gp_opt", iterations=400)
 
-    opt = nothing
-
-    function g(x)
-        # print("($iter)  ")
-        fx, elapsed = @timed f(x)
-        verbose && println(
-            "($(opt.iterations.i))  ",
-            round.(x; digits=3),
-            " => ", round(fx; digits=4),
-            "   ", round(elapsed; digits=1), " seconds",
-            " with ", nprocs(), " processes"
-        )
-        if opt.iterations.i % 10 == 0
-            open(file, "w+") do file
-                serialize(file, opt)
-            end
-        end
-        fx
-    end
-
     model = ElasticGPE(d,
       mean = MeanConst(0.),
       kernel = SEArd(zeros(d), 5.),
       logNoise = -2.,
       capacity = iterations
     )
+
+    function g(x)
+        # print("($iter)  ")
+        fx, elapsed = @timed f(x)
+        verbose && println(
+            "($(length(model.x)))  ",
+            round.(x; digits=3),
+            " => ", round(fx; digits=4),
+            "   ", round(elapsed; digits=1), " seconds",
+            " with ", nprocs(), " processes"
+        )
+        open(file, "w+") do file
+            serialize(file, model)
+        end
+        fx
+    end
 
     model_optimizer = MAPGPOptimizer(
         every = 20,
@@ -52,7 +48,7 @@ function gp_minimize(f, d; verbose=true, file="gp_opt", iterations=400)
     )
 
     res = boptimize!(opt)
-    open(file, "w+") do file
+    open(file * "_final", "w+") do file
         serialize(file, opt)
     end
     opt

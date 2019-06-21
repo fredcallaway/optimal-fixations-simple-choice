@@ -8,7 +8,7 @@ if get(ARGS, 1, "") == "master"
     addprocs(topology=:master_worker)
     # addprocs([("griffiths-gpu01.pni.princeton.edu", :auto)], tunnel=true, topology=:master_worker)
     println(nprocs(), " processes")
-    results = Results("inference")
+    results = Results("test-inference")
 end
 
 

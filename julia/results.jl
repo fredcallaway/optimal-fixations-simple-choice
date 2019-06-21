@@ -19,8 +19,10 @@ dir(r::Results) = "results/$(r.name)/" * replace(split(string(r.timestamp), ".")
 get_result(name, timestamp) = open(deserialize, "results/$name/$timestamp/_r")
 get_results(name) = sort!(get_result.(name, readdir("results/$name")))
 
+path(r::Results, name::Symbol) = "$(dir(r))/$name"
+
 function save(r::Results, name::Symbol, value; verbose=true)
-    file = "$(dir(r))/$name"
+    file = path(r, name)
     open(file, "w") do f
         serialize(f, value)
     end
@@ -29,5 +31,5 @@ end
 
 function load(r::Results, name::Symbol)
     file = "$(dir(r))/$name"
-    open(deserialize, file)
+    open(deserialize, path(r, name))
 end
