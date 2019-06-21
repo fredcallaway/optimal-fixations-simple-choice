@@ -7,7 +7,6 @@ include("model.jl")
 include("SIR.jl")
 include("human.jl")
 include("blinkered.jl")
-include("skopt.jl")
 
 # %% ==================== Data ====================
 
@@ -44,7 +43,7 @@ value(prm::Params, d::Datum) = (d.value .- prm.µ) ./ prm.σ
 
 # %% ==================== Likelihood ====================
 
-function logp(policy, v, samples, choice, n_particle=10000; reweight=true)
+function logp(policy, v, samples, choice, reweight, n_particle)
     m = policy.m
     s = State(m, v)
     init() = Belief(s)
@@ -75,32 +74,31 @@ function logp(policy, v, samples, choice, n_particle=10000; reweight=true)
     end
 end
 
-function logp(prm::Params, d::Datum, particles=N_PARTICLE)
+function logp(prm::Params, d::Datum, reweight::Bool, n_particle::Int)
     policy = SoftBlinkered(prm)
-    logp(policy, value(prm, d), d.samples, d.choice, particles;
-         reweight=REWEIGHT)
+    logp(policy, value(prm, d), d.samples, d.choice, reweight, n_particle)
 end
 
-function logp(prm::Params, dd::Vector{Datum}, particles=N_PARTICLE)
-    mapreduce(+, dd) do d
-        logp(prm, d, particles)
-    end
-end
+# function logp(prm::Params, dd::Vector{Datum}, particles)
+#     mapreduce(+, dd) do d
+#         logp(prm, d, particles)
+#     end
+# end
 
 function rand_logp(d::Datum)
     log(1/4) * (length(d.samples) + 1) + log(1/3)
 end
 
-function stay_logp(t::Trial, ε)
-    samples = discretize_fixations(t, sample_time=SAMPLE_TIME)
-    switch = diff(samples) .!= 0
-    p_first = log(1/3)
-    p_stay = log(1-ε) * sum(.!switch)
-    p_switch = log(ε * 1/4) * sum(switch)
-    p_end = log(ε * 1/4)
-    return p_first + p_stay + p_switch + p_end
-end
-stay_logp(tt::Table{Trial}, ε) = sum(stay_logp.(tt, ε))
+# function stay_logp(t::Trial, ε)
+#     samples = discretize_fixations(t, sample_time)
+#     switch = diff(samples) .!= 0
+#     p_first = log(1/3)
+#     p_stay = log(1-ε) * sum(.!switch)
+#     p_switch = log(ε * 1/4) * sum(switch)
+#     p_end = log(ε * 1/4)
+#     return p_first + p_stay + p_switch + p_end
+# end
+# stay_logp(tt::Table{Trial}, ε) = sum(stay_logp.(tt, ε))
 
 
 

@@ -17,7 +17,7 @@ const PORT = 58857
 function smap(f, xs)
     pmap(f, xs;
         # on_error = e->(e isa ProcessExitedException ? NaN : rethrow()),
-        on_error = e -> (println(e), throw(e)),
+        # on_error = e -> (println(e), throw(e)),
         retry_delays = ExponentialBackOff(n = 3)
     )
 end

@@ -1,4 +1,4 @@
-using DataStructures: OrderedDict
+using DataStructures
 
 struct Box
     dims::OrderedDict
@@ -21,10 +21,27 @@ function rescale(d, x)
     scale(x, d[1], d[2])
 end
 
+n_free(b::Box) = sum(length(d) > 1 for d in values(b.dims))
 
 function (box::Box)(x)
-    @assert length(x) == length(box)
-    map(box.dims, x) do d, xi
-        d[1] => rescale(d[2], xi)
+    @assert length(x) == n_free(box)
+
+    xs = Iterators.Stateful(x)
+    map(collect(box.dims)) do (name, d)
+        if length(d) > 1
+            name => rescale(d, popfirst!(xs))
+        else
+            name => d
+        end
     end |> OrderedDict
 end
+
+# %% ====================  ====================
+
+box = Box(
+    :a => (1, 3),
+    :b => 4,
+    :c => (5, 6)
+)
+
+box([1,1])

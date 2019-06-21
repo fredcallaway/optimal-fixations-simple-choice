@@ -2,7 +2,15 @@ using BayesianOptimization, GaussianProcesses, Distributions
 using Distributed
 using Serialization
 
-function gp_minimize(f, d; verbose=true, file="gp_opt", iterations=400)
+function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
+                     iterations=400, acquisition="ei")
+
+    if acquisition isa String
+        acquisition = Dict(
+            "ei" => ExpectedImprovement(),
+            "ucb" => UpperConfidenceBound()
+        )[acquisition]
+    end
 
     model = ElasticGPE(d,
       mean = MeanConst(0.),
@@ -11,17 +19,25 @@ function gp_minimize(f, d; verbose=true, file="gp_opt", iterations=400)
       capacity = iterations
     )
 
+    iter = 0
+    Xi = Vector{Float64}[]
+    yi = Float64[]
+
+
     function g(x)
+        iter += 1
         # print("($iter)  ")
         fx, elapsed = @timed f(x)
         verbose && println(
-            "($(length(model.x)))  ",
+            "($iter)  ",
             round.(x; digits=3),
             " => ", round(fx; digits=4),
             "   ", round(elapsed; digits=1), " seconds",
             " with ", nprocs(), " processes"
         )
-        open(file, "w+") do file
+        push!(Xi, x)
+        push!(yi, fx)
+        open(file * "_xy", "w+") do file
             serialize(file, model)
         end
         fx
@@ -33,7 +49,6 @@ function gp_minimize(f, d; verbose=true, file="gp_opt", iterations=400)
         # kernbounds = [[-1, -1, 0], [4, 4, 10]],  # bounds of the 3 parameters GaussianProcesses.get_param_names(model.kernel)
         maxeval = 100
     )
-    acquisition = UpperConfidenceBound()
 
     opt = BOpt(
         g, model,
@@ -48,9 +63,11 @@ function gp_minimize(f, d; verbose=true, file="gp_opt", iterations=400)
     )
 
     res = boptimize!(opt)
-    open(file * "_final", "w+") do file
+    open(file * "_opt", "w+") do file
         serialize(file, opt)
     end
     opt
 end
 
+
+# f(x; noise=0.1) = sum((x .- 0.5).^2) + noise * randn()

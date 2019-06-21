@@ -8,22 +8,25 @@ if get(ARGS, 1, "") == "master"
     addprocs(topology=:master_worker)
     # addprocs([("griffiths-gpu01.pni.princeton.edu", :auto)], tunnel=true, topology=:master_worker)
     println(nprocs(), " processes")
-    results = Results("test-inference")
+    results = Results("inference")
 end
 
 
 @everywhere begin
     include("inference.jl")
-    const SAMPLE_TIME = 100
-    const N_PARTICLE = 1000
-    const ITERATIONS = 400
 
-    const RETEST = false
-    const N_PARAM = 6
-    const REWEIGHT = false
+    config = (
+        sample_time = 100,
+        n_particle = 1000,
+        iterations = 1000,
+        reweight = false,
+        acquisition = "ei",
+    )
     const data = let
         # put longest trials first to make parallelization more efficient
-        dd = Datum.(trials, SAMPLE_TIME)
+        dd = Datum.(trials, config.sample_time)
+        # println("SUBSETTING DATA!!")
+        # dd = dd[1:96]
         order = sortperm(map(d->-length(d.samples), dd))
         dd[order]
     end
@@ -35,6 +38,8 @@ if get(ARGS, 1, "") == "worker"
     start_worker()
 elseif get(ARGS, 1, "") == "master"
     start_master(wait=false)
+    save(results, :config, config)
+    println(config)
 
     space = Box(
         :α => (10, 100, :log),
@@ -42,28 +47,33 @@ elseif get(ARGS, 1, "") == "master"
         # :sample_cost => (0.0004, 0.002, :log),
         :sample_cost => (1e-4, 1e-2, :log),
         :switch_cost => (1, 60),
-        :µ => (0, 2 * μ_emp),
-        :σ => (σ_emp / 4, 4 * σ_emp),
+        :µ => μ_emp,
+        :σ => σ_emp,
+        # (0, 2 * μ_emp),
+        # :σ => (σ_emp / 4, 4 * σ_emp),
     )
     save(results, :space, space)
+    println(space)
 
     const RAND_LOGP = sum(rand_logp.(data))
     const MAX_LOSS = 10
 
-    function plogp(prm, particles=N_PARTICLE)
+    function plogp(prm, n_particle=config.n_particle)
         smap(eachindex(data)) do i
-            logp(prm, data[i], particles)
+            logp(prm, data[i], config.reweight, n_particle)
         end |> sum
     end
 
-    function loss(x, particles=N_PARTICLE)
+    function loss(x, n_particle=config.n_particle)
         prm = Params(;space(x)...)
-        100 * min(MAX_LOSS, plogp(prm, particles) / RAND_LOGP)
+        100 * min(MAX_LOSS, plogp(prm, n_particle) / RAND_LOGP)
     end
 
     println("Begin GP minimize")
-    opt = gp_minimize(loss, N_PARAM;
-                      iterations=ITERATIONS, file=path(results, :opt))
+    opt = gp_minimize(loss, n_free(space);
+                      iterations=config.iterations,
+                      acquisition=config.acquisition,
+                      file=path(results, :opt))
 
     println("observed: ", round.(opt.observed_optimizer; digits=3),
             " => ", round(opt.observed_optimum; digits=5))
@@ -79,8 +89,8 @@ elseif get(ARGS, 1, "") == "master"
 
     lp = plogp(prm, 10000)
     println("Log Likelihood: ", lp)
-    # println("BIC: ", log(N_OBS) * N_PARAM - 2 * lp)
-    # println("AIC: ", 2 * N_PARAM - 2 * lp)
+    # println("BIC: ", log(N_OBS) * n_free(space) - 2 * lp)
+    # println("AIC: ", 2 * n_free(space) - 2 * lp)
 
     save(results, :mle, (
         policy=SoftBlinkered(prm),
@@ -95,7 +105,7 @@ elseif get(ARGS, 1, "") == "master"
     println("Explore loss function near discovered minimum.")
     diffs = -0.1:0.02:0.1
 
-    cross = map(1:N_PARAM) do i
+    cross = map(1:n_free(space)) do i
         asyncmap(diffs) do d
             x = copy(best)
             x[i] += d
@@ -107,11 +117,11 @@ elseif get(ARGS, 1, "") == "master"
         end
     end
 
-    open("$results/cross.json", "w+") do f
+    open("$(dir(results))/cross.json", "w+") do f
         write(f, json(cross))
     end
 
-    cross = map(1:N_PARAM) do i
+    cross = map(1:n_free(space)) do i
         asyncmap(0:0.1:1) do d
             x = copy(best)
             x[i] = d
@@ -123,7 +133,7 @@ elseif get(ARGS, 1, "") == "master"
         end
     end
 
-    open("$results/cross_full.json", "w+") do f
+    open("$(dir(results))/cross_full.json", "w+") do f
         write(f, json(cross))
     end
 
