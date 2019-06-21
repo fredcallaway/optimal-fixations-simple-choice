@@ -1,3 +1,4 @@
+julia/*.sbatch
 .ipynb_checkpoints/
 __pycache__
 .done
