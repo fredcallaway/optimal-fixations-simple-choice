@@ -3,6 +3,8 @@ include("elastic.jl")
 
 if get(ARGS, 1, "") == "master"
     include("results.jl")
+    include("box.jl")
+    include("gp_min.jl")
     addprocs(topology=:master_worker)
     # addprocs([("griffiths-gpu01.pni.princeton.edu", :auto)], tunnel=true, topology=:master_worker)
     println(nprocs(), " processes")
@@ -13,14 +15,18 @@ end
 @everywhere begin
     include("inference.jl")
     const SAMPLE_TIME = 100
-    const N_PARTICLE = 2000
-    const N_LATIN = 400
-    const N_BO = 400
+    const N_PARTICLE = 1000
+    const ITERATIONS = 400
 
     const RETEST = false
     const N_PARAM = 6
     const REWEIGHT = false
-    const data = Datum.(trials, SAMPLE_TIME)
+    const data = let
+        # put longest trials first to make parallelization more efficient
+        dd = Datum.(trials, SAMPLE_TIME)
+        order = sortperm(map(d->-length(d.samples), dd))
+        dd[order]
+    end
 end
 # %% ====================  ====================
 
@@ -33,8 +39,8 @@ elseif get(ARGS, 1, "") == "master"
     space = Box(
         :α => (10, 100, :log),
         :obs_sigma => (1, 60),
-        :sample_cost => (0.0004, 0.002, :log),
-        # :sample_cost => (1e-5, 1e-2, :log),
+        # :sample_cost => (0.0004, 0.002, :log),
+        :sample_cost => (1e-4, 1e-2, :log),
         :switch_cost => (1, 60),
         :µ => (0, 2 * μ_emp),
         :σ => (σ_emp / 4, 4 * σ_emp),
@@ -52,35 +58,21 @@ elseif get(ARGS, 1, "") == "master"
 
     function loss(x, particles=N_PARTICLE)
         prm = Params(;space(x)...)
-        min(MAX_LOSS, plogp(prm, particles) / RAND_LOGP)
+        100 * min(MAX_LOSS, plogp(prm, particles) / RAND_LOGP)
     end
 
     println("Begin GP minimize")
-    @timed opt, t = gp_minimize(loss, N_PARAM, N_LATIN, N_BO; file="$results/opt_xy")
-    res = (
-        Xi = collect.(opt.Xi),
-        yi = opt.yi,
-        emin = expected_minimum(opt),
-        runtime = t,
-    )
-    save(results, :opt, res)
+    opt = gp_minimize(loss, N_PARAM;
+                      iterations=ITERATIONS, file=path(results, :opt))
 
-    # %% ==================== Check top 20 to find best ====================
-    if RETEST
-        println("Computing loss for top 20.")
-        ranked = sortperm(res.yi)
-        top20 = res.Xi[ranked[1:20]]
-        top20_loss = map(top20) do x
-            fx, elapsed = @timed loss(x, 10 * N_PARTICLE)
-            println(round.(x; digits=3),
-                    " => ", round(fx; digits=4),
-                    "   ", round(elapsed; digits=1), " seconds")
-            fx
-        end
-        best = top20[argmin(top20_loss)]
-    else
-        best = res.Xi[argmin(res.yi)]
-    end
+    println("observed: ", round.(opt.observed_optimizer; digits=3),
+            " => ", round(opt.observed_optimum; digits=5))
+    println("model:    ", round.(opt.model_optimizer; digits=3),
+            " => ", round(opt.model_optimum; digits=5))
+
+    f_mod = @show loss(opt.model_optimizer, 10000)
+    f_obs = @show loss(opt.observed_optimizer, 10000)
+    best = f_obs < f_mod ? opt.observed_optimizer : opt.model_optimizer
 
     prm = Params(;space(best)...)
     println("MLE ", prm)
@@ -104,7 +96,7 @@ elseif get(ARGS, 1, "") == "master"
     diffs = -0.1:0.02:0.1
 
     cross = map(1:N_PARAM) do i
-        map(diffs) do d
+        asyncmap(diffs) do d
             x = copy(best)
             x[i] += d
             try
@@ -120,7 +112,7 @@ elseif get(ARGS, 1, "") == "master"
     end
 
     cross = map(1:N_PARAM) do i
-        map(0:0.1:1) do d
+        asyncmap(0:0.1:1) do d
             x = copy(best)
             x[i] = d
             try
