@@ -3,7 +3,7 @@ using Distributed
 using Serialization
 
 function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
-                     iterations=400, acquisition="ei")
+                     iterations=400, acquisition="ei", noisebounds = [-4, 5])
 
     if acquisition isa String
         acquisition = Dict(
@@ -18,6 +18,7 @@ function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
       logNoise = -2.,
       capacity = iterations
     )
+    # set_priors!(model.mean, [Normal(1, 2)])
 
     iter = 0
     Xi = Vector{Float64}[]
@@ -45,7 +46,7 @@ function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
 
     model_optimizer = MAPGPOptimizer(
         every = 20,
-        noisebounds = [-4, 5],       # bounds of the logNoise
+        noisebounds = noisebounds,       # bounds of the logNoise
         # kernbounds = [[-1, -1, 0], [4, 4, 10]],  # bounds of the 3 parameters GaussianProcesses.get_param_names(model.kernel)
         maxeval = 100
     )
@@ -68,6 +69,7 @@ function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
     end
     opt
 end
+
 
 
 # f(x; noise=0.1) = sum((x .- 0.5).^2) + noise * randn()

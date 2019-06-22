@@ -16,6 +16,28 @@ using Plots
 plot([1,2])
 
 # %% ====================  ====================
+include("results.jl")
+run_name = "moments/3/rand"
+result = get_results(run_name)[1]
+xi, yi = load(result, :xy)
+x1, x2, x3 = invert(xi)
+
+using Loess
+# %% ====================  ====================
+function plot_loess!(x, y; kws...)
+    model = loess(x, y)
+    domain = range(minimum(x), maximum(x), length=100)
+    plot!(domain, Loess.predict(model, domain); kws...)
+end
+plot()
+plot_loess!(x1, yi, label="obs_sigma")
+plot_loess!(x2, yi, label="sample_cost")
+plot_loess!(x3, yi, label="switch_cost")
+# %% ====================  ====================
+scatter(x1, yi)
+bin_means(x1, yi)
+
+# %% ====================  ====================
 pyplot()
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
@@ -126,10 +148,15 @@ catch
     policy, prior = open(deserialize, "$results/blinkered_policy.jls")
 end
 
+# %% ====================  ====================
+include("results.jl")
+run_name = "moments/3/gp_min"
+result = get_results(run_name)[5]
+mkpath("figs/$run_name")
+policy, prior, sample_time = load(result, :best)
+@time sim = simulate_experiment(policy, prior, sample_time=sample_time, parallel=true)
 
-
-@time sim = simulate_experiment(policy, prior, sample_time=100, parallel=true)
-
+# %% ====================  ====================
 # %% ====================  ====================
 display("")
 μ, σ = prior
@@ -141,11 +168,15 @@ rollout(pol; state=s) do b, c
 end
 nothing
 # %% ====================  ====================
-pol = Blinkered(policy.m)
 N = 10000
 @distributed (+) for i in 1:N
     rollout(policy).reward
 end
+pol = Blinkered(policy.m)
+@distributed (+) for i in 1:N
+    rollout(pol).reward
+end
+
 
 # %% ====================  ====================
 # TODO: total value -> n fixation

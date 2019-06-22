@@ -1,4 +1,4 @@
-using DataStructures
+using DataStructures: OrderedDict
 
 struct Box
     dims::OrderedDict

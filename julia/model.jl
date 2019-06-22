@@ -51,7 +51,11 @@ function step!(m::MetaMDP, b::Belief, s::State, c::Computation)
 end
 
 function cost(m::MetaMDP, b::Belief, c::Computation)
-    m.sample_cost * (b.focused == c ? 1. : m.switch_cost)
+    if b.focused != 0 && b.focused != c
+        return m.sample_cost * m.switch_cost
+    else
+        return m.sample_cost
+    end
 end
 
 function update!(b::Belief, c::Computation, obs)
