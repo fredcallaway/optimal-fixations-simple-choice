@@ -80,9 +80,9 @@ function optimize(m::MetaMDP; cost_features=1, n_iter=200, seed=1, n_roll=1000, 
     db = ub .- lb
     rescale(x) = lb .+ (x ./ n_latin) .* db
     latin_points = LHCoptim(n_latin, length(bounds), 1000)[1]
-    for i in 1:n_latin
+    @sync for i in 1:n_latin
         x = rescale(latin_points[i, :])
-        tell(opt, x, loss(x))
+        @async tell(opt, x, loss(x))
     end
 
     # Bayesian optimization.
@@ -102,7 +102,7 @@ end
 function sum_reward(policy; n_roll=1000, seed=0)
     @distributed (+) for i in 1:n_roll
         Random.seed!(seed + i)
-        rollout(policy.m, policy, max_steps=200).reward
+        rollout(policy, max_steps=200).reward
     end
 end
 
