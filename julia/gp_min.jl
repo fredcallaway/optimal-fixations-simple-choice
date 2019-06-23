@@ -2,7 +2,7 @@ using BayesianOptimization, GaussianProcesses, Distributions
 using Distributed
 using Serialization
 
-function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
+function gp_minimize(f::Function, d::Int; verbose=true,
                      iterations=400, acquisition="ei", noisebounds = [-4, 5])
 
     if acquisition isa String
@@ -21,13 +21,11 @@ function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
     # set_priors!(model.mean, [Normal(1, 2)])
 
     iter = 0
-    Xi = Vector{Float64}[]
-    yi = Float64[]
 
 
     function g(x)
         iter += 1
-        # print("($iter)  ")
+        print("($iter)  ")
         fx, elapsed = @timed f(x)
         verbose && println(
             "($iter)  ",
@@ -36,11 +34,6 @@ function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
             "   ", round(elapsed; digits=1), " seconds",
             " with ", nprocs(), " processes"
         )
-        push!(Xi, x)
-        push!(yi, fx)
-        open(file * "_xy", "w+") do file
-            serialize(file, model)
-        end
         fx
     end
 
@@ -64,9 +57,6 @@ function gp_minimize(f::Function, d::Int; verbose=true, file="gp_minimize",
     )
 
     res = boptimize!(opt)
-    open(file * "_opt", "w+") do file
-        serialize(file, opt)
-    end
     opt
 end
 
