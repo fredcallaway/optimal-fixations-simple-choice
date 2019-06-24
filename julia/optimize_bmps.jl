@@ -1,13 +1,6 @@
-using Distributed
-addprocs()
-@everywhere begin
-    include("meta_mdp.jl")
-    include("bmps.jl")
-end
-
 include("gp_min.jl")
+using Distributed
 using Printf
-
 
 function max_cost(m::MetaMDP)
     θ = [1., 0, 0, 1]
@@ -33,37 +26,23 @@ function max_cost(m::MetaMDP)
     θ[1]
 end
 
-
-function optimize(m::MetaMDP; n_iter=400, seed=1, n_roll=1000, verbose=false)
-    Random.seed!(seed)
-    mc = max_cost(m)
-
-    function x2theta(x)
-        voi_weights = collect(x)[2:end]
-        voi_weights /= sum(voi_weights)
-        [x[1] * mc; voi_weights]
-    end
-
-    function loss(x; nr=n_roll)
-        policy = BMPSPolicy(m, x2theta(x))
-        reward, secs = @timed @distributed (+) for i in 1:nr
+function mean_reward(policy, n_roll, parallel)
+    if parallel
+        rr = @distributed (+) for i in 1:n_roll
             rollout(policy, max_steps=200).reward
         end
-        reward /= nr
-        if verbose
-            print("θ = ", round.(x2theta(x); digits=2), "   ")
-            @printf "reward = %.3f   seconds = %.3f\n" reward secs
-            flush(stdout)
+        return rr / n_roll
+    else
+        rr = mapreduce(+, 1:n_roll) do i
+            rollout(policy, max_steps=200).reward
         end
-        - reward
+        return rr / n_roll
     end
 
-    opt = gp_minimize(loss, 4, noisebounds=[-4, -2], iterations=n_iter; verbose=false)
-    @show loss(opt.observed_optimizer, nr=10000)
-    return opt
 end
 
-function optimize3(m::MetaMDP; n_iter=400, seed=1, n_roll=1000, verbose=false)
+function optimize(m::MetaMDP; n_iter=400, seed=1, n_roll=1000,
+                  verbose=false, parallel=true)
     Random.seed!(seed)
     mc = max_cost(m)
 
@@ -72,22 +51,21 @@ function optimize3(m::MetaMDP; n_iter=400, seed=1, n_roll=1000, verbose=false)
         [x[1] * mc; voi_weights]
     end
 
-    function loss(x; nr=n_roll)
+    function loss(x, nr=n_roll)
         policy = BMPSPolicy(m, x2theta(x))
-        reward, secs = @timed @distributed (+) for i in 1:nr
-            rollout(policy, max_steps=200).reward
-        end
-        reward /= nr
+        reward, secs = @timed mean_reward(policy, n_roll, parallel)
         if verbose
             print("θ = ", round.(x2theta(x); digits=2), "   ")
             @printf "reward = %.3f   seconds = %.3f\n" reward secs
             flush(stdout)
         end
-        - 10 * reward
+        -reward
     end
 
     opt = gp_minimize(loss, 3, noisebounds=[-4, -2], iterations=n_iter; verbose=false)
-    @show loss(opt.observed_optimizer, nr=10000)
-    return opt
+    f_mod = loss(opt.model_optimizer, 10000)
+    f_obs = loss(opt.observed_optimizer, 10000)
+    best = f_obs < f_mod ? opt.observed_optimizer : opt.model_optimizer
+    return BMPSPolicy(m, x2theta(best)), opt
 end
 

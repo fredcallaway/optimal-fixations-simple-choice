@@ -48,20 +48,3 @@ function simulate_experiment(policy, (μ, σ), n_repeat=N_SIM;
     fixs, fix_times = parse_fixations.(samples, sample_time) |> invert
     Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
 end
-
-# %% ==================== Load policy for job ====================
-
-function x2theta(x)
-    cost_weight = x[1]
-    voi_weights = diff([0; sort(collect(x[2:end])); 1])
-    [cost_weight; voi_weights]
-end
-
-function optimized_policy(job)
-    m = MetaMDP(job)
-    try
-        Policy(m, deserialize(job, :optim).θ1)
-    catch
-        missing
-    end
-end
