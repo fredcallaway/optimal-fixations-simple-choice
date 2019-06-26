@@ -154,15 +154,31 @@ function fixate_on_best(trials; sample_time=10, cutoff=CUTOFF)
     num = zeros(k)
     for t in trials
         # t.choice == argmax(t.value) || continue
-        fix = discretize_fixations(t; sample_time=sample_time)
         # x = t.value[fix] .- mean(t.value)
-        x = fix .== argmax(t.value)
+        fix = discretize_fixations(t; sample_time=sample_time)
+        fix_best = fix .== argmax(t.value)
         for i in 1:min(k, length(x))
             denom[i] += 1
             num[i] += x[i]
         end
     end
     collect(1:k) .* sample_time, num ./ denom
+end
+
+function fixate_on_best(trials; sample_time=10, cutoff=2000)
+    n_bin = 5
+    n_sample = Int(cutoff / sample_time)
+    spb = Int(n_sample/n_bin)
+    x = Int[]
+    y = Float64[]
+    for t in trials
+        sum(t.fix_times) < cutoff && continue
+        fix = discretize_fixations(t; sample_time=sample_time)
+        fix_best = fix[1:n_sample] .== argmax(t.value)
+        push!(x, (1:n_bin)...)
+        push!(y, mean.(Iterators.partition(fix_best, spb))...)
+    end
+    x, y
 end
 
 # %% ====================  ====================

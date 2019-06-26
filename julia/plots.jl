@@ -22,8 +22,9 @@ result = get_results(run_name)[1]
 xi, yi = load(result, :xy)
 x1, x2, x3 = invert(xi)
 
-using Loess
+
 # %% ====================  ====================
+using Loess
 function plot_loess!(x, y; kws...)
     model = loess(x, y)
     domain = range(minimum(x), maximum(x), length=100)
@@ -127,7 +128,7 @@ end
 
 # %% ==================== Load Blinkered ====================
 using Serialization
-run_name = "fit6"
+run_name = "1000"
 mkpath("figs/$run_name")
 results = Dict(
     "fit5" => "results/2019-06-02T11-49-47",
@@ -140,6 +141,7 @@ results = Dict(
     "fit3" => "results/2019-06-16T19-01-26/",
     "fit5-alpha-100" => "results/2019-06-17T15-50-40/",
     "fit5-alpha-100-reweight" => "results/2019-06-17T21-52-40/",
+    "1000" => "results/inference/2019-06-21T13-57-39"
 )[run_name]
 
 try
@@ -147,6 +149,7 @@ try
 catch
     policy, prior = open(deserialize, "$results/blinkered_policy.jls")
 end
+@time sim = simulate_experiment(policy, prior, sample_time=sample_time, parallel=true)
 
 # %% ====================  ====================
 include("results.jl")
@@ -157,6 +160,9 @@ policy, prior, sample_time = load(result, :best)
 @time sim = simulate_experiment(policy, prior, sample_time=sample_time, parallel=true)
 
 # %% ====================  ====================
+run_name = "bmps_moments"
+mkpath("figs/$run_name")
+sim = open(deserialize, "tmp/best_bmps_sim")
 # %% ====================  ====================
 display("")
 μ, σ = prior
@@ -177,12 +183,12 @@ pol = Blinkered(policy.m)
     rollout(pol).reward
 end
 
-
 # %% ====================  ====================
 # TODO: total value -> n fixation
 
 fig("value_choice") do
     plot_comparison(value_choice, sim)
+    cross!(0, 1/3)
     xlabel!("Relative item value")
     ylabel!("Probability of choice")
 end
@@ -196,13 +202,18 @@ end
 
 fig("value_bias") do
     plot_comparison(value_bias, sim)
+    cross!(0, 1/3)
     xlabel!("Relative item value")
     ylabel!("Proportion fixation time")
 end
 
 fig("fixate_on_best") do
     # FIXME Incorrect error bars!
-    plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
+    # plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
+    plot_comparison(fixate_on_best, sim, :integer, cutoff=2000)
+    xticks!(1:5, string.(200:400:2000))
+    xticks!(0.5:5.5, string.(0:400:2000))
+    hline!([1/3], line=(:grey, 0.7), label="")
     xlabel!("Time since trial onset")
     ylabel!("Probability of fixating\non highest-value item")
 end
