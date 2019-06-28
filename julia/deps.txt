@@ -4,8 +4,7 @@ Parameters
 SplitApplyCombine
 StaticArrays
 TypedTables
-Conda
-PyCall
 LatinHypercubeSampling
 ClusterManagers
 StatsBase
+BayesianOptimization
