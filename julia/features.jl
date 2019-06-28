@@ -141,32 +141,8 @@ function fixation_value(trials; sample_time=10)
     collect(1:k) .* sample_time, num ./ denom
 end
 
-# %% ====================  ====================
-# CUTOFF = Int(round(quantile(sum.(trials.fix_times), 0.5)))
 
-function fixate_on_best(trials; sample_time=10, cutoff=CUTOFF)
-    # kind = [Tuple(diff(sort(v))) for v in trials.value]
-    # trials = trials[kind .== [(1., 1.)]]
-    rt = sum.(trials.fix_times)
-    # trials = trials[cutoff .> tft]
-    k = ceil(Int, cutoff / sample_time)
-    denom = zeros(k)
-    num = zeros(k)
-    for t in trials
-        # t.choice == argmax(t.value) || continue
-        # x = t.value[fix] .- mean(t.value)
-        fix = discretize_fixations(t; sample_time=sample_time)
-        fix_best = fix .== argmax(t.value)
-        for i in 1:min(k, length(x))
-            denom[i] += 1
-            num[i] += x[i]
-        end
-    end
-    collect(1:k) .* sample_time, num ./ denom
-end
-
-function fixate_on_best(trials; sample_time=10, cutoff=2000)
-    n_bin = 5
+function fixate_on_best(trials; sample_time=10, cutoff=2000, n_bin=5)
     n_sample = Int(cutoff / sample_time)
     spb = Int(n_sample/n_bin)
     x = Int[]
@@ -180,8 +156,6 @@ function fixate_on_best(trials; sample_time=10, cutoff=2000)
     end
     x, y
 end
-
-# %% ====================  ====================
 
 unique_values(t) = length(unique(t.value)) == length(t.value)
 
@@ -237,31 +211,31 @@ function n_fix_hist(trials)
     1:10, counts(n_fix, 10) ./ length(n_fix)
 end
 
-rt_hist = let
-    n = 8
-    bins = make_bins(n, trials.rt)
-    function rt_hist(sim)
-        rt = sum.(sim.fix_times)
-        x = bins.(rt) |> skipmissing |> collect |> counts
-        1:n, x / length(rt)
-    end
-end
+# rt_hist = let
+#     n = 8
+#     bins = make_bins(n, trials.rt)
+#     function rt_hist(sim)
+#         rt = sum.(sim.fix_times)
+#         x = bins.(rt) |> skipmissing |> collect |> counts
+#         1:n, x / length(rt)
+#     end
+# end
 
-featurizers = Dict(
-    :value_choice => make_featurizer(value_choice),
-    :fixation_bias => make_featurizer(fixation_bias),
-    :value_bias => make_featurizer(value_bias),
-    :fourth_rank => make_featurizer(fourth_rank, :integer),
-    :first_fixation_duration => make_featurizer(first_fixation_duration),
-    :last_fixation_duration => make_featurizer(last_fixation_duration),
-    :difference_time => make_featurizer(difference_time),
-    :difference_nfix => make_featurizer(difference_nfix),
-    :fixation_times => make_featurizer(fixation_times, :integer),
-    :last_fix_bias => make_featurizer(last_fix_bias),
-    :gaze_cascade => make_featurizer(gaze_cascade, :integer),
-    :fixate_on_best => make_featurizer(fixate_on_best, Binning(0:CUTOFF/7:CUTOFF)),
-    :n_fix_hist => make_featurizer(n_fix_hist, :integer),
-    :rt_hist => make_featurizer(rt_hist, :integer)
-)
+# featurizers = Dict(
+#     :value_choice => make_featurizer(value_choice),
+#     :fixation_bias => make_featurizer(fixation_bias),
+#     :value_bias => make_featurizer(value_bias),
+#     :fourth_rank => make_featurizer(fourth_rank, :integer),
+#     :first_fixation_duration => make_featurizer(first_fixation_duration),
+#     :last_fixation_duration => make_featurizer(last_fixation_duration),
+#     :difference_time => make_featurizer(difference_time),
+#     :difference_nfix => make_featurizer(difference_nfix),
+#     :fixation_times => make_featurizer(fixation_times, :integer),
+#     :last_fix_bias => make_featurizer(last_fix_bias),
+#     :gaze_cascade => make_featurizer(gaze_cascade, :integer),
+#     :fixate_on_best => make_featurizer(fixate_on_best, Binning(0:CUTOFF/7:CUTOFF)),
+#     :n_fix_hist => make_featurizer(n_fix_hist, :integer),
+#     :rt_hist => make_featurizer(rt_hist, :integer)
+# )
 
-compute_features(sim) = Dict(name => f(sim) for (name, f) in featurizers)
+# compute_features(sim) = Dict(name => f(sim) for (name, f) in featurizers)

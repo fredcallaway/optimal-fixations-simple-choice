@@ -49,7 +49,10 @@ using Plots: px
 estimator = mean
 ci = 0.95
 
+
+
 function ci_err(estimator, y)
+    return 2 * std(y) / √length(y)
     bs = bootstrap(estimator, y, BalancedSampling(N_BOOT))
     c = confint(bs, BasicConfInt(ci))[1]
     abs.(c[2:3] .- c[1])
@@ -80,12 +83,18 @@ function plot_human!(bins, x, y, type=:line)
 end
 
 function plot_model!(bins, x, y, type=:line)
+    vals = bin_by(bins, x, y)
     if type == :line
-        plot!(mids(bins), estimator.(bin_by(bins, x, y)),
+        plot!(mids(bins), estimator.(vals),
+              yerr=ci_err.(estimator, vals),
+              # yerr=nothing,
+              color=:red,
               line=(:red, :dash),
               label="",)
     elseif type == :discrete
-        scatter!(mids(bins), estimator.(bin_by(bins, x, y)),
+        scatter!(mids(bins), estimator.(vals),
+              yerr=ci_err.(estimator, vals),
+              # yerr=nothing,
               grid=:none,
               marker=(5, :diamond, :red, stroke(0)),
               label="",)
@@ -149,20 +158,22 @@ try
 catch
     policy, prior = open(deserialize, "$results/blinkered_policy.jls")
 end
-@time sim = simulate_experiment(policy, prior, sample_time=sample_time, parallel=true)
+@time sim = simulate_experiment(policy, prior, 100,
+    sample_time=sample_time, parallel=true)
 
 # %% ====================  ====================
-include("results.jl")
+# include("results.jl")
 run_name = "moments/3/gp_min"
 result = get_results(run_name)[5]
 mkpath("figs/$run_name")
 policy, prior, sample_time = load(result, :best)
-@time sim = simulate_experiment(policy, prior, sample_time=sample_time, parallel=true)
+@time sim = simulate_experiment(policy, prior, 100, sample_time=sample_time, parallel=true)
 
 # %% ====================  ====================
 run_name = "bmps_moments"
 mkpath("figs/$run_name")
 sim = open(deserialize, "tmp/best_bmps_sim")
+run_name
 # %% ====================  ====================
 display("")
 μ, σ = prior
@@ -210,10 +221,12 @@ end
 fig("fixate_on_best") do
     # FIXME Incorrect error bars!
     # plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
-    plot_comparison(fixate_on_best, sim, :integer, cutoff=2000)
-    xticks!(1:5, string.(200:400:2000))
-    xticks!(0.5:5.5, string.(0:400:2000))
+    plot_comparison(fixate_on_best, sim, :integer, cutoff=2000, n_bin=8)
+    xticks!(0.5:8.5, string.(0:250:2000))
     hline!([1/3], line=(:grey, 0.7), label="")
+    # xticks!(1:5, string.(200:400:2000))
+    # xticks!(0.5:5.5, string.(0:400:2000))
+    # hline!([1/3], line=(:grey, 0.7), label="")
     xlabel!("Time since trial onset")
     ylabel!("Probability of fixating\non highest-value item")
 end
@@ -259,12 +272,6 @@ end
 fig("n_fix_hist") do
     plot_comparison(n_fix_hist, sim, :integer, :discrete)
     xlabel!("Number of fixations")
-    ylabel!("Proportion of trials")
-end
-
-fig("rt_hist") do
-    plot_comparison(rt_hist, sim, :integer, :discrete)
-    xlabel!("Total fixation time")
     ylabel!("Proportion of trials")
 end
 
