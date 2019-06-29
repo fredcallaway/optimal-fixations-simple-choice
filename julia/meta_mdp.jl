@@ -9,7 +9,7 @@ noisy(x, ε=1e-10) = x .+ ε .* rand(length(x))
 "Metalevel Markov decision process"
 @with_kw struct MetaMDP
     n_arm::Int = 3
-    obs_sigma::Float64 = 1
+    σ_obs::Float64 = 1
     sample_cost::Float64 = 0.001
     switch_cost::Float64 = 1
 end
@@ -21,9 +21,9 @@ abstract type Policy end
 "Ground truth state"
 struct State
     value::Vector{Float64}
-    obs_sigma::Float64  # metaMDP parameter, stored here for convenience
+    σ_obs::Float64  # metaMDP parameter, stored here for convenience
 end
-State(m::MetaMDP, value) = State(value, m.obs_sigma)
+State(m::MetaMDP, value) = State(value, m.σ_obs)
 State(m::MetaMDP) = State(m, randn(m.n_arm))
 
 
@@ -31,23 +31,23 @@ State(m::MetaMDP) = State(m, randn(m.n_arm))
 mutable struct Belief
     µ::Vector{Float64}  # mean vector
     λ::Vector{Float64}  # precision vector
-    obs_sigma::Float64  # metaMDP parameter, stored here for convenience
+    σ_obs::Float64  # metaMDP parameter, stored here for convenience
     focused::Int        # currently fixated item (necessary for switch cost)
 end
 
 Belief(s::State) = Belief(
     zeros(length(s.value)),
     ones(length(s.value)),
-    s.obs_sigma,
+    s.σ_obs,
     0
 )
 Belief(m::MetaMDP) = Belief(
     zeros(m.n_arm),
-    zeros(m.n_arm),
-    m.obs_sigma,
+    ones(m.n_arm),
+    m.σ_obs,
     0
 )
-Base.copy(b::Belief) = Belief(copy(b.µ), copy(b.λ), b.obs_sigma, b.focused)
+Base.copy(b::Belief) = Belief(copy(b.µ), copy(b.λ), b.σ_obs, b.focused)
 
 
 """Expected reward for making a decision.
@@ -72,13 +72,13 @@ end
 "Updates belief based on the given computation and returns metalevel reward"
 function transition!(b::Belief, s::State, c::Computation)
     b.focused = c
-    obs = s.value[c] + randn() * s.obs_sigma
+    obs = s.value[c] + randn() * s.σ_obs
     bayes_update!(b, c, obs)
 end
 
 "Updates the belief about item `c` based on sample `obs`"
 function bayes_update!(b::Belief, c::Computation, obs)
-    obs_lam = b.obs_sigma ^ -2
+    obs_lam = b.σ_obs ^ -2
     lam1 = b.λ[c] + obs_lam
     mu1 = (obs * obs_lam + b.µ[c] * b.λ[c]) / lam1
     b.µ[c] = mu1
