@@ -6,6 +6,8 @@ end
 
 Box(dims...) = Box(OrderedDict(dims))
 Base.length(b::Box) = length(b.dims)
+Base.getindex(box::Box, k) = box.dims[k]
+
 function Base.display(box::Box)
     println("Box")
     for p in pairs(box.dims)
@@ -16,8 +18,16 @@ end
 linscale(x, low, high) = low + x * (high-low)
 logscale(x, low, high) = exp(log(low) + x * (log(high) - log(low)))
 
+unlinscale(x, low, high) = (x - low) / (high-low)
+unlogscale(x, low, high) = (log(x) - log(low)) / (log(high) - log(low))
+
 function rescale(d, x)
     scale = :log in d ? logscale : linscale
+    scale(x, d[1], d[2])
+end
+
+function unscale(d, x)
+    scale = :log in d ? unlogscale : unlinscale
     scale(x, d[1], d[2])
 end
 
@@ -35,13 +45,3 @@ function (box::Box)(x)
         end
     end |> OrderedDict
 end
-
-# %% ====================  ====================
-
-box = Box(
-    :a => (1, 3),
-    :b => 4,
-    :c => (5, 6)
-)
-
-box([1,1])

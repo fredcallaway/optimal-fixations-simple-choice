@@ -41,7 +41,7 @@ function mean_reward(policy, n_roll, parallel)
 
 end
 
-function optimize(m::MetaMDP; n_iter=400, seed=1, n_roll=1000,
+function optimize_bmps(m::MetaMDP; n_iter=400, seed=1, n_roll=5000,
                   verbose=false, parallel=true)
     Random.seed!(seed)
     mc = max_cost(m)

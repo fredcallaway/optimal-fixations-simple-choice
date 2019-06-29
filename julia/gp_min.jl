@@ -2,7 +2,7 @@ using BayesianOptimization, GaussianProcesses, Distributions
 using Distributed
 using Serialization
 
-function gp_minimize(f::Function, d::Int; verbose=true,
+function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing,
                      iterations=400, acquisition="ei", noisebounds = [-4, 5])
 
     if acquisition isa String
@@ -18,14 +18,19 @@ function gp_minimize(f::Function, d::Int; verbose=true,
       logNoise = -2.,
       capacity = iterations
     )
+
+    init_iters = cld(iterations, 4)
+    if init_Xy != nothing
+        X, y = init_Xy
+        X = -X  # because we are minimizing
+        append!(model, X, y)
+        init_iters = 0
+    end
     # set_priors!(model.mean, [Normal(1, 2)])
 
     iter = 0
-
-
     function g(x)
         iter += 1
-        print("($iter)  ")
         fx, elapsed = @timed f(x)
         verbose && println(
             "($iter)  ",
@@ -51,8 +56,8 @@ function gp_minimize(f::Function, d::Int; verbose=true,
         zeros(d), ones(d),
         maxiterations = iterations,
         sense = Min,
-        verbosity = Timings,
-        initializer_iterations=cld(iterations, 4),
+        verbosity = verbose ? Timings : Silent,
+        initializer_iterations=init_iters,
         repetitions=1,
     )
 
