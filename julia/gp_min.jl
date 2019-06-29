@@ -12,17 +12,19 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing,
         )[acquisition]
     end
 
+
+
     model = ElasticGPE(d,
       mean = MeanConst(0.),
       kernel = SEArd(zeros(d), 5.),
       logNoise = -2.,
-      capacity = iterations
+      capacity = iterations + (init_Xy != nothing ? size(init_Xy[1],2) : 0)
     )
 
     init_iters = cld(iterations, 4)
     if init_Xy != nothing
         X, y = init_Xy
-        X = -X  # because we are minimizing
+        y = -y  # because we are minimizing
         append!(model, X, y)
         init_iters = 0
     end
@@ -61,8 +63,7 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing,
         repetitions=1,
     )
 
-    res = boptimize!(opt)
-    opt
+    return opt
 end
 
 
