@@ -12,3 +12,6 @@ analysis/figs1/
 julia/out/
 krajbich_NatNeu_2010/
 julia/tmp/
+julia/figs/
+julia/human_trials.jls
+julia/scratch_plots.jl
