@@ -5,7 +5,7 @@ using StatsBase
 
 function voc_dc(m::MetaMDP, b::Belief, c::Computation)
     c == TERM && return 0.
-    voc_n(n) = voi_n(m, b, c, n) - (cost(m, b, c) + (n-1) * m.sample_cost)
+    voc_n(n) = voi_n(b, c, n) - (cost(m, b, c) + (n-1) * m.sample_cost)
     # int_line_search(1, voc_n)[2]
     maximum(voc_n.(1:100))
 end
