@@ -2,7 +2,7 @@ using BayesianOptimization, GaussianProcesses, Distributions
 using Distributed
 using Serialization
 
-function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing,
+function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=true,
                      iterations=400, acquisition="ei", noisebounds = [-4, 5])
 
     if acquisition isa String
@@ -62,7 +62,9 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing,
         initializer_iterations=init_iters,
         repetitions=1,
     )
-
+    if run
+        boptimize!(opt)
+    end
     return opt
 end
 

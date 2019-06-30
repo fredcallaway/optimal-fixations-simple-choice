@@ -147,7 +147,8 @@ prepare_result(prm::Params) = (
 # %% ====================  ====================
 opt = gp_minimize(loss, n_free(space),
     noisebounds=[-4, -2],
-    iterations=400
+    iterations=400,
+    run=false
 )
 boptimize!(opt)
 

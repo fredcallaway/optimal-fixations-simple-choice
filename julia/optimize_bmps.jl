@@ -63,6 +63,7 @@ function optimize_bmps(m::MetaMDP; n_iter=400, seed=1, n_roll=5000,
     end
 
     opt = gp_minimize(loss, 3, noisebounds=[-4, -2], iterations=n_iter; verbose=false)
+
     f_mod = loss(opt.model_optimizer, 10000)
     f_obs = loss(opt.observed_optimizer, 10000)
     best = f_obs < f_mod ? opt.observed_optimizer : opt.model_optimizer
