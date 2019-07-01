@@ -41,9 +41,11 @@ function mean_reward(policy, n_roll, parallel)
 
 end
 
-function optimize_bmps(m::MetaMDP; n_iter=400, seed=1, n_roll=5000,
+function optimize_bmps(m::MetaMDP; n_iter=200, seed=nothing, n_roll=1000,
                   verbose=false, parallel=true)
-    Random.seed!(seed)
+    if seed != nothing
+        Random.seed!(seed)
+    end
     mc = max_cost(m)
 
     function x2theta(x)

@@ -90,10 +90,8 @@ end
 
 function loss(prm::Params)
     m = MetaMDP(prm)
-    print("Find BMPS  ")
-    @time policy = bmps_policy(m)
-    print("Simulate experiments  ")
-    @time sim = simulate_experiment(policy, 100)
+    policy = bmps_policy(m)
+    sim = simulate_experiment(policy, 10)
     min(10., √(sim_loss(sim)))
 end
 
@@ -107,6 +105,7 @@ function loss(x::Vector{Float64})
     y
 end
 prior(prm::Params) = (prm.μ, prm.σ)
+
 
 # %% ==================== Prepare pre-optimized ====================
 
@@ -143,8 +142,6 @@ prepare_result(prm::Params) = (
     sample_time = prm.sample_time
 )
 
-
-# %% ====================  ====================
 opt = gp_minimize(loss, n_free(space),
     noisebounds=[-4, -2],
     iterations=400,
