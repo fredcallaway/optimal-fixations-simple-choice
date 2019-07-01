@@ -106,6 +106,16 @@ function loss(x::Vector{Float64})
 end
 prior(prm::Params) = (prm.μ, prm.σ)
 
+# %% ====================  ====================
+function bmps_policy(m::MetaMDP)
+    policy, opt = optimize_bmps(m)
+    return policy
+end
+
+x = [0.656, 0.656, 0.031]
+losses = map(1:10) do i
+    @time @show loss(x)
+end
 
 # %% ==================== Prepare pre-optimized ====================
 
@@ -136,6 +146,8 @@ prior(prm::Params) = (prm.μ, prm.σ)
 
 # %% ==================== Main ====================
 
+bmps_policy(x::Vector{Float64}) = bmps_policy(MetaMDP(Params(space(x))))
+
 prepare_result(prm::Params) = (
     policy = bmps_policy(MetaMDP(prm)),
     prior = prior(prm),
@@ -148,6 +160,36 @@ opt = gp_minimize(loss, n_free(space),
     run=false
 )
 boptimize!(opt)
+
+# %% ====================  ====================
+policy = bmps_policy(opt.observed_optimizer)
+open("tmp/best_bmps_sim", "w+") do f
+    serialize(f, simulate_experiment(policy, 10))
+end
+
+
+# %% ====================  ====================
+x = [0.057, 0.74, 0.075]
+m = MetaMDP(Params(space(x)))
+@time results = asyncmap(1:10) do i
+    optimize_bmps(m, n_roll=5000, n_iter=200, repetitions=1)
+end
+
+# %% ====================  ====================
+pols, opts = invert(results);
+
+rewards = asyncmap(pols) do p
+    mean_reward(p, 10000, true)
+end
+
+rewards = asyncmap(1:10) do i
+    mean_reward(p, 1000, true)
+end
+
+for p in pols
+    println(round.(collect(p.θ), digits=3))
+
+end
 
 # %% ====================  ====================
 

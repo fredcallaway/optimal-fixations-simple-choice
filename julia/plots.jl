@@ -16,29 +16,6 @@ using Plots
 plot([1,2])
 
 # %% ====================  ====================
-include("results.jl")
-run_name = "moments/3/rand"
-result = get_results(run_name)[1]
-xi, yi = load(result, :xy)
-x1, x2, x3 = invert(xi)
-
-
-# %% ====================  ====================
-using Loess
-function plot_loess!(x, y; kws...)
-    model = loess(x, y)
-    domain = range(minimum(x), maximum(x), length=100)
-    plot!(domain, Loess.predict(model, domain); kws...)
-end
-plot()
-plot_loess!(x1, yi, label="obs_sigma")
-plot_loess!(x2, yi, label="sample_cost")
-plot_loess!(x3, yi, label="switch_cost")
-# %% ====================  ====================
-scatter(x1, yi)
-bin_means(x1, yi)
-
-# %% ====================  ====================
 pyplot()
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
@@ -49,20 +26,12 @@ using Plots: px
 estimator = mean
 ci = 0.95
 
-
-
 function ci_err(estimator, y)
     return 2 * std(y) / √length(y)
     bs = bootstrap(estimator, y, BalancedSampling(N_BOOT))
     c = confint(bs, BasicConfInt(ci))[1]
     abs.(c[2:3] .- c[1])
 end
-
-# function plot_human(bins, x, y)
-#     vals = bin_by(bins, x, y)
-#     bar(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
-#        fill=:white, color=:black, label="")
-# end
 
 function plot_human!(bins, x, y, type=:line)
     vals = bin_by(bins, x, y)
@@ -126,7 +95,6 @@ end
 
 using KernelDensity
 
-
 function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
     plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
 end
@@ -174,25 +142,6 @@ run_name = "bmps_moments"
 mkpath("figs/$run_name")
 sim = open(deserialize, "tmp/best_bmps_sim")
 run_name
-# %% ====================  ====================
-display("")
-μ, σ = prior
-pol = Blinkered(policy.m)
-v = sim[6].value
-s = State(policy.m, (v .- μ) ./ σ)
-rollout(pol; state=s) do b, c
-    println(b)
-end
-nothing
-# %% ====================  ====================
-N = 10000
-@distributed (+) for i in 1:N
-    rollout(policy).reward
-end
-pol = Blinkered(policy.m)
-@distributed (+) for i in 1:N
-    rollout(pol).reward
-end
 
 # %% ====================  ====================
 # TODO: total value -> n fixation

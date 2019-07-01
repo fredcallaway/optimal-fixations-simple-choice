@@ -42,7 +42,7 @@ function mean_reward(policy, n_roll, parallel)
 end
 
 function optimize_bmps(m::MetaMDP; n_iter=200, seed=nothing, n_roll=1000,
-                  verbose=false, parallel=true)
+                  verbose=false, parallel=true, repetitions=1)
     if seed != nothing
         Random.seed!(seed)
     end
@@ -64,7 +64,9 @@ function optimize_bmps(m::MetaMDP; n_iter=200, seed=nothing, n_roll=1000,
         -reward
     end
 
-    opt = gp_minimize(loss, 3, noisebounds=[-4, -2], iterations=n_iter; verbose=false)
+    opt = gp_minimize(loss, 3, noisebounds=[-4, -2],
+                      iterations=n_iter, repetitions=repetitions,
+                      verbose=false)
 
     f_mod = loss(opt.model_optimizer, 10000)
     f_obs = loss(opt.observed_optimizer, 10000)

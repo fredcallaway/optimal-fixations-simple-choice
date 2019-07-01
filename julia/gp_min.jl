@@ -3,7 +3,8 @@ using Distributed
 using Serialization
 
 function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=true,
-                     iterations=400, acquisition="ei", noisebounds = [-4, 5])
+                     iterations=400, repetitions=1, acquisition_restarts=50,
+                     acquisition="ei", noisebounds = [-4, 5])
 
     if acquisition isa String
         acquisition = Dict(
@@ -60,14 +61,20 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=tru
         sense = Min,
         verbosity = verbose ? Timings : Silent,
         initializer_iterations=init_iters,
-        repetitions=1,
+        repetitions=repetitions,
+        acquisitionoptions=(restarts=acquisition_restarts,)
     )
     if run
         boptimize!(opt)
+        find_model_max!(opt)
     end
     return opt
 end
 
-
+function find_model_max!(opt::BOpt; restarts=1000)
+    opt.model_optimum, opt.model_optimizer = BayesianOptimization.acquire_model_max(opt;
+        options=(method = :LD_LBFGS, restarts = restarts, maxeval = 2000)
+    )
+end
 
 # f(x; noise=0.1) = sum((x .- 0.5).^2) + noise * randn()
