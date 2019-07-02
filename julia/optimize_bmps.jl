@@ -41,7 +41,7 @@ function mean_reward(policy, n_roll, parallel)
 
 end
 
-function optimize_bmps(m::MetaMDP; n_iter=200, seed=nothing, n_roll=1000,
+function optimize_bmps(m::MetaMDP; n_iter=200, seed=nothing, n_roll=5000,
                   verbose=false, parallel=true, repetitions=1)
     if seed != nothing
         Random.seed!(seed)
@@ -53,14 +53,18 @@ function optimize_bmps(m::MetaMDP; n_iter=200, seed=nothing, n_roll=1000,
         [x[1] * mc; voi_weights]
     end
 
+    iter = 1
+
     function loss(x, nr=n_roll)
         policy = BMPSPolicy(m, x2theta(x))
         reward, secs = @timed mean_reward(policy, n_roll, parallel)
         if verbose
+            print("($iter)  ")
             print("θ = ", round.(x2theta(x); digits=2), "   ")
             @printf "reward = %.3f   seconds = %.3f\n" reward secs
             flush(stdout)
         end
+        iter += 1
         -reward
     end
 

@@ -1,5 +1,4 @@
 using Distributed
-addprocs()
 @everywhere begin
     include("model_base.jl")
     include("bmps.jl")
@@ -81,146 +80,26 @@ end
 
 const sim_loss = make_loss([choice_value, n_fix, total_fix_time])
 
-
 using Memoize
 @memoize function bmps_policy(m::MetaMDP)
     policy, opt = optimize_bmps(m)
     return policy
 end
 
-function loss(prm::Params)
+function loss(prm::Params; no_memo=false, verbose=false)
     m = MetaMDP(prm)
-    policy = bmps_policy(m)
+    policy = no_memo ? optimize_bmps(m; verbose=verbose)[1] : bmps_policy(m)
     sim = simulate_experiment(policy, 10)
     min(10., √(sim_loss(sim)))
 end
 
 RECORD = (x=Vector{Float64}[], y=Float64[])
 
-function loss(x::Vector{Float64})
-    y = loss(Params(space(x)))
+function loss(x::Vector{Float64}; kws...)
+    y = loss(Params(space(x)); kws...)
     push!(RECORD.x, x)
     push!(RECORD.y, y)
     save(results, :record, RECORD; verbose=false)
     y
-end
-prior(prm::Params) = (prm.μ, prm.σ)
-
-# %% ====================  ====================
-function bmps_policy(m::MetaMDP)
-    policy, opt = optimize_bmps(m)
-    return policy
-end
-
-x = [0.656, 0.656, 0.031]
-losses = map(1:10) do i
-    @time @show loss(x)
-end
-
-# %% ==================== Prepare pre-optimized ====================
-
-# using Glob
-
-# all_policies = asyncmap(glob("results/foobar/*/policy")) do f
-#     open(deserialize, f)
-# end
-
-# get_x(m::MetaMDP) = [
-#     unscale(space[:σ_obs], m.σ_obs)
-#     unscale(space[:sample_cost], m.sample_cost)
-#     unscale(space[:switch_cost], m.switch_cost)
-# ]
-
-# policies = filter(all_policies) do policy
-#     x = get_x(policy.m)
-#     all(@. 0 < x < 1)
-# end
-
-# X, y = asyncmap(policies; ntasks=10) do policy
-#     x = get_x(policy.m)
-#     y = sim_loss(simulate_experiment(policy, 10))
-#     x, y
-# end |> invert
-# X = combinedims(X)
-
-
-# %% ==================== Main ====================
-
-bmps_policy(x::Vector{Float64}) = bmps_policy(MetaMDP(Params(space(x))))
-
-prepare_result(prm::Params) = (
-    policy = bmps_policy(MetaMDP(prm)),
-    prior = prior(prm),
-    sample_time = prm.sample_time
-)
-
-opt = gp_minimize(loss, n_free(space),
-    noisebounds=[-4, -2],
-    iterations=400,
-    run=false
-)
-boptimize!(opt)
-
-# %% ====================  ====================
-policy = bmps_policy(opt.observed_optimizer)
-open("tmp/best_bmps_sim", "w+") do f
-    serialize(f, simulate_experiment(policy, 10))
-end
-
-
-# %% ====================  ====================
-x = [0.057, 0.74, 0.075]
-m = MetaMDP(Params(space(x)))
-@time results = asyncmap(1:10) do i
-    optimize_bmps(m, n_roll=5000, n_iter=200, repetitions=1)
-end
-
-# %% ====================  ====================
-pols, opts = invert(results);
-
-rewards = asyncmap(pols) do p
-    mean_reward(p, 10000, true)
-end
-
-rewards = asyncmap(1:10) do i
-    mean_reward(p, 1000, true)
-end
-
-for p in pols
-    println(round.(collect(p.θ), digits=3))
-
-end
-
-# %% ====================  ====================
-
-function save_results()
-    println("observed: ", round.(opt.observed_optimizer; digits=3),
-            " => ", round(opt.observed_optimum; digits=5))
-    println("model:    ", round.(opt.model_optimizer; digits=3),
-            " => ", round(opt.model_optimum; digits=5))
-    f_mod = @show loss(opt.model_optimizer)
-    f_obs = @show loss(opt.observed_optimizer)
-    best_x = f_obs < f_mod ? opt.observed_optimizer : opt.model_optimizer
-    prm = Params(space(best_x))
-
-    println("Best fitting optimal policy:")
-    println(bmps_policy(MetaMDP(prm)))
-
-    save(results, :opt, opt)
-    save(results, :model, opt.model)
-    save(results, :xy, (x=opt.model.x, y=opt.model.y))
-    save(results, :best, prepare_result(prm))
-
-    policy, opt = optimize_bmps(MetaMDP(prm))
-    println("Reoptimized policy")
-    println(policy.θ)
-    save(results, :opt_again, (policy, opt.model))
-end
-
-save_results()
-
-for i in 1:10
-    boptimize!(opt)
-    save_results()
 end
 

@@ -1,26 +1,22 @@
 using Parameters
 using Optim
 
-include("elastic.jl")
+using Distributed
+nprocs() == 1 && addprocs()
+println(nprocs(), " processes")
 
-# if get(ARGS, 1, "") == "master"
 include("results.jl")
 include("box.jl")
 include("gp_min.jl")
-nprocs() == 1 && addprocs(topology=:master_worker)
-println(nprocs(), " processes")
 
 @everywhere begin
-    include("model.jl")
-    include("blinkered.jl")
-    include("human.jl")
-    include("simulations.jl")
+    include("model_base.jl")
+    include("dc.jl")
 end
 
 # %% ==================== Parameters ====================
 
 @with_kw mutable struct Params
-    α::Float64
     obs_sigma::Float64
     sample_cost::Float64
     switch_cost::Float64
@@ -36,14 +32,14 @@ MetaMDP(prm::Params) = MetaMDP(
     prm.sample_cost,
     prm.switch_cost,
 )
-SoftBlinkered(prm::Params) = SoftBlinkered(MetaMDP(prm), prm.α)
+DirectedCognition(prm::Params) = DirectedCognition(MetaMDP(prm))
 
 space = Box(
     # :α => (10, 100, :log),
-    :α => 1e10,
+    # :α => 1e10,
     :obs_sigma => (1, 10),
     # :sample_cost => (0.0004, 0.002, :log),
-    :sample_cost => (1e-4, 1e-2, :log),
+    :sample_cost => (1e-3, 1e-2, :log),
     :switch_cost => (1, 60),
     :µ => μ_emp,
     :σ => σ_emp,
@@ -55,7 +51,7 @@ space = Box(
 # %% ==================== Simulation ====================
 
 function simulate_experiment(prm::Params, n_repeat=100)
-    policy = SoftBlinkered(prm)
+    policy = DirectedCognition(prm)
     @unpack μ, σ, sample_time = prm
     sim = @distributed vcat for v in repeat(trials.value, n_repeat)
         sim = simulate(policy, (v .- μ) ./ σ)
@@ -80,6 +76,9 @@ choice_value(tt::Table) = choice_value.(tt)
 n_fix(t) = length(t.fixations)
 n_fix(tt::Table) = n_fix.(tt)
 
+total_fix_time(t)= sum(t.fix_times)
+total_fix_time(tt::Table)= total_fix_time.(tt)
+
 fix_len(tt::Table) = flatten(tt.fix_times)
 
 function make_loss(descriptors::Vector{Function})
@@ -87,19 +86,19 @@ function make_loss(descriptors::Vector{Function})
     (tt) -> sum(loss(tt) for loss in losses)
 end
 
-const sim_loss = make_loss([choice_value, n_fix, fix_len])
+const _sim_loss = make_loss([choice_value, n_fix, total_fix_time])
 
 function loss(x::Vector{Float64})
     prm = Params(space(x))
-    √(sim_loss(simulate_experiment(prm)))
+    √(_sim_loss(simulate_experiment(prm)))
 end
 
-prior(prm::Params) = (prm.μ, prm.σ)
 
 # %% ====================  ====================
 
+prior(prm::Params) = (prm.μ, prm.σ)
 prepare_result(prm::Params) = (
-    policy = SoftBlinkered(prm),
+    policy = DirectedCognition(prm),
     prior = prior(prm),
     sample_time = prm.sample_time
 )
@@ -140,7 +139,7 @@ function gp_min(N=400)
     return best
 end
 
-# %% ====================  ====================
+
 function particles()
     results = Results("moments/$(n_free(space))/particles")
     save(results, :space, space)

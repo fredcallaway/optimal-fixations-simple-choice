@@ -3,12 +3,8 @@ using Distributed
 nprocs() == 1 && addprocs()
 @everywhere begin
     cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
-    include("model.jl")
-    include("job.jl")
-    include("human.jl")
-    include("simulations.jl")
-    include("loss.jl")
-    include("blinkered.jl")
+    include("model_base.jl")
+    include("dc.jl")
 end
 
 using Serialization
@@ -130,18 +126,21 @@ end
     sample_time=sample_time, parallel=true)
 
 # %% ====================  ====================
-# include("results.jl")
 run_name = "moments/3/gp_min"
-result = get_results(run_name)[5]
 mkpath("figs/$run_name")
-policy, prior, sample_time = load(result, :best)
+
+policy, prior, sample_time = open(deserialize, "results/moments/3/gp_min/2019-06-21T23-38-38/best")
+#
+# include("results.jl")
+# result = get_results(run_name)[5]
+# policy, prior, sample_time = load(result, :best)
 @time sim = simulate_experiment(policy, prior, 100, sample_time=sample_time, parallel=true)
 
 # %% ====================  ====================
 run_name = "bmps_moments"
 mkpath("figs/$run_name")
 sim = open(deserialize, "tmp/best_bmps_sim")
-run_name
+
 
 # %% ====================  ====================
 # TODO: total value -> n fixation

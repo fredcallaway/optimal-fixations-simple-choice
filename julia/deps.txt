@@ -1,3 +1,4 @@
+Glob
 Distributions
 Memoize
 Parameters
@@ -7,6 +8,7 @@ TypedTables
 LatinHypercubeSampling
 ClusterManagers
 StatsBase
+Sobol
 BayesianOptimization
 GaussianProcesses
 DataStructures
