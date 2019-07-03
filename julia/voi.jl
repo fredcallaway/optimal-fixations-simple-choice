@@ -57,7 +57,7 @@ end
 mutable struct VPI
     b::Belief
     µ::Float64  # running empirical mean
-    σ::Float64  # running empirical std
+    σ::Float64  # running empirical std (sort of)
     n::Int      # number of samples
 end
 VPI(b::Belief) = VPI(b, 0., 0., 0)

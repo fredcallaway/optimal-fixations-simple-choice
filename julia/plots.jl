@@ -6,7 +6,7 @@ nprocs() == 1 && addprocs()
     include("model_base.jl")
     include("dc.jl")
 end
-
+include("features.jl")
 using Serialization
 using Plots
 plot([1,2])
@@ -91,12 +91,17 @@ end
 
 using KernelDensity
 
+# %% ====================  ====================
 function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
     plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
 end
 
 function kdeplot!(x; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95), kws...)
     kdeplot!(kde(x), xmin, xmax; kws...)
+end
+
+function kdeplot!(x, bw::Float64; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95), kws...)
+    kdeplot!(kde(x, bandwidth=bw), xmin, xmax; kws...)
 end
 
 # %% ==================== Load Blinkered ====================
@@ -129,7 +134,9 @@ end
 run_name = "moments/3/gp_min"
 mkpath("figs/$run_name")
 
-policy, prior, sample_time = open(deserialize, "results/moments/3/gp_min/2019-06-21T23-38-38/best")
+# policy, prior, sample_time = open(deserialize, "results/moments/3/gp_min/2019-06-21T23-38-38/best")
+policy, prior, sample_time = open(deserialize, "results/moments/3/gp_min/2019-07-02T10-23-35-D4x/best")
+
 #
 # include("results.jl")
 # result = get_results(run_name)[5]
@@ -168,13 +175,14 @@ end
 
 fig("fixate_on_best") do
     # FIXME Incorrect error bars!
-    # plot_comparison(fixate_on_best, sim, Binning(0:CUTOFF/7:CUTOFF))
-    plot_comparison(fixate_on_best, sim, :integer, cutoff=2000, n_bin=8)
-    xticks!(0.5:8.5, string.(0:250:2000))
-    hline!([1/3], line=(:grey, 0.7), label="")
+    # plot_comparison(fixate_on_best, sim, :integer, cutoff=2000, n_bin=8)
+    # xticks!(0.5:8.5, string.(0:250:2000))
+
+    plot_comparison(fixate_on_best, sim, :integer, cutoff=2000, n_bin=5)
     # xticks!(1:5, string.(200:400:2000))
-    # xticks!(0.5:5.5, string.(0:400:2000))
-    # hline!([1/3], line=(:grey, 0.7), label="")
+    xticks!(0.5:5.5, string.(0:400:2000))
+
+    hline!([1/3], line=(:grey, 0.7), label="")
     xlabel!("Time since trial onset")
     ylabel!("Probability of fixating\non highest-value item")
 end
@@ -238,9 +246,10 @@ end
 
 fig("rt_kde") do
     plot(xlabel="Total fixation time", ylabel="Probability density")
-    kdeplot!(sum.(trials.fix_times), xmin=0, xmax=5000, line=(:black,), )
-    kdeplot!(sum.(sim.fix_times), xmin=0, xmax=5000, line=(:red, :dash), )
+    kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=5000, line=(:black,), )
+    kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=5000, line=(:red, :dash), )
 end
+
 
 # %% ====================  ====================
 using RCall

@@ -210,7 +210,7 @@ function n_fix_hist(trials)
     n_fix = length.(trials.fix_times)
     1:10, counts(n_fix, 10) ./ length(n_fix)
 end
-
+#
 # rt_hist = let
 #     n = 8
 #     bins = make_bins(n, trials.rt)
@@ -220,7 +220,7 @@ end
 #         1:n, x / length(rt)
 #     end
 # end
-
+#
 # featurizers = Dict(
 #     :value_choice => make_featurizer(value_choice),
 #     :fixation_bias => make_featurizer(fixation_bias),
@@ -237,5 +237,5 @@ end
 #     :n_fix_hist => make_featurizer(n_fix_hist, :integer),
 #     :rt_hist => make_featurizer(rt_hist, :integer)
 # )
-
+#
 # compute_features(sim) = Dict(name => f(sim) for (name, f) in featurizers)

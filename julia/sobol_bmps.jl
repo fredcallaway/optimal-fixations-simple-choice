@@ -26,7 +26,7 @@ end
 
 function worker()
     for (name, x) in jobs
-        started = "results/sobol_bmps/started/$name)"
+        started = "results/sobol_bmps/started/$name"
         isfile(started) && continue
         touch(started)
         println(x)

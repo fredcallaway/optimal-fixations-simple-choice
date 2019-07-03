@@ -41,7 +41,7 @@ function mean_reward(policy, n_roll, parallel)
 
 end
 
-function optimize_bmps(m::MetaMDP; n_iter=200, seed=nothing, n_roll=5000,
+function optimize_bmps(m::MetaMDP; n_iter=400, seed=nothing, n_roll=10000,
                   verbose=false, parallel=true, repetitions=1)
     if seed != nothing
         Random.seed!(seed)
@@ -77,4 +77,3 @@ function optimize_bmps(m::MetaMDP; n_iter=200, seed=nothing, n_roll=5000,
     best = f_obs < f_mod ? opt.observed_optimizer : opt.model_optimizer
     return BMPSPolicy(m, x2theta(best)), opt
 end
-

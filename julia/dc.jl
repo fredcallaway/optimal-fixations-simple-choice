@@ -22,13 +22,13 @@ end
 (pol::DirectedCognition)(b::Belief) = action(pol, b)
 
 
-# struct SoftDC <: Policy
-#     m::MetaMDP
-#     α::Float64
-# end
-# voc(pol::SoftDC, b::Belief) = [voc_dc(pol.m, b, c) for c in 0:pol.m.n_arm]
-# action_probs(pol::SoftDC, b::Belief) = softmax(pol.α * voc(pol, b))
+struct SoftDC <: Policy
+    m::MetaMDP
+    α::Float64
+end
+voc(pol::SoftDC, b::Belief) = [voc_dc(pol.m, b, c) for c in 0:pol.m.n_arm]
+action_probs(pol::SoftDC, b::Belief) = softmax(pol.α * voc(pol, b))
 
-# (pol::SoftDC)(b::Belief) = begin
-#     sample(0:pol.m.n_arm, Weights(action_probs(pol, b)))
-# end
+(pol::SoftDC)(b::Belief) = begin
+    sample(0:pol.m.n_arm, Weights(action_probs(pol, b)))
+end

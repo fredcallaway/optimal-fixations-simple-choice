@@ -4,7 +4,8 @@ using Serialization
 
 function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=true,
                      iterations=400, repetitions=1, acquisition_restarts=50,
-                     acquisition="ei", noisebounds = [-4, 5])
+                     optimize_every=20,
+                     acquisition="ei", noisebounds = [-4, 5], )
 
     if acquisition isa String
         acquisition = Dict(
@@ -17,7 +18,7 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=tru
 
     model = ElasticGPE(d,
       mean = MeanConst(0.),
-      kernel = SEArd(zeros(d), 5.),
+      kernel = Mat32Ard(zeros(d), 5.),
       logNoise = -2.,
       capacity = iterations + (init_Xy != nothing ? size(init_Xy[1],2) : 0)
     )
@@ -46,10 +47,10 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=tru
     end
 
     model_optimizer = MAPGPOptimizer(
-        every = 20,
+        every = optimize_every,
         noisebounds = noisebounds,       # bounds of the logNoise
         # kernbounds = [[-1, -1, 0], [4, 4, 10]],  # bounds of the 3 parameters GaussianProcesses.get_param_names(model.kernel)
-        maxeval = 100
+        maxeval = 200
     )
 
     opt = BOpt(

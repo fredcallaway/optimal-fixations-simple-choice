@@ -50,7 +50,7 @@ function fast_act(pol::BMPSPolicy, b::Belief)
 
     θ.vpi == 0. && return TERM  # no weight on VPI, VOC can't improve
     vpi = VPI(b)
-    for i in 1:100000
+    for i in 1:200
         step!(vpi, 500)  # add 500 samples
         μ_voc = v + θ.vpi * vpi.μ
         σ_voc = θ.vpi * (vpi.σ / √vpi.n)

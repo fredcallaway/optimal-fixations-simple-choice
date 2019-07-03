@@ -39,12 +39,14 @@ space = Box(
     # :σ => (σ_emp / 4, 4 * σ_emp),
 )
 
-results = Results("moments/$(n_free(space))/bmps")
+if !@isdefined(results)
+    results = Results("moments/$(n_free(space))/bmps")
+end
 save(results, :space, space)
 
 # %% ==================== Simulation ====================
 
-function simulate_experiment(policy, n_repeat=10, sample_time=100)
+function simulate_experiment(policy::Policy, n_repeat=100, sample_time=100)
     sim = @distributed vcat for v in repeat(trials.value, n_repeat)
         sim = simulate(policy, (v .- μ_emp) ./ σ_emp)
         fixs, fix_times = parse_fixations(sim.samples, sample_time)
@@ -80,20 +82,15 @@ end
 
 const sim_loss = make_loss([choice_value, n_fix, total_fix_time])
 
-using Memoize
-@memoize function bmps_policy(m::MetaMDP)
-    policy, opt = optimize_bmps(m)
-    return policy
-end
+RECORD = (x=Vector{Float64}[], y=Float64[], policies=BMPSPolicy[])
 
-function loss(prm::Params; no_memo=false, verbose=false)
+function loss(prm::Params; verbose=false)
     m = MetaMDP(prm)
-    policy = no_memo ? optimize_bmps(m; verbose=verbose)[1] : bmps_policy(m)
-    sim = simulate_experiment(policy, 10)
+    policy, opt = optimize_bmps(m; verbose=verbose)
+    push!(RECORD.policies, policy)
+    sim = simulate_experiment(policy, 100)
     min(10., √(sim_loss(sim)))
 end
-
-RECORD = (x=Vector{Float64}[], y=Float64[])
 
 function loss(x::Vector{Float64}; kws...)
     y = loss(Params(space(x)); kws...)
