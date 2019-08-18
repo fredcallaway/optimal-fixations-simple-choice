@@ -23,46 +23,52 @@ estimator = mean
 ci = 0.95
 
 function ci_err(estimator, y)
-    return 2 * std(y) / √length(y)
+    return sem(y) * 2
     bs = bootstrap(estimator, y, BalancedSampling(N_BOOT))
     c = confint(bs, BasicConfInt(ci))[1]
     abs.(c[2:3] .- c[1])
 end
 
-function plot_human!(bins, x, y, type=:line)
+function plot_human!(bins, x, y, type=:line; kws...)
     vals = bin_by(bins, x, y)
     if type == :line
         plot!(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
               grid=:none,
+              line=(2,),
               color=:black,
-              label="",)
+              label="";
+              kws...)
     elseif type == :discrete
-        Plots.bar!(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
+        Plots.bar!(mids(bins), estimator.(vals),
+            yerr=ci_err.(estimator, vals),
               grid=:none,
               fill=:white,
+              line=(2,),
               color=:black,
-              label="",)
+              label="";
+              kws...)
   else
       error("Bad plot type : $type")
   end
 end
 
-function plot_model!(bins, x, y, type=:line)
+
+function plot_model!(bins, x, y, type=:line; kws...)
     vals = bin_by(bins, x, y)
     if type == :line
         plot!(mids(bins), estimator.(vals),
-              yerr=ci_err.(estimator, vals),
-              # yerr=nothing,
-              color=:red,
-              line=(:red, :dash),
-              label="",)
+              # yerr=ci_err.(estimator, vals),
+              color=RED,
+              line=(RED, :dash, 2),
+              label="";
+              kws...)
     elseif type == :discrete
         scatter!(mids(bins), estimator.(vals),
-              yerr=ci_err.(estimator, vals),
-              # yerr=nothing,
+              # yerr=ci_err.(estimator, vals),
               grid=:none,
-              marker=(5, :diamond, :red, stroke(0)),
-              label="",)
+              marker=(5, :diamond, RED, stroke(0)),
+              label="";
+              kws...)
     else
         error("Bad plot type : $type")
     end
@@ -82,6 +88,7 @@ function plot_comparison(feature, sim, bins=nothing, type=:line; kws...)
     plot_model!(bins, mx, my, type)
     # title!(@sprintf "Loss = %.3f" make_loss(feature, bins)(sim))
 end
+
 
 function fig(f, name)
     _fig = f()
@@ -135,25 +142,24 @@ run_name = "moments/3/gp_min"
 mkpath("figs/$run_name")
 
 # policy, prior, sample_time = open(deserialize, "results/moments/3/gp_min/2019-06-21T23-38-38/best")
-policy, prior, sample_time = open(deserialize, "results/moments/3/gp_min/2019-07-02T10-23-35-D4x/best")
+# policy, prior, sample_time = open(deserialize, "results/moments/3/gp_min/2019-07-02T10-23-35-D4x/best")
 
 #
 # include("results.jl")
 # result = get_results(run_name)[5]
 # policy, prior, sample_time = load(result, :best)
-@time sim = simulate_experiment(policy, prior, 100, sample_time=sample_time, parallel=true)
+# @time sim = simulate_experiment(policy, prior, 100, sample_time=sample_time, parallel=true)
 
 # %% ====================  ====================
-run_name = "bmps_moments"
+run_name = "additive_bmps"
 mkpath("figs/$run_name")
 sim = open(deserialize, "tmp/best_bmps_sim")
-
 
 # %% ====================  ====================
 # TODO: total value -> n fixation
 
 fig("value_choice") do
-    plot_comparison(value_choice, sim)
+    plot_comparison(value_choice, sim, :integer)
     cross!(0, 1/3)
     xlabel!("Relative item value")
     ylabel!("Probability of choice")
@@ -175,12 +181,11 @@ end
 
 fig("fixate_on_best") do
     # FIXME Incorrect error bars!
-    # plot_comparison(fixate_on_best, sim, :integer, cutoff=2000, n_bin=8)
-    # xticks!(0.5:8.5, string.(0:250:2000))
+    plot_comparison(fixate_on_best, sim, :integer, cutoff=2000, n_bin=8)
+    xticks!(0.5:8.5, string.(0:250:2000))
 
-    plot_comparison(fixate_on_best, sim, :integer, cutoff=2000, n_bin=5)
-    # xticks!(1:5, string.(200:400:2000))
-    xticks!(0.5:5.5, string.(0:400:2000))
+    # plot_comparison(fixate_on_best, sim, :integer, cutoff=2000, n_bin=5)
+    # xticks!(0.5:5.5, string.(0:400:2000))
 
     hline!([1/3], line=(:grey, 0.7), label="")
     xlabel!("Time since trial onset")
@@ -195,9 +200,9 @@ fig("fourth_rank") do
 end
 
 fig("first_fixation_duration") do
-    plot_comparison(first_fixation_duration, sim, Binning(50:100:550))
+    plot_comparison(first_fixation_duration, sim, )
     xlabel!("Duration of first fixation")
-    ylabel!("Probability of choice")
+    ylabel!("Probability choose first fixated")
 end
 
 fig("last_fixation_duration") do
@@ -213,7 +218,7 @@ fig("difference_time") do
 end
 
 fig("difference_nfix") do
-    plot_comparison(difference_nfix, sim)
+    plot_comparison(difference_nfix, sim, :integer)
     xlabel!("Maxium relative item value")
     ylabel!("Number of fixations")
 end
@@ -232,7 +237,7 @@ fig("n_fix_hist") do
 end
 
 fig("last_fix_bias") do
-    plot_comparison(last_fix_bias, sim)
+    plot_comparison(last_fix_bias, sim, :integer)
     cross!(0, 1/3)
     xlabel!("Last fixated item relative value")
     ylabel!("Probability of choosing\nlast fixated item")
@@ -246,11 +251,279 @@ end
 
 fig("rt_kde") do
     plot(xlabel="Total fixation time", ylabel="Probability density")
-    kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=5000, line=(:black,), )
-    kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=5000, line=(:red, :dash), )
+    kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=5000, line=(:black, 2), )
+    kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=5000, line=(RED, :dash, 2), )
+end
+
+fig("chosen_fix_time") do
+    plot_comparison(chosen_fix_time, sim, :integer, :discrete)
+    xticks!(0:1, ["Unchosen", "Chosen"])
+    ylabel!("Average fixation duration")
+end
+
+fig("value_duration") do
+    plot_comparison(value_duration, sim, :integer)
+    xlabel!("Item value")
+    ylabel!("Fixation duration")
 end
 
 
+fig("value_duration_first") do
+    plot_comparison(value_duration_first, sim, :integer)
+    xlabel!("First fixated item value")
+    ylabel!("Fixation duration")
+end
+# fig("value_duration") do
+#     plot_comparison(value_duration, sim, :integer)
+#     xlabel!("Item value")
+#     ylabel!("Average fixation duration")
+# end
+
+# %% ====================  ====================
+
+function plot_human!(feature::Function, bins=nothing, type=:line; kws...)
+    hx, hy = feature(trials)
+    bins = make_bins(bins, hx)
+    plot_human!(bins, hx, hy, type; kws...)
+end
+
+function plot_model!(feature::Function, bins=nothing, type=:line; kws...)
+    hx, hy = feature(sim)
+    bins = make_bins(bins, hx)
+    plot_human!(bins, hx, hy, type; kws...)
+end
+
+# %% ====================  ====================
+
+policy
+
+# %% ====================  ====================
+
+function value_n_fix(trials)
+    x = Float64[]
+    y = Int[]
+    for t in trials
+        push!(x, relative_value(t)...)
+        push!(y, counts(t.fixations, 3)...)
+    end
+    x, y
+end
+
+plot_comparison(value_n_fix, sim, :integer)
+
+# %% ====================  ====================
+
+function value_fixtime(trials)
+    x = Float64[]
+    y = Int[]
+    for t in trials
+        # rv = ranks = sortperm(sortperm(-t.value))
+        push!(x, relative_value(t)...)
+        push!(y, total_fix_time(t)...)
+    end
+    x, y
+end
+
+plot_comparison(value_fixtime, sim)
+
+# %% ====================  ====================
+
+function uncertainty_bonus(trials)
+    options = Set([1,2,3])
+    x = Float64[]
+    y = Bool[]
+    for t in trials
+        cft = zeros(3)
+        total = 0
+        for i in eachindex(t.fixations)
+            fix = t.fixations[i]
+            fix_time = t.fix_times[i]
+            if i > 1
+                prev = t.fixations[i-1]
+                alt = pop!(setdiff(options, [prev, fix]))
+                d = (cft[fix] - cft[alt]) / total
+                if d < 0
+                    push!(x, -d)
+                    push!(y, true)
+                else
+                    push!(x, d)
+                    push!(y, false)
+                end
+
+                # z = cft ./ total
+                # z = cft .- total/3
+                # push!(x, z[alt])
+                # push!(x, z[fix])
+                # push!(y, false)
+                # push!(y, true)
+            end
+            cft[fix] += fix_time
+            total += fix_time
+        end
+    end
+    return x, y
+end
+plot_comparison(uncertainty_bonus, sim)
+# fig("fixate_uncertain") do
+#     xlabel!("Fixat")
+# end
+# plot()
+# fig("uncertainty1") do
+#     plot_comparison(uncertainty_bonus, sim)
+#     xlabel!("Proportion of previous fixation time")
+#     ylabel!("Probability of fixating")
+# end
+# %% ====================  ====================
+function diff_fix(trials)
+    options = Set([1,2,3])
+    x = Float64[]
+    for t in trials
+        cft = zeros(3)
+        total = 0
+        for i in eachindex(t.fixations)
+            fix = t.fixations[i]
+            fix_time = t.fix_times[i]
+            if i > 2
+                prev = t.fixations[i-1]
+                alt = pop!(setdiff(options, [prev, fix]))
+                push!(x, cft[fix] - cft[alt])
+            end
+            cft[fix] += fix_time
+            total += fix_time
+        end
+    end
+    return x
+end
+
+fig("refixate_uncertain") do
+    plot(xlabel="Fixation advantage of refixated item",
+        ylabel="Probability density")
+    kdeplot!(diff_fix(trials), 100., line=(:black, 2))
+    kdeplot!(diff_fix(sim), 100., line=(:red, 2))
+    vline!([0], line=(:grey, 0.7), label="")
+end
+# plot()
+# kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=5000, line=(:black, 2), )
+# %% ====================  ====================
+t
+function diff_fix_fourth(trials)
+    options = Set([1,2,3])
+    x = Float64[]
+    for t in trials
+        if length(t.fixations) > 3 && sort(t.fixations[1:3]) == 1:3 && unique_values(t)
+            cft = t.fix_times[t.fixations[1:3]]
+        end
+    end
+    return x
+end
+
+
+# %% ====================  ====================
+function last_two(trials)
+    x = Tuple{Int, Float64}[]
+    for t in trials
+        f = t.fix_times
+        length(f) < 2 && continue
+        for i in 0:1
+            push!(x, (i, f[end-i]))
+        end
+    end
+    invert(x)
+end
+
+plot_comparison(last_two, sim, :integer, :discrete)
+
+# %% ====================  ====================
+
+function fixation_times(trials, n)
+    x = Tuple{Int, Float64}[]
+    for t in trials
+        f = t.fix_times
+        length(f) != n && continue
+        for i in 1:n
+            push!(x, (i, f[i]))
+        end
+    end
+    invert(x)
+end
+
+fig("split_fixations") do
+    plot()
+    c = colormap("Blues", 8)
+    for n in 2:8
+        plot_human!(x->fixation_times(x, n), :integer, :line, color=c[n])
+    end
+    xlabel!("Fixation number")
+    ylabel!("Fixation duration")
+end
+
+fig("split_fixations_model") do
+    plot()
+    c = colormap("Reds", 8)
+    for n in 2:8
+        plot_model!(x->fixation_times(x, n), :integer, :line, color=c[n])
+    end
+    xlabel!("Fixation number")
+    ylabel!("Fixation duration")
+end
+
+# %% ====================  ====================
+function rev_fixation_times(trials)
+    x = Tuple{Int, Float64}[]
+    for t in trials
+        f = t.fix_times
+        length(f) < 4 && continue
+        for i in 0:min(4, length(f)-1)
+            push!(x, (-i, f[end-i]))
+        end
+    end
+    invert(x)
+end
+
+function rev_fixation_times(trials, n)
+    x = Tuple{Int, Float64}[]
+    for t in trials
+        f = t.fix_times
+        length(f) != n && continue
+        for i in 0:n-1
+            push!(x, (-i, f[end-i]))
+        end
+    end
+    invert(x)
+end
+
+plot()
+plot_human!(rev_fixation_times, :integer)
+# %% ====================  ====================
+
+fig("split_fixations") do
+    plot()
+    c = colormap("Blues", 8)
+    for n in 2:8
+        plot_human!(x->rev_fixation_times(x, n), :integer, :line, color=c[n])
+    end
+    xlabel!("Fixation number (from final)")
+    ylabel!("Fixation duration")
+end
+# %% ====================  ====================
+
+fig("split_fixations_model") do
+    plot()
+    c = colormap("Reds", 8)
+    for n in 2:8
+        plot_model!(x->rev_fixation_times(x, n), :integer, :line, color=c[n])
+    end
+    xlabel!("Fixation number (from final)")
+    ylabel!("Fixation duration")
+end
+
+# %% ====================  ====================
+fig("fixations_from_end") do
+    plot()
+    plot_human!(rev_fixation_times, :integer)
+    xlabel!("Fixation number (from final)")
+    ylabel!("Fixation duration")
+end
 # %% ====================  ====================
 using RCall
 function choice_glm(trials)
@@ -292,11 +565,6 @@ function all_ranks(trials)
 end
 
 # %% ====================  ====================
-
-# for i in eachindex(t.fixations)
-#     x = i < 4 ? early : late
-#     x[ranks[t.fixations[i]]] += t.fix_times[i]
-# end
 
 # %% ====================  ====================
 
@@ -354,26 +622,10 @@ let
     kdeplot!(kd(other), 0, 1000, line=(:black, :dot))
 
     chosen, other = dwell_time(sim)
-    kdeplot!(kd(chosen), 0, 1000, line=(:red))
-    kdeplot!(kd(other), 0, 1000, line=(:red, :dot))
-end
-# %% ====================  ====================
-function dwell_time(trials)
-    chosen, fix_times = Bool[], Float64[]
-    for t in trials
-        for i in eachindex(t.fixations)
-            push!(chosen, t.fixations[i] == t.choice)
-            push!(fix_times, t.fix_times[i])
-        end
-    end
-    chosen, fix_times
+    kdeplot!(kd(chosen), 0, 1000, line=(RED))
+    kdeplot!(kd(other), 0, 1000, line=(RED, :dot))
 end
 
-fig("chosen_unchosen_duration") do
-    plot_comparison(dwell_time, sim, :integer, :discrete)
-    xticks!([0, 1], ["Unchosen", "Chosen"])
-    ylabel!("Fixation duration")
-end
 
 # %% ====================  ====================
 
@@ -441,17 +693,22 @@ fig("split_fixation_bias") do
     bins = make_bins(nothing, hx)
     plot()
     plot_human!(bins, fixation_bias(trials, -Inf, a)...)
-    plot_human!(bins, fixation_bias(trials, b, Inf)...)
+    plot_human!(bins, fixation_bias(trials, b, Inf)...; alpha=0.3)
     plot_model!(bins, fixation_bias(sim, -Inf, a)...)
-    plot_model!(bins, fixation_bias(sim, b, Inf)...)
+    plot_model!(bins, fixation_bias(sim, b, Inf)...; alpha=0.3)
     cross!(0, 1/3)
     xlabel!("Relative fixation time")
     ylabel!("Probability of choice")
+    annotate!(75, 0.8, text("high value", :gray))
+    annotate!(100, 0.1, "low value")
 end
+
 # argmin(L[4, :])
 # sim1 = simulate_experiment(policies[71],  (μ_emp, σ_emp), 10)
 # %% ====================  ====================
 
+
+# %% ====================  ====================
 function all_bad(trials, max_v=prior[1])
     x, y = Float64[], Bool[]
     for t in trials
@@ -555,7 +812,7 @@ function value_rt(trials)
         mean(t.value), sum(t.fix_times)
     end |> invert
 end
-plot_comparison(value_rt, sim, 3)
+plot_comparison(value_rt, sim, Binning(1:1:10))
 
 # %% ====================  ====================
  function fig3b(trials)
@@ -622,7 +879,7 @@ end
 
 fig("4a_alt") do
     plot(Xh[:, [1,3]], color=:black, label=["best" "worst"], ls=[:solid :dash])
-    plot!(Xm[:, [1,3]], color=:red, label="", ls=[:solid :dash])
+    plot!(Xm[:, [1,3]], color=RED, label="", ls=[:solid :dash])
     xlabel!("Fixation number")
     ylabel!("Proportion of fixations")
 end
@@ -646,12 +903,12 @@ Xh = fixate_probs(trials)
 Xm = fixate_probs(sim)
 
 plot(Xh[:, 1], color=:black)
-plot!(Xm[:, 1], line=(:red, :dash))
+plot!(Xm[:, 1], line=(RED, :dash))
 
 # %% ====================  ====================
 fig("4a_alt") do
     plot(Xh[:, [1,3]], color=:black, label=["best" "worst"], ls=[:solid :dash])
-    plot!(Xm[:, [1,3]], color=:red, label="", ls=[:solid :dash])
+    plot!(Xm[:, [1,3]], color=RED, label="", ls=[:solid :dash])
     xlabel!("Fixation number")
     ylabel!("Proportion of fixations")
 end
@@ -685,7 +942,7 @@ end
 
 fig("4b_alt") do
     plot(Xh[:, [1,3]], color=:black, label=["best" "worst"], ls=[:solid :dash])
-    plot!(Xm[:, [1,3]], color=:red, label="", ls=[:solid :dash])
+    plot!(Xm[:, [1,3]], color=RED, label="", ls=[:solid :dash])
     xticks!(1:6, string.(-5:0))
     xlabel!("Fixation number")
     ylabel!("Proportion of fixations")

@@ -106,9 +106,3 @@ end
 mean_reward(best, 10000, true)
 @everywhere include("dc.jl")
 mean_reward(Blinkered(best.m), 10000, false)
-
-
-
-
-
-

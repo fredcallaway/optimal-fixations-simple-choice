@@ -9,7 +9,7 @@ function make_bins(bins, hx)
         bins = 7
     end
     if bins isa Int
-        low, high = quantile(hx, [0.1, 0.9])
+        low, high = quantile(hx, [0.025, 0.975])
         bin_size = (high - low) / bins
         bins = Binning(low:bin_size:high)
         # bins = Binning(quantile(hx, 0:1/bins:1))
@@ -25,6 +25,10 @@ function total_fix_time(t)::Vector{Float64}
     return x
 end
 
+function relative_value(t)
+    t.value .- mean(t.value)
+end
+
 function fixation_times(trials)
     x = Tuple{Int, Float64}[]
     for t in trials
@@ -36,9 +40,38 @@ function fixation_times(trials)
             push!(x, (3, f[i]))
         end
         push!(x, (4, f[end]))
+        # length(f) > 1 && push!(x, (6, f[end-1]))
     end
     invert(x)
 end
+
+function chosen_fix_time(trials)
+    mapmany(trials) do t
+        map(t.fixations, t.fix_times) do f, ft
+            (f == t.choice, ft)
+        end
+    end |> invert
+end
+
+function value_duration(trials)
+    mapmany(trials) do t
+        # rv = t.value .- mean(t.value)
+        map(t.fixations, t.fix_times) do f, ft
+            (t.value[f], ft)
+        end
+    end |> invert
+end
+
+function value_duration_first(trials)
+    map(trials) do t
+        # rv = t.value .- mean(t.value)
+        f, ft = t.fixations[1], t.fix_times[1]
+        (t.value[f], ft)
+    end |> invert
+end
+
+
+
 
 function fixation_bias(trials)
     mapmany(trials) do t

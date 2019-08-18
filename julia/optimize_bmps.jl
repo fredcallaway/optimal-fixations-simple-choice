@@ -1,5 +1,5 @@
-include("gp_min.jl")
 using Distributed
+using SharedArrays
 using Printf
 
 function max_cost(m::MetaMDP)
@@ -26,26 +26,8 @@ function max_cost(m::MetaMDP)
     θ[1]
 end
 
-function mean_reward(policy, n_roll, parallel)
-    if parallel
-        rr = @distributed (+) for i in 1:n_roll
-            rollout(policy, max_steps=200).reward
-        end
-        return rr / n_roll
-    else
-        rr = mapreduce(+, 1:n_roll) do i
-            rollout(policy, max_steps=200).reward
-        end
-        return rr / n_roll
-    end
-
-end
-
-function optimize_bmps(m::MetaMDP; n_iter=400, seed=nothing, n_roll=10000,
-                  verbose=false, parallel=true, repetitions=1)
-    if seed != nothing
-        Random.seed!(seed)
-    end
+function halving(m::MetaMDP; N::Int=2^14, n_iter::Int=9, init_eval::Int=100, reduction=2)
+    @debug "Begin successive halving" m N n_iter init_eval reduction
     mc = max_cost(m)
 
     function x2theta(x)
@@ -53,27 +35,45 @@ function optimize_bmps(m::MetaMDP; n_iter=400, seed=nothing, n_roll=10000,
         [x[1] * mc; voi_weights]
     end
 
-    iter = 1
+    policies = [BMPSPolicy(m, x2theta(rand(3))) for i in 1:N]
+    sort!(policies, by=x->-x.θ.vpi)  # for parallel efficiency
 
-    function loss(x, nr=n_roll)
-        policy = BMPSPolicy(m, x2theta(x))
-        reward, secs = @timed mean_reward(policy, n_roll, parallel)
-        if verbose
-            print("($iter)  ")
-            print("θ = ", round.(x2theta(x); digits=2), "   ")
-            @printf "reward = %.3f   seconds = %.3f\n" reward secs
-            flush(stdout)
+    n = SharedArray{Int}(N)
+    v = SharedArray{Float64}(N)
+    active = trues(N)
+    fitness = zeros(N)
+
+    n_eval = init_eval
+    q = 1 // reduction
+    n_active = N
+
+    for iter in 1:n_iter
+        t = @elapsed @sync @distributed for i in 1:N
+            if active[i]
+                policy = policies[i]
+                v[i] += @distributed (+) for _ in 1:n_eval
+                    rollout(policy, max_steps=200).reward
+                end
+                n[i] += n_eval
+            end
         end
-        iter += 1
-        -reward
+
+        fitness .= v ./ n
+        threshold = quantile(fitness, 1-q)
+        n_active = mapreduce(+, 1:N) do i
+            active[i] = fitness[i] > threshold
+        end
+
+        @debug "iteration $iter" best=maximum(fitness) n_active q threshold n_eval time=t
+        n_eval *= reduction
+        q /= reduction
     end
-
-    opt = gp_minimize(loss, 3, noisebounds=[-4, -2],
-                      iterations=n_iter, repetitions=repetitions,
-                      verbose=false)
-
-    f_mod = loss(opt.model_optimizer, 10000)
-    f_obs = loss(opt.observed_optimizer, 10000)
-    best = f_obs < f_mod ? opt.observed_optimizer : opt.model_optimizer
-    return BMPSPolicy(m, x2theta(best)), opt
+    policies, fitness, n
 end
+
+function optimize_bmps(m::MetaMDP; kws...)
+    policies, fitness, n = halving(m; kws...)
+    fit, i = findmax(fitness)
+    policies[i], fit
+end
+

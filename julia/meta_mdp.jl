@@ -11,7 +11,7 @@ noisy(x, ε=1e-10) = x .+ ε .* rand(length(x))
     n_arm::Int = 3
     σ_obs::Float64 = 1
     sample_cost::Float64 = 0.001
-    switch_cost::Float64 = 1
+    switch_cost::Float64 = 0.
 end
 
 "Base type for metalevel policies."
@@ -63,7 +63,7 @@ end
 "Sampling cost function, includes switching cost"
 function cost(m::MetaMDP, b::Belief, c::Computation)
     if b.focused != 0 && b.focused != c
-        return m.sample_cost * m.switch_cost
+        return m.sample_cost + m.switch_cost
     else
         return m.sample_cost
     end
