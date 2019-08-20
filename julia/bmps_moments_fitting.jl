@@ -41,7 +41,7 @@ space = Box(
 )
 
 if !@isdefined(results)
-    results = Results("halving/bmps/all")
+    results = Results("bmps_moments")
 end
 save(results, :space, space)
 
@@ -82,8 +82,8 @@ function make_loss(descriptors::Vector{Function})
 end
 
 descriptors = [choice_value, n_fix, total_fix_time]
-losses = make_loss.(descriptors)
-multi_loss(sim) = [loss(sim) for loss in losses]
+loss_functions = make_loss.(descriptors)
+multi_loss(sim) = [loss(sim) for loss in loss_functions]
 sim_loss = make_loss(descriptors)
 
 @info("Target descriptor values",

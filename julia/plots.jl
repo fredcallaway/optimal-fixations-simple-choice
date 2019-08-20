@@ -11,6 +11,7 @@ using Serialization
 using Plots
 plot([1,2])
 
+
 # %% ====================  ====================
 pyplot()
 Plots.scalefontsizes()
@@ -156,6 +157,11 @@ mkpath("figs/$run_name")
 sim = open(deserialize, "tmp/best_bmps_sim")
 
 # %% ====================  ====================
+run_name = "test"
+mkpath("figs/$run_name")
+sim = open(deserialize, "tmp/new_best")
+
+# %% ====================  ====================
 # TODO: total value -> n fixation
 
 fig("value_choice") do
@@ -278,6 +284,87 @@ end
 #     xlabel!("Item value")
 #     ylabel!("Average fixation duration")
 # end
+
+# %% ==================== 3a split by choice ====================
+
+function value_bias_split(trials; chosen=false)
+    x = Float64[]
+    y = Float64[]
+    for t in trials
+        rv = relative_value(t)
+        tft = total_fix_time(t)
+        pft = tft ./ (sum(tft) + eps())
+        for i in 1:3
+            if chosen == (i == t.choice)
+                push!(x, rv[i])
+                push!(y, pft[i])
+            end
+        end
+    end
+    x, y
+end
+
+
+fig("value_bias_chosen") do
+    plot_comparison(value_bias_split, sim; chosen=true)
+    cross!(0, 1/3)
+    xlabel!("Relative item value")
+    ylabel!("Proportion fixation time")
+end
+
+fig("value_bias_unchosen") do
+    plot_comparison(value_bias_split, sim; chosen=false)
+    cross!(0, 1/3)
+    xlabel!("Relative item value")
+    ylabel!("Proportion fixation time")
+end
+
+# %% ==================== 3b without final ====================
+
+function value_duration_nonfinal(trials)
+    mapmany(trials) do t
+        # rv = t.value .- mean(t.value)
+        map(t.fixations[1:end-1], t.fix_times[1:end-1]) do f, ft
+            (t.value[f], ft)
+        end
+    end |> invert
+end
+fig("value_duration_nonfinal") do
+    plot_comparison(value_duration_nonfinal, sim, :integer)
+    xlabel!("Item value")
+    ylabel!("Fixation duration")
+end
+
+# %% ==================== 3c for worst item ====================
+
+function fixate_on_worst(trials; sample_time=10, cutoff=2000, n_bin=5)
+    n_sample = Int(cutoff / sample_time)
+    spb = Int(n_sample/n_bin)
+    x = Int[]
+    y = Float64[]
+    for t in trials
+        sum(t.fix_times) < cutoff && continue
+        fix = discretize_fixations(t; sample_time=sample_time)
+        fix_worst = fix[1:n_sample] .== argmin(t.value)
+        push!(x, (1:n_bin)...)
+        push!(y, mean.(Iterators.partition(fix_worst, spb))...)
+    end
+    x, y
+end
+
+fig("fixate_on_worst") do
+    # FIXME Incorrect error bars!
+    plot_comparison(fixate_on_worst, sim, :integer, cutoff=2000, n_bin=8)
+    xticks!(0.5:8.5, string.(0:250:2000))
+
+    # plot_comparison(fixate_on_worst, sim, :integer, cutoff=2000, n_bin=5)
+    # xticks!(0.5:5.5, string.(0:400:2000))
+
+    hline!([1/3], line=(:grey, 0.7), label="")
+    xlabel!("Time since trial onset")
+    ylabel!("Probability of fixating\non lowest-value item")
+end
+
 
 # %% ====================  ====================
 

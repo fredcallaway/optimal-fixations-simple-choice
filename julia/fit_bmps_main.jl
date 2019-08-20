@@ -14,6 +14,36 @@ X, y = let
     (X, y)
 end
 
+# %% ====================  ====================
+policies, y = let
+    asyncmap(glob("results/halving/bmps/rand/*/record")) do f
+        record = open(deserialize, f)
+        invert((record.policies, record.y))
+    end |> flatten |> invert
+end
+
+policies[argmin(y)]
+
+
+# %% ==================== Check close-to-optimal policies ====================
+min_y, i = findmin(y)
+x = X[:, i]
+prm = Params(space(x))
+m = MetaMDP(prm)
+@time policies, fitness, n = halving(m)
+rnk = sortperm(-fitness)
+
+using Printf
+
+for i in rnk[1:10]
+    pol = policies[i]
+    losses = map(1:30) do i
+        sim = simulate_experiment(pol, 10)
+        sim_loss(sim)
+    end
+    @printf "%.5f %.5f\n" mean(losses) std(losses)
+end
+
 
 # %% ====================  ====================
 opt = gp_minimize(loss, n_free(space),
