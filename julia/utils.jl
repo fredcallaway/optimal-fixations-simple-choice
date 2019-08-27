@@ -1,3 +1,8 @@
+using Printf
+function describe(x::Vector)
+    @printf("%.3f ± %.3f  [%.3f, %.3f]\n", juxt(mean, std, minimum, maximum)(x)...)
+end
+
 Base.map(f, d::AbstractDict) = [f(k, v) for (k, v) in d]
 valmap(f, d::AbstractDict) = Dict(k => f(v) for (k, v) in d)
 keymap(f, d::AbstractDict) = Dict(f(k) => v for (k, v) in d)
