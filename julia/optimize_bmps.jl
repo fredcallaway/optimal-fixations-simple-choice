@@ -7,8 +7,9 @@ using Statistics
 
 function max_cost(m::MetaMDP)
     θ = [1., 0, 0, 1]
-    s = State(m)
-    b = Belief(s)
+    b = Belief(m)
+    # s = State(m)
+    # b = Belief(s)
     function computes()
         pol = BMPSPolicy(m, θ)
         all(pol(b) != TERM for i in 1:30)
@@ -37,17 +38,35 @@ function x2theta(mc, x)
     [x[1] * mc; voi_weights]
 end
 
+
+function rand_grid(g)
+    dim = 3
+    s = 1. / g
+    x = 0:s:1-s
+    X = zeros(g^dim, dim)
+
+    for (i, a) in enumerate(Iterators.product(x, x, x))
+        X[i, :] = collect(a) + rand(dim) * s
+    end
+    X
+end
+
 function initial_population(m, N; sobol=true)
     mc = max_cost(m)
-    seq = SobolSeq(N)
-    policies = [BMPSPolicy(m, x2theta(mc, next!(seq))) for i in 1:N]
-    # policies = [BMPSPolicy(m, x2theta(rand(3))) for i in 1:N]
-    sort!(policies, by=x->-x.θ.vpi)  # for parallel efficiency
+    if sobol
+        seq = SobolSeq(3)
+        return [BMPSPolicy(m, x2theta(mc, next!(seq))) for i in 1:N]
+    else
+        g = ceil(Int, N ^ (1/3))
+        @assert g ≈ N ^ (1/3)
+        X = rand_grid(g)
+        return [BMPSPolicy(m, x2theta(mc, X[i, :])) for i in 1:N]
+    end
 end
 
 # %% ====================  ====================
 
-function ucb(m::MetaMDP; β::Float64=2., N::Int=100, n_roll::Int=100, n_init::Int = 1, n_iter::Int=1000)
+function ucb(m::MetaMDP; β::Float64=2., N::Int=8000, n_roll::Int=64, n_init::Int = 1, n_iter::Int=1000)
     policies = initial_population(m, N)
     scores = [Variance() for _ in 1:N]  # tracks mean and variance
     sem = zeros(N)
@@ -90,10 +109,11 @@ function ucb(m::MetaMDP; β::Float64=2., N::Int=100, n_roll::Int=100, n_init::In
             @debug "($t) New best: $b  $(policies[b].θ)"
             best = b
         end
-        pessimistic_best_value = μ[best] - β * sem[best]
-        if sum(pessimistic_best_value .<= upper) == 1  # only upper[best] is larger
-            converged = true
-            @info "Converged" t μ[best] policies[best].θ
+        converged = (sum(μ[best] .<= upper) == 1) &&
+                    (sum((μ[best] - β * sem[best]) .< μ) == 1)
+
+        if converged
+            @info "Converged" t μ[best] θ=repr(policies[best].θ)
             break
         end
         # @printf "%d %.3f ± %.4f\n" i scores[i].μ sem[i]
@@ -106,17 +126,10 @@ function ucb(m::MetaMDP; β::Float64=2., N::Int=100, n_roll::Int=100, n_init::In
 end
 
 function optimize_bmps(m::MetaMDP; kws...)
-    policies, fitness, n = halving(m; kws...)
-    fit, i = findmax(fitness)
-    policies[i], fit
+    policies, value = ucb(m; kws...)
+    v, i = findmax(value)
+    policies[i], v
 end
-
-
-
-
-
-
-
 
 
 
