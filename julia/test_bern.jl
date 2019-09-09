@@ -1,102 +1,37 @@
 include("bernoulli_metabandits.jl")
-# display("")
-s = State([(10,10), (10,4), (3, 1)], 1)
-Q(s, 1)
-@time println(V(INITIAL));
+
+
+m = MetaMDP(switch_cost=s)
+b = Belief(m)
+V = ValueFunction(m)
+V(b)
+
 
 # %% ====================  ====================
-s = State([(1,1), (1,1), (1,1)], 1)
-using Random: rand!
-a = 1
-voi_action(s, a)
-using Memoize
-@memoize mem_zeros(shape...) = zeros(shape...)
-# %% ====================  ====================
+include("optimize_bmps.jl")
+policies, μ, sem, hist, converged = ucb(m; N=1000, n_iter=2^17, n_roll=64, n_init=4, β=3.)
 
-function argmaxes(x)
-    r = Set{Int}()
-    m = maximum(x)
-    for i in eachindex(x)
-        if x[i] == m
-            push!(r, i)
-        end
-    end
-    r
+
+# %% ====================  ====================
+policy = BMPSPolicy(m, [0, 1, 0, 1])
+@time rollout(policy)
+
+# %% ====================  ====================
+include("optimize_bmps.jl")
+
+sample_cost, switch_cost = (0.00012340980408667956, 1)
+m = MetaMDP(sample_cost=sample_cost, switch_cost=switch_cost, max_obs=10)
+V = ValueFunction(m)
+opt_val = V(Belief(m))
+bmps_pol, bmps_val = optimize_bmps(m; N=8)
+
+id = round(Int, rand() * 1e8)
+file = "bernoulli/$id"
+open(file, "w+") do f
+    serialize(f, (
+        m=m,
+        bmps_val=bmps_val,
+        opt_val=opt_val,
+        time_stamp=now()
+    ))
 end
-
-
-# %% ====================  ====================
-p = 1
-θ = [0., 1., 0., 0.]
-s = INITIAL
-
-possible = argmaxes(voc(θ, s))
-p /= length(possible)
-for a in possible
-    if a == TERM
-        v += p * term_reward(s)
-    else
-        rec(s, p)
-    end
-end
-results(s, a)
-
-function value(θ)
-    function rec(s)
-
-    end
-end
-
-
-# %% ====================  ====================
-using StatsBase
-
-function roll()
-    s = INITIAL
-    while s != TERM_STATE
-        a = policy(s)
-        R = results(s, a)
-        println(s, "  ", a, "  ", voi_policy(s))
-        p, s, r = sample(R, Weights(getindex.(R, 1)))
-    end
-end
-display("")
-roll()
-
-# %% ====================  ====================
-function voi_policy(s::State)
-    n = length(ACTIONS)
-    v = zeros(n)
-    for a in 1:n-1
-        v[a] = voi_action(s, a) - cost(s, a)
-    end
-    v[n] = term_reward(s)
-    argmax(v) % n
-end
-
-s = State([(1, 1), (1, 1), (1, 1)], 2)
-voi_policy(s)
-
-
-
-# %% ====================  ====================
-using Printf
-
-function Base.show(io::IO, s::State)
-    print(io, "[ ")
-    arms = map(1:length(s.arms)) do i
-        a, b = s.arms[i]
-        i == s.focused ? @sprintf("<%02d %02d>", a, b) : @sprintf(" %02d %02d ", a, b)
-    end
-    print(io, join(arms, " "))
-    # for a in s.arms
-        # print(io, a[1], " ", a[2])
-    # end
-    print(io, " ]")
-end
-# %% ====================  ====================
-m = MetaMDP(sample_cost=0.001, max_obs=10)
-ValueFunction(m)(Belief(m))
-expectation
-
-

@@ -1,6 +1,6 @@
 using Parameters
 
-const TERM = 0
+@isdefined(TERM) || const TERM = 0
 const Computation = Int
 
 noisy(x, ε=1e-10) = x .+ ε .* rand(length(x))

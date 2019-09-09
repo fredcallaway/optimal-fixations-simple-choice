@@ -29,7 +29,19 @@ function relative_value(t)
     t.value .- mean(t.value)
 end
 
-function fixation_times(trials)
+function fixation_times(trials, n)
+    x = Tuple{Int, Float64}[]
+    for t in trials
+        f = t.fix_times
+        length(f) != n && continue
+        for i in 1:n
+            push!(x, (i, f[i]))
+        end
+    end
+    invert(x)
+end
+
+function binned_fixation_times(trials)
     x = Tuple{Int, Float64}[]
     for t in trials
         f = t.fix_times
@@ -243,32 +255,116 @@ function n_fix_hist(trials)
     n_fix = length.(trials.fix_times)
     1:10, counts(n_fix, 10) ./ length(n_fix)
 end
-#
-# rt_hist = let
-#     n = 8
-#     bins = make_bins(n, trials.rt)
-#     function rt_hist(sim)
-#         rt = sum.(sim.fix_times)
-#         x = bins.(rt) |> skipmissing |> collect |> counts
-#         1:n, x / length(rt)
-#     end
-# end
-#
-# featurizers = Dict(
-#     :value_choice => make_featurizer(value_choice),
-#     :fixation_bias => make_featurizer(fixation_bias),
-#     :value_bias => make_featurizer(value_bias),
-#     :fourth_rank => make_featurizer(fourth_rank, :integer),
-#     :first_fixation_duration => make_featurizer(first_fixation_duration),
-#     :last_fixation_duration => make_featurizer(last_fixation_duration),
-#     :difference_time => make_featurizer(difference_time),
-#     :difference_nfix => make_featurizer(difference_nfix),
-#     :fixation_times => make_featurizer(fixation_times, :integer),
-#     :last_fix_bias => make_featurizer(last_fix_bias),
-#     :gaze_cascade => make_featurizer(gaze_cascade, :integer),
-#     :fixate_on_best => make_featurizer(fixate_on_best, Binning(0:CUTOFF/7:CUTOFF)),
-#     :n_fix_hist => make_featurizer(n_fix_hist, :integer),
-#     :rt_hist => make_featurizer(rt_hist, :integer)
-# )
-#
-# compute_features(sim) = Dict(name => f(sim) for (name, f) in featurizers)
+
+function value_bias_split(trials; chosen=false)
+    x = Float64[]
+    y = Float64[]
+    for t in trials
+        rv = relative_value(t)
+        tft = total_fix_time(t)
+        pft = tft ./ (sum(tft) + eps())
+        for i in 1:3
+            if chosen == (i == t.choice)
+                push!(x, rv[i])
+                push!(y, pft[i])
+            end
+        end
+    end
+    x, y
+end
+
+nfix(t) = length(t.fixations)
+selectors = Dict(
+    "all" => (t, i) -> true,
+    "first" => (t, i) -> i == 1,
+    "nonfinal" => (t, i) -> i != nfix(t),
+    "final" => (t, i) -> i == nfix(t),
+    "middle" => (t, i) -> i > 2 && i != nfix(t),
+)
+
+function value_duration_alt(trials; relative=false, selector=(t, i)->true)
+    if selector isa String
+        selector = selectors[selector]
+    end
+    x, y = Float64[], Float64[]
+    for t in trials
+        for i in eachindex(t.fixations)
+            if selector(t, i)
+                v = relative ? relative_value(t) : t.value
+                push!(x, v[t.fixations[i]])
+                push!(y, t.fix_times[i])
+            end
+        end
+    end
+    x, y
+end
+
+function fixate_on_worst(trials; sample_time=10, cutoff=2000, n_bin=5)
+    n_sample = Int(cutoff / sample_time)
+    spb = Int(n_sample/n_bin)
+    x = Int[]
+    y = Float64[]
+    for t in trials
+        sum(t.fix_times) < cutoff && continue
+        fix = discretize_fixations(t; sample_time=sample_time)
+        fix_worst = fix[1:n_sample] .== argmin(t.value)
+        push!(x, (1:n_bin)...)
+        push!(y, mean.(Iterators.partition(fix_worst, spb))...)
+    end
+    x, y
+end
+
+function fixation_bias_corrected(trials)
+    v, c = value_choice(trials)
+    bins = bins = Binning(v, 10)
+
+    p_choice = bin_by(bins, v, c) .|> mean
+    x = Float64[]; y = Float64[]
+    for t in trials
+        ft = total_fix_time(t)
+        b = bins.(relative_value(t))
+        p_val = p_choice[b]
+        corrected = (t.choice .== 1:3) - p_val
+        ft .-= mean(ft)
+        # ft ./= sum(ft)
+        for i in 1:3
+            push!(x, ft[i])
+            push!(y, corrected[i])
+        end
+    end
+    x, y
+end
+
+function full_fixation_times(trials)
+    x = Int[]
+    y = Float64[]
+    for t in trials
+        for (i, f) in enumerate(t.fix_times)
+            i > 10 && break
+            push!(x, i)
+            push!(y, f)
+        end
+    end
+    x, y
+end
+
+function refixate_uncertain(trials)
+    options = Set([1,2,3])
+    x = Float64[]
+    for t in trials
+        cft = zeros(3)
+        total = 0
+        for i in eachindex(t.fixations)
+            fix = t.fixations[i]
+            fix_time = t.fix_times[i]
+            if i > 2
+                prev = t.fixations[i-1]
+                alt = pop!(setdiff(options, [prev, fix]))
+                push!(x, cft[fix] - cft[alt])
+            end
+            cft[fix] += fix_time
+            total += fix_time
+        end
+    end
+    return x
+end

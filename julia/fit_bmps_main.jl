@@ -1,48 +1,51 @@
 using Distributed
 addprocs()
+include("results.jl")
+results = Results("aug21")
+
 include("bmps_moments_fitting.jl")
 
-# %% ====================  ====================
-using Glob
+# # %% ====================  ====================
+# using Glob
 
-X, y = let
-    xs, y = asyncmap(glob("results/halving/bmps/rand/*/record")) do f
-        record = open(deserialize, f)
-        invert((record.x, record.y))
-    end |> flatten |> invert
-    X = combinedims(xs)
-    (X, y)
-end
+# X, y = let
+#     xs, y = asyncmap(glob("results/halving/bmps/rand/*/record")) do f
+#         record = open(deserialize, f)
+#         invert((record.x, record.y))
+#     end |> flatten |> invert
+#     X = combinedims(xs)
+#     (X, y)
+# end
 
-# %% ====================  ====================
-policies, y = let
-    asyncmap(glob("results/halving/bmps/rand/*/record")) do f
-        record = open(deserialize, f)
-        invert((record.policies, record.y))
-    end |> flatten |> invert
-end
+# # %% ====================  ====================
+# policies, y = let
+#     asyncmap(glob("results/halving/bmps/rand/*/record")) do f
+#         record = open(deserialize, f)
+#         invert((record.policies, record.y))
+#     end |> flatten |> invert
+# end
 
-policies[argmin(y)]
+# policies[argmin(y)]
 
 
-# %% ==================== Check close-to-optimal policies ====================
-min_y, i = findmin(y)
-x = X[:, i]
-prm = Params(space(x))
-m = MetaMDP(prm)
-@time policies, fitness, n = halving(m)
-rnk = sortperm(-fitness)
+# # %% ==================== Check close-to-optimal policies ====================
+# min_y, i = findmin(y)
+# x = X[:, i]
+# prm = Params(space(x))
+# m = MetaMDP(prm)
+# @time policies, fitness, n = halving(m)
+# rnk = sortperm(-fitness)
 
-using Printf
+# using Printf
 
-for i in rnk[1:10]
-    pol = policies[i]
-    losses = map(1:30) do i
-        sim = simulate_experiment(pol, 10)
-        sim_loss(sim)
-    end
-    @printf "%.5f %.5f\n" mean(losses) std(losses)
-end
+# for i in rnk[1:10]
+#     pol = policies[i]
+#     losses = map(1:30) do i
+#         sim = simulate_experiment(pol, 10)
+#         sim_loss(sim)
+#     end
+#     @printf "%.5f %.5f\n" mean(losses) std(losses)
+# end
 
 
 # %% ====================  ====================
@@ -53,15 +56,41 @@ opt = gp_minimize(loss, n_free(space),
     optimize_every=5,
     run=false,
     acquisition="ei",
-    init_Xy=(X, y)
+    # init_Xy=(X, y)
 )
 optimize!(opt.model)
 meanvar(x) = BayesianOptimization.mean_var(opt.model, x)
-find_model_max!(opt)
 
-# fx = loss(opt.model_optimizer)
+boptimize!(opt)
 
-@async boptimize!(opt)
+
+# %% ==================== Empirical vs model minimum ====================
+y_model, x_model = find_model_max!(opt)
+y_emp = minimum(RECORD.y)
+x_emp = RECORD.x[argmin(RECORD.y)]
+
+let
+    @show x_emp
+    @show y_emp
+    @show loss(x_emp)
+    @show x_model
+    @show y_model
+    @show loss(x_model)
+end
+
+x = x_model
+prm = Params(space(x))
+m = MetaMDP(prm)
+policy, reward = optimize_bmps(m)
+sim = simulate_experiment(policy, 100)
+save(results, :best, (
+    policy=policy,
+    sim=sim,
+    losses=multi_loss(sim),
+    loss=√(sim_loss(sim)),
+))
+
+
 
 # %% ====================  ====================
 open("tmp/best_bmps_sim", "w+") do f

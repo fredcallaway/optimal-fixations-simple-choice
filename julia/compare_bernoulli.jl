@@ -2,62 +2,37 @@ using Distributed
 @everywhere begin
 
 using Serialization
-include("optimize_bern.jl")
-function expectation(f, n)
-    acc = 0.
-    for i in 1:n
-        acc += f()
-    end
-    acc / n
-end
-
-function n_steps(pol)
-    expectation(5000) do
-        rollout(pol).steps
-    end
-end
+include("bernoulli_metabandits.jl")
+include("optimize_bmps.jl")
+include("results.jl")
 
 function job((sample_cost, switch_cost))
     try
         m = MetaMDP(sample_cost=sample_cost, switch_cost=switch_cost, max_obs=50)
-        # println("Solving meta-MDP")
         V = ValueFunction(m)
-        v = V(Belief(m))
-        println("Optimal value: $v")
-        opt_steps = n_steps(OptimalPolicy(V))
-
-        # println("Optimizing BMPS")
-        bmps = optimize(m; verbose=false)
-        pol = BMPSPolicy(m, bmps.θ1)
-        bmps_steps = n_steps(pol)
-        bmps_v = expectation(5000) do
-            rollout(pol).reward
-        end
+        opt_val = V(Belief(m))
+        bmps_pol, bmps_val = optimize_bmps(m)
+        @info "Loss" sample_cost switch_cost bmps_val - opt_val bmps_val / opt_val
 
         id = round(Int, rand() * 1e8)
-        file = "bernoulli/$id"
-        open(file, "w+") do f
-            serialize(f, (
-                m=m,
-                bmps_result=bmps,
-                opt_steps=opt_steps,
-                bmps_steps=bmps_steps,
-                bmps_v=bmps_v,
-                opt_val=v,
-                time_stamp=now()
-            ))
-        end
-        println("Saved results to $file")
-    catch
+        res = Results("bernoulli")
+        out = (
+            m=m,
+            bmps_val=bmps_val,
+            opt_val=opt_val,
+        )
+        save(res, :out, out)
+    catch e
         println("Error processing ($sample_cost, $switch_cost)")
+        println(e)
     end
 end
 
 end # @everywhere
 
 args = Iterators.product(
-    exp.(-9:-5),
-    [1, 2, 3, 4, 5]
+    exp.(-9:-3),
+    1:10
 )
 pmap(job, args)
 

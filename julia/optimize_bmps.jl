@@ -51,7 +51,7 @@ function rand_grid(g)
     X
 end
 
-function initial_population(m, N; sobol=true)
+function initial_population(m, N; sobol=false)
     mc = max_cost(m)
     if sobol
         seq = SobolSeq(3)
@@ -66,22 +66,28 @@ end
 
 # %% ====================  ====================
 
-function ucb(m::MetaMDP; β::Float64=2., N::Int=8000, n_roll::Int=64, n_init::Int = 1, n_iter::Int=1000)
+@everywhere function sample_rewards(policy, n_roll)
+    if n_roll < 10
+        map(1:n_roll) do _
+            rollout(policy, max_steps=200).reward
+        end
+    else
+        @distributed hcat for i in 1:n_roll
+            rollout(policy, max_steps=200).reward
+        end
+    end
+end
+
+
+function ucb(m::MetaMDP; β::Float64=3., N::Int=8000, n_roll::Int=1000, n_init::Int=100, n_iter::Int=1000)
     policies = initial_population(m, N)
     scores = [Variance() for _ in 1:N]  # tracks mean and variance
     sem = zeros(N)
     upper = zeros(N)
     μ = zeros(N)
 
-    # v = SharedArray{Float64}(n_roll)
-    v = zeros(n_roll)
-    function pull(i)
-        # @sync @distributed for j in eachindex(v)
-        #     v[j] = rollout(policies[i], max_steps=200).reward
-        # end
-        for j in eachindex(v)
-            v[j] = rollout(policies[i], max_steps=200).reward
-        end
+    function pull(i; init=false)
+        v = sample_rewards(policies[i], init ? n_init : n_roll)
         s = scores[i]
         fit!(s, v)
         sem[i] = √(s.σ2 / s.n)
@@ -89,11 +95,11 @@ function ucb(m::MetaMDP; β::Float64=2., N::Int=8000, n_roll::Int=64, n_init::In
         μ[i] = s.μ
     end
 
-    # pull every arm once
-    for i in 1:N
-        for _ in 1:n_init
-            pull(i)
-        end
+    # pull every arm once with a smaller number of rollouts
+
+    # @sync @distributed for i in 1:N
+    asyncmap(1:N) do i
+        pull(i; init=true)
     end
 
     hist = (pulls=Int[], top=Int[])
@@ -108,6 +114,8 @@ function ucb(m::MetaMDP; β::Float64=2., N::Int=8000, n_roll::Int=64, n_init::In
         if best != b
             @debug "($t) New best: $b  $(policies[b].θ)"
             best = b
+        elseif t % 100 == 0
+            @debug "($t)"
         end
         converged = (sum(μ[best] .<= upper) == 1) &&
                     (sum((μ[best] - β * sem[best]) .< μ) == 1)
@@ -118,8 +126,7 @@ function ucb(m::MetaMDP; β::Float64=2., N::Int=8000, n_roll::Int=64, n_init::In
         end
         # @printf "%d %.3f ± %.4f\n" i scores[i].μ sem[i]
     end
-    if !converged
-        @warn "UCB optimization did not converge."
+    if !converged @warn "UCB optimization did not converge."
     end
 
     (policies=policies, μ=μ, sem=sem, hist=hist, converged=converged)

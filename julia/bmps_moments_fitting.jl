@@ -56,6 +56,7 @@ function simulate_experiment(policy::Policy, n_repeat=100, sample_time=100)
     Table(sim)
 end
 
+
 # %% ==================== Loss ====================
 function make_loss(descriptor::Function)
     human_mean, human_std = juxt(mean, std)(descriptor(trials))
@@ -102,9 +103,9 @@ function loss(prm::Params; verbose=false)
     y = √(sim_loss(sim))
     @info("Loss",
         total=y,
-        losses=multi_loss(sim),
+        losses=repr(multi_loss(sim)),
         m,
-        θ=round.(collect(policy.θ); digits=3),
+        θ=repr(collect(policy.θ)),
         reward,
         mean(choice_value(sim)),
         mean(n_fix(sim)),
@@ -112,6 +113,7 @@ function loss(prm::Params; verbose=false)
     )
     min(10., y)
 end
+
 
 function loss(x::Vector{Float64}; kws...)
     @debug "Compute loss" x

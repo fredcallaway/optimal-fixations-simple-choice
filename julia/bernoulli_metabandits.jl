@@ -8,6 +8,9 @@ using SplitApplyCombine
 # using StaticArrays
 using Memoize
 
+@isdefined(TERM) || const TERM = 0
+
+
 @with_kw struct MetaMDP
     n_arm::Int = 3
     sample_cost::Float64 = 0.001
@@ -44,7 +47,6 @@ function Base.show(io::IO, b::Belief)
     print(io, " ]")
 end
 
-@isdefined(TERM_ACTION) || const TERM_ACTION = 0
 
 function update(b::Belief, arm::Int, heads::Bool)::Belief
     value = copy(b.value)
@@ -74,7 +76,7 @@ terminate(b::Belief) = Belief(b.value, -1)
 Result = Tuple{Float64, Belief, Float64}
 function results(m::MetaMDP, b::Belief, c::Int)::Vector{Result}
     is_terminal(b) && error("Belief is terminal.")
-    if c == TERM_ACTION
+    if c == TERM
         return [(1., terminate(b), term_reward(b))]
     end
     p1 = p_heads(b.value[c])
@@ -98,13 +100,15 @@ function voi_action(m::MetaMDP, b::Belief, c)
     expected_max_constant(Beta(h, t), competing_val) - term_reward(b)
 end
 
-function vpi(m::MetaMDP, b::Belief; n_sample=10000)
+function vpi(m::MetaMDP, b::Belief; n_sample=100000)
     dists = Tuple(Beta(a...) for a in sort(b.value))
     vpi(dists, n_sample) - term_reward(b)
 end
 
+@memoize mem_zeros(dims...) = zeros(dims...)
+
 @memoize function vpi(dists::Tuple{Vararg{Beta}}, n_sample)
-    x = rand.(dists, n_sample)
+    x = rand.(dists, n_sample);
     mean(max.(x[1], x[2], x[3]))
 end
 
@@ -141,7 +145,7 @@ end
 ValueFunction(m::MetaMDP) = ValueFunction(m, Dict{UInt64, Float64}())
 
 function Q(V::ValueFunction, b::Belief, c::Int)::Float64
-    c == TERM_ACTION && return term_reward(b)
+    c == TERM && return term_reward(b)
     sum(p * (r + V(s1)) for (p, s1, r) in results(V.m, b, c))
 end
 
@@ -213,10 +217,11 @@ function rollout(policy; b=nothing, max_steps=1000, callback=(b, c)->nothing)
     end
     reward = 0
     # print('x')
+    max_steps = min(max_steps, m.max_obs + 1)
     for step in 1:m.max_obs+1
-        c = (step == max_steps) ? TERM_ACTION : policy(b)
+        c = (step == max_steps) ? TERM : policy(b)
         callback(b, c)
-        if c == TERM_ACTION
+        if c == TERM
             reward += term_reward(b)
             return (reward=reward, steps=step, belief=b)
         else

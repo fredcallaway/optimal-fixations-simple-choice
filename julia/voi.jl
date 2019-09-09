@@ -53,6 +53,19 @@ function vpi(b::Belief, n_sample)
     mean(max_samples) - maximum(b.µ), std(max_samples)
 end
 
+function vpi!(x::Vector{Float64}, b::Belief)
+    R = randn!(mem_zeros(length(x), length(b.µ)))
+    R .*= (b.λ .^ -0.5)' .+ b.µ' .- maximum(b.μ)
+    maximum!(x, R)
+end
+
+# using OnlineStats
+# var = Variance()
+
+
+# x = mem_zeros(1000)
+# mean(vpi!(x, b))
+
 "A structure to store increasingly precise VPI estimates."
 mutable struct VPI
     b::Belief

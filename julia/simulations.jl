@@ -3,7 +3,7 @@
 
 
 const N_SIM = 10
-const human_mean_fixation_time = mean(sum.(trials.fix_times))
+# const human_mean_fixation_time = mean(sum.(trials.fix_times))
 
 # const human_mean_fix = mean([length(t.fixations) for t in trials])
 # const human_mean_value = mean([t.value[t.choice] for t in trials])
@@ -32,19 +32,28 @@ function parse_fixations(samples, sample_time)
     fixations, fix_times
 end
 
-function simulate_experiment(policy, (μ, σ), n_repeat=N_SIM;
-                             parallel=false, sample_time=nothing)
-    mymap = parallel ? pmap : map
-    samples, choice, value = map(1:n_repeat) do i
-        mymap(trials.value) do v
-            sim = simulate(policy, (v .- μ) ./ σ)
-            sim.value[:] = v  # we want the un-normalized values
-            sim
-        end
-    end |> flatten |> invert
-    if sample_time == nothing
-        sample_time = human_mean_fixation_time / mean(length.(samples))
+# function simulate_experiment(policy, (μ, σ), n_repeat=N_SIM;
+#                              parallel=false, sample_time=nothing)
+#     mymap = parallel ? pmap : map
+#     samples, choice, value = map(1:n_repeat) do i
+#         mymap(trials.value) do v
+#             sim = simulate(policy, (v .- μ) ./ σ)
+#             sim.value[:] = v  # we want the un-normalized values
+#             sim
+#         end
+#     end |> flatten |> invert
+#     if sample_time == nothing
+#         sample_time = human_mean_fixation_time / mean(length.(samples))
+#     end
+#     fixs, fix_times = parse_fixations.(samples, sample_time) |> invert
+#     Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
+# end
+
+function simulate_experiment(policy::Policy, n_repeat=100, sample_time=100)
+    sim = @distributed vcat for v in repeat(trials.value, n_repeat)
+        sim = simulate(policy, (v .- μ_emp) ./ σ_emp)
+        fixs, fix_times = parse_fixations(sim.samples, sample_time)
+        (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times,)
     end
-    fixs, fix_times = parse_fixations.(samples, sample_time) |> invert
-    Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
+    Table(sim)
 end
