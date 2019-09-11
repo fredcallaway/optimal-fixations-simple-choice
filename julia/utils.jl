@@ -1,5 +1,5 @@
 using Printf
-function describe(x::Vector)
+function describe_vec(x::Vector)
     @printf("%.3f ± %.3f  [%.3f, %.3f]\n", juxt(mean, std, minimum, maximum)(x)...)
 end
 

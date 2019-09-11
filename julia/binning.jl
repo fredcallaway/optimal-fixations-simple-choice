@@ -5,7 +5,7 @@ Binning(b::AbstractVector) = Binning(collect(b))
 Base.length(bins::Binning) = length(bins.limits) - 1
 
 Binning(xs, n) = begin
-    lims = quantile(xs, range(0, 1, length=n+1))
+    lims = quantile(xs, range(0, stop=1, length=n+1))
     lims[end] *= 1.00001
     Binning(lims)
 end

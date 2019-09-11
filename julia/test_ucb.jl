@@ -1,19 +1,20 @@
-include("utils.jl")
-include("meta_mdp.jl")
-include("bmps.jl")
-include("optimize_bmps.jl")
-include("results.jl")
+using Distributed
+@everywhere begin
+    include("utils.jl")
+    include("meta_mdp.jl")
+    include("bmps.jl")
+    include("optimize_bmps.jl")
+    include("results.jl")
+end
 using SplitApplyCombine
 using StatsBase: countmap
 using Serialization
 
 # N = parse(Int, ARGS[1])
-N = 100^3
-@show N
 m = open(deserialize, "tmp/m")
 
-results = Results("test_ucb_grid")
-kws = (N=N, n_iter=2^20, n_roll=64, n_init=4, β=3.)
+results = Results("test_ucb_soft")
+kws = (N=50^3, α=100., β=3., n_iter=10_000, n_roll=1000, n_init=100, n_top=10)
 @show kws
 
 out, t = @timed ucb(m; kws...)
