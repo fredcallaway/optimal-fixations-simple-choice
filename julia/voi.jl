@@ -48,19 +48,17 @@ end
 
 function vpi(b::Belief, n_sample)
     R = randn!(mem_zeros(n_sample, length(b.µ)))
-    R .*= (b.λ .^ -0.5)' .+ b.µ'
+    @. R = R * (b.λ ^ -0.5)' + b.μ'
     max_samples = maximum!(mem_zeros(n_sample), R)
     mean(max_samples) - maximum(b.µ), std(max_samples)
 end
 
 function vpi!(x::Vector{Float64}, b::Belief)
     R = randn!(mem_zeros(length(x), length(b.µ)))
-    R .*= (b.λ .^ -0.5)' .+ b.µ' .- maximum(b.μ)
+    @. R = R * (b.λ ^ -0.5)' + b.μ'
     maximum!(x, R)
+    x .-= maximum(b.µ)
 end
-
-# using OnlineStats
-# var = Variance()
 
 
 # x = mem_zeros(1000)

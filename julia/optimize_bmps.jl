@@ -51,43 +51,56 @@ function rand_grid(g)
     X
 end
 
-function initial_population(m, N; sobol=false)
+function initial_population(m, N; α=Inf, sobol=false)
     mc = max_cost(m)
     if sobol
         seq = SobolSeq(3)
-        return [BMPSPolicy(m, x2theta(mc, next!(seq))) for i in 1:N]
+        return [BMPSPolicy(m, x2theta(mc, next!(seq)), α) for i in 1:N]
     else
         g = ceil(Int, N ^ (1/3))
         @assert g ≈ N ^ (1/3)
         X = rand_grid(g)
-        return [BMPSPolicy(m, x2theta(mc, X[i, :])) for i in 1:N]
+        return [BMPSPolicy(m, x2theta(mc, X[i, :]), α) for i in 1:N]
     end
 end
 
 # %% ====================  ====================
 
+
 @everywhere function sample_rewards(policy, n_roll)
-    if n_roll < 10
-        map(1:n_roll) do _
-            rollout(policy, max_steps=200).reward
-        end
-    else
-        @distributed hcat for i in 1:n_roll
-            rollout(policy, max_steps=200).reward
-        end
+    map(1:n_roll) do i
+        rollout(policy, max_steps=200).reward
     end
 end
 
+function sample_rewards_parallel(policy, n_roll)
+    @distributed vcat for i in 1:n_roll
+        rollout(policy, max_steps=200).reward
+    end
+end
 
-function ucb(m::MetaMDP; β::Float64=3., N::Int=8000, n_roll::Int=1000, n_init::Int=100, n_iter::Int=1000)
-    policies = initial_population(m, N)
+# %% ====================  ====================
+
+function ucb(m::MetaMDP; α=Inf, β::Float64=3., N::Int=8000, n_top::Int=10,
+             n_roll::Int=1000, n_init::Int=100, n_iter::Int=1000)
+    policies = initial_population(m, N; α=α)
     scores = [Variance() for _ in 1:N]  # tracks mean and variance
     sem = zeros(N)
     upper = zeros(N)
     μ = zeros(N)
 
+    wp = CachingPool(workers())
+
     function pull(i; init=false)
-        v = sample_rewards(policies[i], init ? n_init : n_roll)
+        if init
+            w = take!(wp)
+            v = remotecall_fetch(sample_rewards, w, policies[i], n_init)
+            put!(wp, w)
+        else
+            v = sample_rewards_parallel(policies[i], n_roll)
+        end
+
+        # v = sample_rewards(policies[i], init ? n_init : n_roll)
         s = scores[i]
         fit!(s, v)
         sem[i] = √(s.σ2 / s.n)
@@ -98,32 +111,43 @@ function ucb(m::MetaMDP; β::Float64=3., N::Int=8000, n_roll::Int=1000, n_init::
     # pull every arm once with a smaller number of rollouts
 
     # @sync @distributed for i in 1:N
-    asyncmap(1:N) do i
+    println("Initial sweep")
+    @time asyncmap(1:N) do i
         pull(i; init=true)
     end
+
+    @debug "Begin UCB"
 
     hist = (pulls=Int[], top=Int[])
     best = argmax(μ)
     converged = false
     for t in 1:n_iter
-        i = argmax(upper)
-        pull(i)
-        push!(hist.pulls, i)
-        push!(hist.top, best)
+        top = partialsortperm(upper, 1:n_top; rev=true)
+        asyncmap(top) do i
+            pull(i)
+            push!(hist.pulls, i)
+            push!(hist.top, best)
+        end
+
+        # top = partialsortperm(μ, 1:n_top; rev=true)
+        # i = top[1]
+        # sum(μ[i] .<= upper)
+
         b = argmax(μ)
         if best != b
             @debug "($t) New best: $b  $(policies[b].θ)"
             best = b
-        elseif t % 100 == 0
+        elseif t % 10 == 0
             @debug "($t)"
         end
-        converged = (sum(μ[best] .<= upper) == 1) &&
-                    (sum((μ[best] - β * sem[best]) .< μ) == 1)
 
-        if converged
-            @info "Converged" t μ[best] θ=repr(policies[best].θ)
-            break
-        end
+        # converged = (sum(μ[best] .<= upper) == 1) &&
+        #             (sum((μ[best] - β * sem[best]) .< μ) == 1)
+
+        # if converged
+        #     @info "Converged" t μ[best] θ=repr(policies[best].θ)
+        #     break
+        # end
         # @printf "%d %.3f ± %.4f\n" i scores[i].μ sem[i]
     end
     if !converged @warn "UCB optimization did not converge."
