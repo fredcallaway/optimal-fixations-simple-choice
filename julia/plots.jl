@@ -2,12 +2,45 @@ include("plots_base.jl")
 
 
 # %% ====================  ====================
+
+@with_kw mutable struct Params
+    α::Float64
+    σ_obs::Float64
+    sample_cost::Float64
+    switch_cost::Float64
+    µ::Float64
+    σ::Float64
+    sample_time::Float64
+end
+Params(d::AbstractDict) = Params(;d...)
+
+MetaMDP(prm::Params) = MetaMDP(
+    3,
+    prm.σ_obs,
+    prm.sample_cost,
+    prm.switch_cost,
+)
+
+policies, likes = map(get_results("fit_pseudo_gp")) do res
+    out = load(res, :out)
+    out.policy, out.likelihood
+end |> invert
+
+policy = policies[argmax(likes)]
+policy = BMPSPolicy(policy.m, policy.θ, Inf)
+sim = simulate_experiment(policy)
+run_name = "pseudo_gp_cheat_hard"
+policy.α
+m = policy.m
+policy = BMPSPolicy(m, [0., 1000., 1000., 0])
+sim = simulate_experiment(policy)
+[sum(t.fix_times) for t in sim] / 100
+# %% ====================  ====================
 run_name = "aug21"
 best = open(deserialize, "results/aug21/2019-08-21T23-17-54-EgG/best")
 sim = best.sim
 # %% ====================  ====================
 run_name = "original"
-mkpath("figs/$run_name")
 sim = open(deserialize, "tmp/original_sim")
 
 # %% ====================  ====================
@@ -15,11 +48,27 @@ run_name = "new"
 sim = open(deserialize, "tmp/new_sim")
 
 # %% ====================  ====================
+run_name = "sep13"
+policy = open(deserialize, "tmp/sep13_pol")
+sim = simulate_experiment(policy)
 
+# %% ====================  ====================
+run_name = "sep14_200"
+policy = open(deserialize, "tmp/sep14_200_pol")
+sim = simulate_experiment(policy)
+
+# %% ====================  ====================
 res = "2019-08-23T02-47-19-7HI"
 run_name = "robustness"
 policy = open(deserialize, "results/robustness-N/$res/optimal")
+
 # %% ====================  ====================
+run_name = "sep15_200_f1_alt"
+res = get_results(run_name)[end]
+policy = load(res, :policy)
+sim = simulate_experiment(policy)
+
+policy.m
 
 # %% ====================  ====================
 mkpath("figs/$run_name")
@@ -122,10 +171,6 @@ fig("chosen_fix_time") do
     ylabel!("Average fixation duration")
 end
 
-
-# %% ==================== 3a split by choice ====================
-
-
 fig("value_bias_chosen") do
     plot_comparison(value_bias_split, sim; chosen=true)
     cross!(0, 1/3)
@@ -140,8 +185,6 @@ fig("value_bias_unchosen") do
     ylabel!("Proportion fixation time")
 end
 
-# %% ==================== Alternate versions of 3b ====================
-
 for (name, sel) in pairs(selectors)
     fig("value_duration_" * name) do
         plot_comparison(value_duration_alt, sim, :integer; selector=sel)
@@ -149,9 +192,6 @@ for (name, sel) in pairs(selectors)
         ylabel!("Fixation duration")
     end
 end
-
-
-# %% ==================== 3c for worst item ====================
 
 fig("fixate_on_worst") do
     plot_comparison(fixate_on_worst, sim, :integer, cutoff=2000, n_bin=8)
@@ -161,8 +201,6 @@ fig("fixate_on_worst") do
     ylabel!("Probability of fixating\non lowest-value item")
 end
 
-# %% ==================== Corrected 4c ====================
-
 fig("fixation_bias_corrected") do
     plot_comparison(fixation_bias_corrected, sim)
     cross!(0, 0)
@@ -170,19 +208,12 @@ fig("fixation_bias_corrected") do
     ylabel!("Corrected choice probability")
 end
 
-# %% ==================== Fixation times unbinned ====================
-
 fig("full_fixation_times") do
     plot_comparison(full_fixation_times, sim, :integer)
     xlabel!("Fixation number")
     ylabel!("Fixation duration")
 end
 
-
-# %% ====================  ====================
-
-
-# %% ====================  ====================
 fig("refixate_uncertain") do
     plot(xlabel="Fixation advantage of refixated item",
         ylabel="Probability density")
@@ -190,10 +221,6 @@ fig("refixate_uncertain") do
     kdeplot!(refixate_uncertain(sim), 100., line=(RED, 2))
     vline!([0], line=(:grey, 0.7), label="")
 end
-
-
-# %% ====================  ====================
-
 
 fig("split_fixations") do
     plot()
@@ -209,7 +236,7 @@ fig("split_fixations_model") do
     plot()
     c = colormap("Reds", 8)
     for n in 2:8
-        plot_model!(x->fixation_times(x, n), :integer, :line, color=c[n])
+        plot_model!(sim, x->fixation_times(x, n), :integer, :line, color=c[n])
     end
     xlabel!("Fixation number")
     ylabel!("Fixation duration")
@@ -240,7 +267,6 @@ function rev_fixation_times(trials, n)
     invert(x)
 end
 
-
 fig("split_fixations_rev") do
     plot()
     c = colormap("Blues", 8)
@@ -260,7 +286,6 @@ fig("split_fixations_model_rev") do
     xlabel!("Fixation number (from final)")
     ylabel!("Fixation duration")
 end
-
 
 fig("rev_fixation_times") do
     plot_comparison(rev_fixation_times, sim, :integer)

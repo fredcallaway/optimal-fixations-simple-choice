@@ -4,26 +4,41 @@ using Distributed
     include("meta_mdp.jl")
     include("bmps.jl")
     include("optimize_bmps.jl")
+    include("ucb_bmps.jl")
     include("results.jl")
+    using Serialization
+    m = open(deserialize, "tmp/m")
 end
-using SplitApplyCombine
-using StatsBase: countmap
-using Serialization
 
-# N = parse(Int, ARGS[1])
-m = open(deserialize, "tmp/m")
+@everywhere function run_one(;kws...)
+    results = Results("test_ucb_new")
+    out, t = @timed optimize_bmps_ucb(m; kws...)
+    save(results, :mdp, m; verbose=false)
+    save(results, :kws, values(kws); verbose=false)
+    save(results, :runtime, t; verbose=false)
+    save(results, :out, out)
 
-results = Results("test_ucb_soft")
-kws = (N=50^3, α=100., β=3., n_iter=10_000, n_roll=1000, n_init=100, n_top=10)
-@show kws
+    # rank = sortperm(μ, rev=true)
+    # top = rank[1:10]
+    # policies = all_policies[top]
+    # all_policies, μ = out
+    # policies = all_policies[partialsortperm(μ, 1:10; rev=true)]
+    # save(results, :likelihood, total_likelihood(policies))
+end
 
-out, t = @timed ucb(m; kws...)
-@show t
 
-save(results, :mdp, m)
-save(results, :kws, kws)
-save(results, :out, out)
-save(results, :runtime, t)
+include("box.jl")
+
+args = [(N=N, α=α, β=3., n_iter=n_iter, n_roll=1000, n_init=100, n_top=n_top)
+         for α in (10, 100, Inf) #logscale.(0:0.1:1, 10, 1000),
+         for N in (20^3, 50^3)
+         for n_top in (1, 30)
+         for n_iter in (1000, 10000)]
+
+
+map(repeat(args, 30)) do arg
+    run_one(;arg...)
+end
 
 # # %% ====================  ====================
 # results = map(get_results("test_ucb2")) do res

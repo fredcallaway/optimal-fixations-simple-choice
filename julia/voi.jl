@@ -34,7 +34,9 @@ end
 
 function voi_n(b::Belief, c::Computation, n::Int)
     cv = competing_value(b.µ, c)
-    d = Normal(b.µ[c], std_of_posterior_mean(b.λ[c], b.σ_obs / √n))
+    σ_μ = std_of_posterior_mean(b.λ[c], b.σ_obs / √n)
+    σ_μ ≈ 0. && return 0.  # avoid error initializing Normal
+    d = Normal(b.µ[c], σ_μ)
     expect_max_dist(d, cv) - maximum(b.µ)
 end
 

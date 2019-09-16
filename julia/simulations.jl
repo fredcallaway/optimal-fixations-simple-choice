@@ -12,7 +12,7 @@ const N_SIM = 10
 function simulate(policy, value)
     cs = Int[]
     s = State(policy.m, value)
-    roll = rollout(policy, state=s, callback=(b,c)->push!(cs, c); max_steps=100)
+    roll = rollout(policy, state=s, callback=(b,c)->push!(cs, c); max_steps=1000)
     (samples=cs[1:end-1], choice=roll.choice, value=value)
 end
 

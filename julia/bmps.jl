@@ -14,7 +14,7 @@ struct BMPSPolicy <: Policy
     θ::BMPSWeights
     α::Float64
 end
-BMPSPolicy(m::MetaMDP, θ, α=1000.) = BMPSPolicy(m, BMPSWeights(θ), α)
+BMPSPolicy(m::MetaMDP, θ::Vector{Float64}, α::Float64=Inf) = BMPSPolicy(m, BMPSWeights(θ), α)
 
 "Selects a computation to perform in a given belief."
 (pol::BMPSPolicy)(b::Belief) = act(pol, b)

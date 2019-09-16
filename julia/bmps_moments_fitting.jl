@@ -29,10 +29,13 @@ MetaMDP(prm::Params) = MetaMDP(
 )
 
 space = Box(
-    :α => NaN,
+    :α => 200,
     :σ_obs => (1, 5),
     :sample_cost => (1e-3, 1e-2, :log),
     :switch_cost => (1e-3, 5e-2, :log),
+    # :σ_obs => (1, 10),
+    # :sample_cost => (1e-3, 5e-2, :log),
+    # :switch_cost => (1e-3, 1e-1, :log),
     :µ => μ_emp,
     :σ => σ_emp,
     :sample_time => 100
@@ -41,7 +44,7 @@ space = Box(
 )
 
 if !@isdefined(results)
-    results = Results("bmps_moments")
+    results = Results("bmps_moments_new")
 end
 save(results, :space, space)
 
@@ -97,7 +100,7 @@ RECORD = (x=Vector{Float64}[], y=Float64[], policies=BMPSPolicy[])
 
 function loss(prm::Params; verbose=false)
     m = MetaMDP(prm)
-    policy, reward = optimize_bmps(m)
+    policy, opt = optimize_bmps(m, α=prm.α)
     push!(RECORD.policies, policy)
     sim = simulate_experiment(policy, 100)
     y = √(sim_loss(sim))
@@ -106,7 +109,6 @@ function loss(prm::Params; verbose=false)
         losses=repr(multi_loss(sim)),
         m,
         θ=repr(collect(policy.θ)),
-        reward,
         mean(choice_value(sim)),
         mean(n_fix(sim)),
         mean(total_fix_time(sim)),

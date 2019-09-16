@@ -33,15 +33,26 @@ end
 
 n_free(b::Box) = sum(length(d) > 1 for d in values(b.dims))
 
-function (box::Box)(x)
-    @assert length(x) == n_free(box)
 
+function apply(box::Box, x::Vector{Float64})
     xs = Iterators.Stateful(x)
-    map(collect(box.dims)) do (name, d)
-        if length(d) > 1
-            name => rescale(d, popfirst!(xs))
+    map(collect(box.dims)) do (name, dim)
+        if length(dim) > 1
+            name => rescale(dim, popfirst!(xs))
         else
-            name => d
+            name => dim
         end
     end |> OrderedDict
 end
+
+function apply(box::Box, d::AbstractDict)
+    x = Float64[]
+    for (name, dim) in box.dims
+        if length(dim) > 1
+            push!(x, unscale(dim, d[name]))
+        end
+    end
+    return x
+end
+
+(box::Box)(x) = apply(box, x)
