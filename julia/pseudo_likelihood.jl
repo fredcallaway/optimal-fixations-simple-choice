@@ -7,53 +7,64 @@ using Distributed
     include("human.jl")
     include("binning.jl")
     include("simulations.jl")
+    include("features.jl")
 end
 
-total_fix_time(t::Trial) = sum(t.fix_times)
-tft_bins = Binning(total_fix_time.(trials), 10)
-n_fix_bins = Binning([1:7; Inf])
 
 @everywhere begin
-    μ_emp = $μ_emp
-    σ_emp = $σ_emp
-    tft_bins = $tft_bins
-    n_fix_bins = $n_fix_bins
+    const N_SIM_HIST = 10_000
+
+    total_fix_time(t) = sum(t.fix_times)
+    rank_chosen(t) = sortperm(t.value; rev=true)[t.choice]
+    n_fix(t) = length(t.fixations)
+    function chosen_fix_proportion(t)
+        tft = total_fix_times(t)
+        tft ./= sum(tft)
+        tft[t.choice]
+    end
+
+    struct Metric{F}
+        f::F
+        bins::Binning
+    end
+
+    Metric(f::Function, n::Int) = Metric(f, Binning(f.(trials), n))
+    (m::Metric)(t) = t |> m.f |> m.bins
+
+    m = Metric(total_fix_time, 10)
+    counts(m.(trials))  # something's wrong?
+
+    const the_metrics = [
+        Metric(total_fix_time, 10),
+        Metric(n_fix, Binning([1:7; Inf])),
+        Metric(rank_chosen, Binning(1:4)),
+        Metric(chosen_fix_proportion, 2)
+    ]
+
+    const apply_metrics = juxt(the_metrics...)
+    const max_steps = Int(fld(the_metrics[1].bins.limits[end], 100))
+    const histogram_size = Tuple(length(m.bins) for m in the_metrics)
 
     function sim_one(policy, v)
-        sim = simulate(policy, (v .- μ_emp) ./ σ_emp)
+        μ, σ = μ_emp, σ_emp
+        sim = simulate(policy, (v .- μ) ./ σ; max_steps=max_steps)
         fixs, fix_times = parse_fixations(sim.samples, 100)
-        (total_fix_time=sum(fix_times),
-         rank_chosen=sortperm(v; rev=true)[sim.choice],
-         n_fix=length(fixs))
+        (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times)
     end
 
-    function sim_many(policy, v; N=10_000)
-        map(1:N) do i
-            sim_one(policy, v)
-        end
-    end
-
-    function metrics(t::Trial)
-        (total_fix_time=sum(t.fix_times),
-         rank_chosen=sortperm(t.value; rev=true)[t.choice],
-         n_fix=length(t.fixations))
-    end
-
-    function index(s)
-        tft_bins(s.total_fix_time), s.rank_chosen, n_fix_bins(s.n_fix)
-    end
-
-    function likelihood_matrix(policy, v::Vector{Float64})
-        L = zeros(10, 3, 7)
-        for s in sim_many(policy, v)
-            s.n_fix == 0 && continue
-            L[index(s)...] += 1
+    function likelihood_matrix(policy, v::Vector{Float64}; N=N_SIM_HIST)
+        L = zeros(histogram_size...)
+        for i in 1:N
+            sim = sim_one(policy, v)
+            n_fix(sim) == 0 && continue
+            L[apply_metrics(sim)...] += 1
         end
         L ./ sum(L)
     end
 end
 
-const P_RAND = 1 / (10 * 3 * 7)
+# %% ====================  ====================
+const P_RAND = 1 / prod(histogram_size)
 const BASELINE = log(P_RAND) * length(trials)
 
 function total_likelihood(policies)
@@ -67,13 +78,10 @@ function total_likelihood(policies)
     likelihoods = Dict(zip(args, out))
     function likelihood(policy, t::Trial)
         L = likelihoods[policy, sort(t.value)]
-        L[index(metrics(t))...]
+        L[apply_metrics(t)...]
     end
 
-    ε = 10 * 3 * 7 / (10000 + 10 * 3 * 7)
+    ε = prod(histogram_size) / (N_SIM_HIST + prod(histogram_size))
     X = likelihood.(reshape(policies, (1, :)), trials);
     sum(@. log(ε * P_RAND + (1 - ε) * X); dims=1)[:]
 end
-
-
-
