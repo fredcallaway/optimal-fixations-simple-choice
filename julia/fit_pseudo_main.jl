@@ -1,26 +1,8 @@
 include("pseudo_likelihood.jl")
 include("box.jl")
 include("results.jl")
-
-const RESULT_NAME = "fit_pseudo_gp"
-
-@with_kw mutable struct Params
-    α::Float64
-    σ_obs::Float64
-    sample_cost::Float64
-    switch_cost::Float64
-    µ::Float64
-    σ::Float64
-    sample_time::Float64
-end
-Params(d::AbstractDict) = Params(;d...)
-
-MetaMDP(prm::Params) = MetaMDP(
-    3,
-    prm.σ_obs,
-    prm.sample_cost,
-    prm.switch_cost,
-)
+include("params.jl")
+const RESULT_NAME = "fit_pseudo_3"
 
 space = Box(
     :α => (50, 1000, :log),
@@ -36,9 +18,9 @@ space = Box(
 
 function loss(prm::Params; kws...)
     m = MetaMDP(prm)
-    @time policy = optimize_bmps(m; α=prm.α, kws...)[1]
-    @time likelihood = total_likelihood([policy])[1]
-    println("  => ", round(likelihood))
+    policy = optimize_bmps(m; α=prm.α, kws...)[1]
+    likelihood = total_likelihood([policy])[1]
+    # println("  => ", round(likelihood))
 
     res = Results(RESULT_NAME)
     save(res, :out, (prm=prm, policy=policy, likelihood=likelihood); verbose=false)
@@ -46,49 +28,46 @@ function loss(prm::Params; kws...)
 end
 
 function loss(x::Vector{Float64}; kws...)
-    println(round.(x; digits=4))
+    # println(round.(x; digits=4))
     loss(Params(space(x)); kws...)
 end
-
-
-function prm2x(prm::Params)
-    prm_keys = [:α, :σ_obs, :sample_cost, :switch_cost, :µ, :σ, :sample_time]
-    d = Dict(k => getfield(prm, k) for k in prm_keys)
-    for k in prm_keys
-        dim = space.dims[k]
-        if length(dim) == 1
-            @assert d[k] ≈ dim
-        end
-        # else
-        #     if !(dim[1] <= d[k] <= dim[2])
-        #         println(dim[1], " <= ", d[k] ," <= ", dim[2])
-        #     end
-        #     @assert dim[1] <= d[k] <= dim[2]
-        # end
-    end
-    space(d)
-end
-
-xs, y = map(results) do res
-    out = load(res, :out)
-    x = prm2x(out.prm)
-    y = min(out.likelihood / BASELINE, 10)
-    x, y
-end |> invert
-X = combinedims(xs)
-
 
 opt = gp_minimize(loss, n_free(space),
     acquisition_restarts=200,
     noisebounds=[-4, 1],
-    iterations=400,
+    iterations=100,
     optimize_every=5,
-    run=false,
+    run=true,
     acquisition="ei",
-    init_Xy=(X, y)
+    # init_Xy=(X, y)
 )
-boptimize!(opt)
 
+for i in 2:4
+    boptimize!(opt)
+    open("tmp/$(RESULT_NAME)_model_mle", "w") do f
+        prm = opt.model_optimizer |> space |> Params
+        serialize(f, prm)
+    end
+
+    model_loss = loss(opt.model_optimizer)
+    model_pol = load(get_results(RESULT_NAME)[end], :out)
+    open("tmp/$(RESULT_NAME)_policy_$(i)00", "w") do f
+        serialize(f, model_pol)
+    end
+end
+
+
+open("tmp/$(RESULT_NAME)_model_mle", "w") do f
+    prm = opt.model_optimizer |> space |> Params
+    serialize(f, prm)
+end
+
+
+model_loss = loss(opt.model_optimizer)
+model_mle = load(get_results(RESULT_NAME)[end], :out)
+open("tmp/$(RESULT_NAME)_model_mle", "w") do f
+    serialize(f, model_mle)
+end
 
 # meanvar(x) = BayesianOptimization.mean_var(opt.model, x)
 

@@ -2,7 +2,7 @@ include("plots_base.jl")
 
 
 # %% ====================  ====================
-
+include("results.jl")
 @with_kw mutable struct Params
     α::Float64
     σ_obs::Float64
@@ -21,20 +21,27 @@ MetaMDP(prm::Params) = MetaMDP(
     prm.switch_cost,
 )
 
-policies, likes = map(get_results("fit_pseudo_gp")) do res
+run_name = "fit_pseudo_3"
+policies, likes = map(get_results(run_name)) do res
     out = load(res, :out)
     out.policy, out.likelihood
 end |> invert
 
+maximum(likes)
 policy = policies[argmax(likes)]
-policy = BMPSPolicy(policy.m, policy.θ, Inf)
-sim = simulate_experiment(policy)
-run_name = "pseudo_gp_cheat_hard"
-policy.α
-m = policy.m
-policy = BMPSPolicy(m, [0., 1000., 1000., 0])
-sim = simulate_experiment(policy)
-[sum(t.fix_times) for t in sim] / 100
+
+# sim = simulate_experiment(policy; n_repeat=10)
+
+open("tmp/fit_pseudo_3_policy", "w+") do f
+    serialize(f, policy)
+end
+
+# maximum(likes) / BASELINE
+# %% ====================  ====================
+run_name = "fit_pseudo_random"
+rando = RandomPolicy(m)
+sim = simulate_experiment(rando)
+
 # %% ====================  ====================
 run_name = "aug21"
 best = open(deserialize, "results/aug21/2019-08-21T23-17-54-EgG/best")
@@ -68,8 +75,14 @@ res = get_results(run_name)[end]
 policy = load(res, :policy)
 sim = simulate_experiment(policy)
 
-policy.m
+# %% ====================  ====================
+run_name = "sep18_fit_pseudo_3"
+policy = open(deserialize, "tmp/fit_pseudo_3_policy_100").policy
 
+# %% ====================  ====================
+run_name = "sep18_pseudo_4"
+policy = open(deserialize, "tmp/fit_pseudo_4_model_mle").policy
+sim = simulate_experiment(policy; n_repeat=10)
 # %% ====================  ====================
 mkpath("figs/$run_name")
 

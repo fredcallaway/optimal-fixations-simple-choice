@@ -9,10 +9,10 @@ const N_SIM = 10
 # const human_mean_value = mean([t.value[t.choice] for t in trials])
 
 # %% ==================== Simulate experiment ====================
-function simulate(policy, value)
+function simulate(policy, value; max_steps=1000)
     cs = Int[]
     s = State(policy.m, value)
-    roll = rollout(policy, state=s, callback=(b,c)->push!(cs, c); max_steps=1000)
+    roll = rollout(policy, state=s, callback=(b,c)->push!(cs, c); max_steps=max_steps)
     (samples=cs[1:end-1], choice=roll.choice, value=value)
 end
 
@@ -49,9 +49,9 @@ end
 #     Table((choice=choice, value=value, fixations=fixs, fix_times=fix_times))
 # end
 
-function simulate_experiment(policy::Policy, n_repeat=100, sample_time=100)
+function simulate_experiment(policy::Policy, μ=μ_emp, σ=σ_emp; n_repeat=100, sample_time=100)
     sim = @distributed vcat for v in repeat(trials.value, n_repeat)
-        sim = simulate(policy, (v .- μ_emp) ./ σ_emp)
+        sim = simulate(policy, (v .- μ) ./ σ)
         fixs, fix_times = parse_fixations(sim.samples, sample_time)
         (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times,)
     end

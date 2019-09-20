@@ -11,7 +11,7 @@ using Distributed
 end
 
 @everywhere function run_one(;kws...)
-    results = Results("test_ucb_new")
+    results = Results("test_ucb_sep17")
     out, t = @timed optimize_bmps_ucb(m; kws...)
     save(results, :mdp, m; verbose=false)
     save(results, :kws, values(kws); verbose=false)
@@ -26,18 +26,42 @@ end
     # save(results, :likelihood, total_likelihood(policies))
 end
 
-
 include("box.jl")
 
 args = [(N=N, α=α, β=3., n_iter=n_iter, n_roll=1000, n_init=100, n_top=n_top)
-         for α in (10, 100, Inf) #logscale.(0:0.1:1, 10, 1000),
-         for N in (20^3, 50^3)
-         for n_top in (1, 30)
-         for n_iter in (1000, 10000)]
+         for α in (200,)
+         for N in (20^3, 40^3)
+         for n_top in (1,)
+         for n_iter in (1000, 5000)]
 
 
 map(repeat(args, 30)) do arg
     run_one(;arg...)
+end
+
+if false # analyzing results
+
+# %% ====================  ====================
+using TypedTables
+using SplitApplyCombine
+results = filter(get_results("test_ucb_sep17")) do res
+    exists(res, :out)
+end
+
+# %% ====================  ====================
+T = map(results) do res
+    pol, r = load(res, :out)
+    (pol.θ..., r=r, r1=mean_reward(pol, 100_000, true), load(res, :kws)...)
+    # (kws..., pol.θ..., r=r)
+end |> Table
+# %% ====================  ====================
+
+group(t->(t.n_iter, t.N), t->t.r1, T) |> valmap(mean) |> sort
+group(t->(t.n_iter, t.N), t->t.r1, T) |> valmap(std) |> sort
+
+
+# %% ====================  ====================
+
 end
 
 # # %% ====================  ====================

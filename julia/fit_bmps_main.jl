@@ -1,6 +1,6 @@
 using Distributed
 include("results.jl")
-results = Results("sep15_200_f1")
+results = Results("sep16_mu")
 
 include("bmps_moments_fitting.jl")
 
@@ -15,8 +15,6 @@ opt = gp_minimize(loss, n_free(space),
     acquisition="ei",
     # init_Xy=(X, y)
 )
-# optimize!(opt.model)
-# meanvar(x) = BayesianOptimization.mean_var(opt.model, x)
 
 boptimize!(opt)
 find_model_max!(opt)
@@ -31,6 +29,9 @@ pol = model_loss < obs_loss ? model_pol : obs_pol
 
 save(results, :policy, pol)
 save(results, :cheat_policy, RECORD.policies[argmin(RECORD.y)])
+
+save(results, :params, Params(space(opt.model_optimizer)))
+
 # open("tmp/sep15_200_pol", "w+") do f
 #     serialize(f, pol)
 # end

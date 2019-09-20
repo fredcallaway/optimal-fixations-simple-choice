@@ -106,3 +106,8 @@ end
 
 # for do block syntax
 rollout(callback::Function, policy; kws...) = rollout(policy; kws..., callback=callback)
+
+struct RandomPolicy <: Policy
+    m::MetaMDP
+end
+(pol::RandomPolicy)(b::Belief) = rand(0:pol.m.n_arm)

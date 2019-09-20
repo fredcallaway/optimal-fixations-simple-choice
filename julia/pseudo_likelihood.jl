@@ -52,12 +52,17 @@ end
         (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times)
     end
 
+    function get_metrics(policy, v, N)
+        ms = @distributed vcat for i in 1:N
+            sim = sim_one(policy, v)
+            n_fix(sim) == 0 ? missing : apply_metrics(sim)
+        end
+        skipmissing(ms)
+    end
     function likelihood_matrix(policy, v::Vector{Float64}; N=N_SIM_HIST)
         L = zeros(histogram_size...)
-        for i in 1:N
-            sim = sim_one(policy, v)
-            n_fix(sim) == 0 && continue
-            L[apply_metrics(sim)...] += 1
+        for m in get_metrics(policy, v, N)
+            L[m...] += 1
         end
         L ./ sum(L)
     end
@@ -71,7 +76,7 @@ function total_likelihood(policies)
     vs = unique(sort(t.value) for t in trials);
     sort!(vs, by=std)  # fastest trials last for parallel efficiency
     args = collect(Iterators.product(policies, vs));
-    out = pmap(args) do (policy, v)
+    out = asyncmap(args) do (policy, v)
         likelihood_matrix(policy, v)
     end
 

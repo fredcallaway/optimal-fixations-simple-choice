@@ -17,7 +17,7 @@ function make_bins(bins, hx)
     return bins
 end
 
-function total_fix_time(t)::Vector{Float64}
+function total_fix_times(t)::Vector{Float64}
     x = zeros(3)
     for (fi, ti) in zip(t.fixations, t.fix_times)
         x[fi] += ti
@@ -87,7 +87,7 @@ end
 
 function fixation_bias(trials)
     mapmany(trials) do t
-        ft = total_fix_time(t)
+        ft = total_fix_times(t)
         # invert((ft ./ sum(ft), t.choice .== 1:3))
         invert((ft .- mean(ft), t.choice .== 1:3))
     end |> Vector{Tuple{Float64, Bool}} |> invert
@@ -153,7 +153,7 @@ end
 
 function value_bias(trials)
     mapmany(trials) do t
-        tft = total_fix_time(t)
+        tft = total_fix_times(t)
         invert((t.value .- mean(t.value), tft ./ (sum(tft) + eps())))
     end |> invert
 end
@@ -228,7 +228,7 @@ function last_fixation_duration(trials)
         length(t.fixations) == 0 && continue
         last = t.fixations[end]
         last != t.choice && continue
-        tft = total_fix_time(t)
+        tft = total_fix_times(t)
         tft[last] -= t.fix_times[end]
         adv = 2 * tft[t.choice] - sum(tft)
         # adv = tft[t.choice] - mean(tft)
@@ -261,7 +261,7 @@ function value_bias_split(trials; chosen=false)
     y = Float64[]
     for t in trials
         rv = relative_value(t)
-        tft = total_fix_time(t)
+        tft = total_fix_times(t)
         pft = tft ./ (sum(tft) + eps())
         for i in 1:3
             if chosen == (i == t.choice)
@@ -321,7 +321,7 @@ function fixation_bias_corrected(trials)
     p_choice = bin_by(bins, v, c) .|> mean
     x = Float64[]; y = Float64[]
     for t in trials
-        ft = total_fix_time(t)
+        ft = total_fix_times(t)
         b = bins.(relative_value(t))
         p_val = p_choice[b]
         corrected = (t.choice .== 1:3) - p_val

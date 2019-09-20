@@ -30,13 +30,13 @@ MetaMDP(prm::Params) = MetaMDP(
 
 space = Box(
     :α => 200,
-    :σ_obs => (1, 5),
-    :sample_cost => (1e-3, 1e-2, :log),
-    :switch_cost => (1e-3, 5e-2, :log),
-    # :σ_obs => (1, 10),
-    # :sample_cost => (1e-3, 5e-2, :log),
-    # :switch_cost => (1e-3, 1e-1, :log),
-    :µ => μ_emp,
+    # :σ_obs => (1, 5),
+    # :sample_cost => (1e-3, 1e-2, :log),
+    # :switch_cost => (1e-3, 5e-2, :log),
+    :σ_obs => (1, 10),
+    :sample_cost => (1e-3, 5e-2, :log),
+    :switch_cost => (1e-3, 1e-1, :log),
+    :µ => (0, μ_emp),
     :σ => σ_emp,
     :sample_time => 100
     # (0, 2 * μ_emp),
@@ -50,9 +50,9 @@ save(results, :space, space)
 
 # %% ==================== Simulation ====================
 
-function simulate_experiment(policy::Policy, n_repeat=100, sample_time=100)
+function simulate_experiment(policy::Policy, μ, σ, n_repeat=100, sample_time=100)
     sim = @distributed vcat for v in repeat(trials.value, n_repeat)
-        sim = simulate(policy, (v .- μ_emp) ./ σ_emp)
+        sim = simulate(policy, (v .- μ) ./ σ)
         fixs, fix_times = parse_fixations(sim.samples, sample_time)
         (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times,)
     end
@@ -102,7 +102,7 @@ function loss(prm::Params; verbose=false)
     m = MetaMDP(prm)
     policy, opt = optimize_bmps(m, α=prm.α)
     push!(RECORD.policies, policy)
-    sim = simulate_experiment(policy, 100)
+    sim = simulate_experiment(policy, prm.μ, prm.σ, 100)
     y = √(sim_loss(sim))
     @info("Loss",
         total=y,
