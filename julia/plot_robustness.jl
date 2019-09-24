@@ -42,43 +42,13 @@ run_name = "fit_pseudo_4_reopt"
 policies = map(get_results(run_name)) do res
     load(res, :policy)
 end
-
-# %% ==================== Describe policies ====================
-function mean_reward(policy, n_roll, parallel)
-    if parallel
-        rr = @distributed (+) for i in 1:n_roll
-            rollout(policy, max_steps=200).reward
-        end
-        return rr / n_roll
-    else
-        rr = mapreduce(+, 1:n_roll) do i
-            rollout(policy, max_steps=200).reward
-        end
-        return rr / n_roll
-    end
-
-end
-
-scores = map(policies) do pol
-    mean_reward(pol, 100_000, true)
-end
-describe_vec(scores)
-
-function pretty(m::MetaMDP)
-    println("Parameters")
-    @printf "  σ_obs: %.2f\n  sample_cost: %.4f\n  switch_cost: %.4f\n" m.σ_obs m.sample_cost m.switch_cost
-end
-function pretty(pol::Policy)
-    pretty(pol.m)
-    @printf "  α: %.2f\n" pol.α
-end
-for pol in policies
-    pretty(pol)
-end
-
+# %% ====================  ====================
+run_name = "pseudo_3"
+res = get_results(run_name)[3]
+policies = load(res, :reopt)
 
 # %% ====================  ====================
-# include("bmps_moments_fitting.jl")
+include("bmps_moments_fitting.jl")
 sims = asyncmap(policies) do pol
     simulate_experiment(pol; n_repeat=10)
     # simulate_experiment(pol, prm.μ, prm.σ; n_repeat=10)
@@ -102,7 +72,7 @@ function robplot(name, xlabel, ylabel, feature, bin_type=nothing, type=:line; af
     f
 end
 
-function robplot(after::Function, name, xlabel, ylabel, feature, bin_type=nothing, type=:line, kws...)
+function robplot(after::Function, name, xlabel, ylabel, feature, bin_type=nothing, type=:line; kws...)
     robplot(name, xlabel, ylabel, feature, bin_type, type; after=after, kws...)
 end
 
@@ -152,7 +122,7 @@ robplot("fixation_bias", "Relative fixation time", "Probability of choice",
 robplot("fixate_on_best", "Time since trial onset", "Probability of fixating\non highest-value item",
     fixate_on_best, :integer, cutoff=2000, n_bin=8) do
         xticks!(0.5:8.5, string.(0:250:2000))
-        hline!([1/3], line=(:grey, 0.7), label="")))
+        hline!([1/3], line=(:grey, 0.7), label="")
 end
 
 robplot("value_bias", "Relative item value", "Proportion fixation time",
@@ -223,6 +193,16 @@ for (name, sel) in pairs(selectors)
     robplot("value_duration_" * name, "Item value", "Fixation duration", value_duration_alt, :integer; selector=sel)
 end
 
+# %% ====================  ====================
+function pretty(m::MetaMDP)
+    println("Parameters")
+    @printf "  σ_obs: %.2f\n  sample_cost: %.4f\n  switch_cost: %.4f\n" m.σ_obs m.sample_cost m.switch_cost
+end
+function pretty(pol::Policy)
+    pretty(pol.m)
+    @printf "  α: %.2f\n" pol.α
+end
+pretty(policies[1])
 
 # %% ====================  ====================
 

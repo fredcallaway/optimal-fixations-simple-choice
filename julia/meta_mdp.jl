@@ -1,17 +1,16 @@
 using Parameters
 
-@isdefined(TERM) || const TERM = 0
-const Computation = Int
+@isdefined(⊥) || const ⊥ = 0  # terminal action
+@isdefined(Computation) || const Computation = Int
 
 noisy(x, ε=1e-10) = x .+ ε .* rand(length(x))
 
-
 "Metalevel Markov decision process"
 @with_kw struct MetaMDP
-    n_arm::Int = 3
-    σ_obs::Float64 = 1
-    sample_cost::Float64 = 0.001
-    switch_cost::Float64 = 0.
+    n_arm::Int = 3                 # number of items to choose between
+    σ_obs::Float64 = 1             # std of observation distribution
+    sample_cost::Float64 = 0.001   # cost per sample
+    switch_cost::Float64 = 0.      # additional cost for sampling a different item
 end
 
 "Base type for metalevel policies."
@@ -20,8 +19,8 @@ abstract type Policy end
 
 "Ground truth state"
 struct State
-    value::Vector{Float64}
-    σ_obs::Float64  # metaMDP parameter, stored here for convenience
+    value::Vector{Float64}  # values of each item in the choice set
+    σ_obs::Float64          # metaMDP parameter, stored here for convenience
 end
 State(m::MetaMDP, value) = State(value, m.σ_obs)
 State(m::MetaMDP) = State(m, randn(m.n_arm))
@@ -31,7 +30,7 @@ State(m::MetaMDP) = State(m, randn(m.n_arm))
 mutable struct Belief
     µ::Vector{Float64}  # mean vector
     λ::Vector{Float64}  # precision vector
-    σ_obs::Float64  # metaMDP parameter, stored here for convenience
+    σ_obs::Float64      # metaMDP parameter, stored here for convenience
     focused::Int        # currently fixated item (necessary for switch cost)
 end
 
@@ -60,7 +59,7 @@ function term_reward(b::Belief)
     maximum(b.µ)
 end
 
-"Sampling cost function, includes switching cost"
+"Sampling cost function, includes switching cost."
 function cost(m::MetaMDP, b::Belief, c::Computation)
     if b.focused != 0 && b.focused != c
         return m.sample_cost + m.switch_cost
@@ -69,20 +68,18 @@ function cost(m::MetaMDP, b::Belief, c::Computation)
     end
 end
 
-"Updates belief based on the given computation and returns metalevel reward"
+"Updates belief based on the given computation."
 function transition!(b::Belief, s::State, c::Computation)
     b.focused = c
     obs = s.value[c] + randn() * s.σ_obs
-    bayes_update!(b, c, obs)
+    b.µ[c], b.λ[c] = bayes_update(b.μ[c], b.λ[c], obs, s.σ_obs ^ -2)
 end
 
-"Updates the belief about item `c` based on sample `obs`"
-function bayes_update!(b::Belief, c::Computation, obs)
-    obs_lam = b.σ_obs ^ -2
-    lam1 = b.λ[c] + obs_lam
-    mu1 = (obs * obs_lam + b.µ[c] * b.λ[c]) / lam1
-    b.µ[c] = mu1
-    b.λ[c] = lam1
+"Returns updated mean and precision given a prior and observation."
+function bayes_update_normal(μ, λ, obs, λ_obs)
+    λ1 = λ + λ_obs
+    μ1 = (obs * λ_obs + μ * λ) / λ1
+    (μ1, λ1)
 end
 
 "Run one rollout (one decision) of a policy on its associated MetaMDP."
@@ -92,9 +89,9 @@ function rollout(policy::Policy; state=nothing, max_steps=1000, callback=(b, c)-
     b = Belief(s)
     reward = 0
     for t in 1:max_steps
-        c = (t == max_steps) ? TERM : policy(b)
+        c = (t == max_steps) ? ⊥ : policy(b)
         callback(b, c)
-        if c == TERM
+        if c == ⊥
             reward += term_reward(b)
             return (reward=reward, choice=argmax(noisy(b.µ)), steps=t, belief=b)
         else

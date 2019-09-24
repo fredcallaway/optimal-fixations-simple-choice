@@ -4,7 +4,7 @@ include("voi.jl")
 using StatsBase
 
 function voc_dc(m::MetaMDP, b::Belief, c::Computation)
-    c == TERM && return 0.
+    c == ⊥ && return 0.
     voc_n(n) = voi_n(b, c, n) - (cost(m, b, c) + (n-1) * m.sample_cost)
     # int_line_search(1, voc_n)[2]
     maximum(voc_n.(1:100))
@@ -17,7 +17,7 @@ end
 action(pol::DirectedCognition, b::Belief) = begin
     voc = [voc_dc(pol.m, b, c) for c in 1:pol.m.n_arm]
     v, c = findmax(noisy(voc))
-    v <= 0 ? TERM : c
+    v <= 0 ? ⊥ : c
 end
 (pol::DirectedCognition)(b::Belief) = action(pol, b)
 

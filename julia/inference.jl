@@ -51,7 +51,7 @@ function logp(policy, v, samples, choice, reweight, n_particle)
         step!(m, b, s, c)
         b
     end
-    likelihood(b, c) = action_probs(policy, b)[c+1]  # +1 because TERM is at position 1
+    likelihood(b, c) = action_probs(policy, b)[c+1]  # +1 because ⊥ is at position 1
 
     sir = SIR(init, transition, likelihood, Belief, n_particle)
     lp = logp(sir, samples)

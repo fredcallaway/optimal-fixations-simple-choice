@@ -38,7 +38,7 @@ end
         Metric(total_fix_time, 10),
         Metric(n_fix, Binning([1:7; Inf])),
         Metric(rank_chosen, Binning(1:4)),
-        Metric(chosen_fix_proportion, 2)
+        # Metric(chosen_fix_proportion, 2)
     ]
 
     const apply_metrics = juxt(the_metrics...)

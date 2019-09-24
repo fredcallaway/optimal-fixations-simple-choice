@@ -13,7 +13,7 @@ function max_cost(m::MetaMDP)
     theta = [1., 0, 0, 0, 0, 1]
     s = State(m)
     b = Belief(s)
-    computes() = Policy(m, theta)(b) != TERM
+    computes() = Policy(m, theta)(b) != ⊥
 
     while computes()
         theta[1] *= 2

@@ -7,7 +7,7 @@ using SplitApplyCombine
 using StaticArrays
 # ---------- MetaMDP Model ---------- #
 
-const TERM = 0
+const ⊥ = 0
 const Computation = Int
 
 @with_kw struct MetaMDP
@@ -40,7 +40,7 @@ Belief(s::State) = Belief(
 Base.copy(b::Belief) = Belief(copy(b.mu), copy(b.lam), b.obs_sigma, b.focused)
 
 function step!(m::MetaMDP, b::Belief, s::State, c::Computation)
-    if c == TERM
+    if c == ⊥
         return maximum(b.mu)
     end
     r = -cost(m, b, c)
@@ -192,7 +192,7 @@ function slow_act(π::Policy, b::Belief)
     voc = (π.θ' * features(π.m, b))'
     voc .-= [cost(π.m, b, c) for c in 1:π.m.n_arm]
     v, c = findmax(noisy(voc))
-    v <= 0 ? TERM : c
+    v <= 0 ? ⊥ : c
 end
 
 function fast_voc(π::Policy, b::Belief)
@@ -218,7 +218,7 @@ function fast_act(π::Policy, b::Belief)
     v + π.θ[6] * voi_action(b, c) > 0 && return c
 
     # Still no luck. Try VPI.
-    π.θ[6] == 0. && return TERM  # skip VPI
+    π.θ[6] == 0. && return ⊥  # skip VPI
     vpi = VPI(b)
     for i in 1:100000  # Iteratively refine estimate until confident in choice.
         step!(vpi, 500)
@@ -228,7 +228,7 @@ function fast_act(π::Policy, b::Belief)
         # (i == 100000) && println("Warning: VPI estimation did not converge.")
     end
     v + π.θ[6] * vpi.μ > 0 && return c
-    return TERM
+    return ⊥
 end
 
 
@@ -239,7 +239,7 @@ end
 (π::MetaGreedy)(b::Belief) = begin
     voc1 = [voi1(b, c) - cost(π.m, b, c) for c in 1:π.m.n_arm]
     v, c = findmax(noisy(voc1))
-    v <= 0 ? TERM : c
+    v <= 0 ? ⊥ : c
 end
 
 # struct SoftMetaGreedy
@@ -251,7 +251,7 @@ end
 #     voc1 = [voi1(b, c) - cost(π.m, b, c) for c in 1:π.m.n_arm]
 #     sample(0:4, Weights(softmax([0; voc1])))
 #     v, c = findmax(noisy(voc1))
-#     v <= 0 ? TERM : c
+#     v <= 0 ? ⊥ : c
 # end
 
 struct Noisy{T}
@@ -274,7 +274,7 @@ end
 FixedPolicy(m, plan) = FixedPolicy(m, plan, 1)
 
 (pol::FixedPolicy)(b::Belief) = begin
-    pol.state > length(pol.plan) && return TERM
+    pol.state > length(pol.plan) && return ⊥
     c = pol.plan[pol.state]
     pol.state += 1
     c
@@ -296,10 +296,10 @@ function rollout(policy; state=nothing, max_steps=1000, callback=(b, c)->nothing
     reward = 0
     # print('x')
     for step in 1:max_steps
-        c = (step == max_steps) ? TERM : policy(b)
+        c = (step == max_steps) ? ⊥ : policy(b)
         callback(b, c)
         reward += step!(m, b, s, c)
-        if c == TERM
+        if c == ⊥
             return (reward=reward, choice=argmax(noisy(b.mu)), steps=step, belief=b)
         end
     end

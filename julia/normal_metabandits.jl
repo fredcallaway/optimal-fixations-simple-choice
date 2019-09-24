@@ -41,7 +41,7 @@ Base.show(io::IO, b::Belief) = begin
     print(io, "[ ", join(x, ", "), " ] ", b.focused)
 end
 
-@isdefined(TERM_ACTION) || const TERM_ACTION = 0
+@isdefined(⊥_ACTION) || const ⊥_ACTION = 0
 
 
 @memoize function discretized_randn(q)
@@ -84,7 +84,7 @@ terminate(b::Belief) = Belief(b.value, -1)
 Result = Tuple{Float64, Belief, Float64}
 function results(m::MetaMDP, b::Belief, c::Int)::Vector{Result}
     is_terminal(b) && error("Belief is terminal.")
-    if c == TERM_ACTION
+    if c == ⊥_ACTION
         return [(1., terminate(b), term_reward(b))]
     end
     r = -cost(m, b, c)
@@ -137,7 +137,7 @@ end
 # end
 #
 # function _V(b::Belief)::Float64
-#     state == TERM_STATE && return 0
+#     state == ⊥_STATE && return 0
 #     sum(sum.(state.arms)) > 30 && return term_reward(state)
 #     maximum(Q(state, a) for a in ACTIONS)
 # end

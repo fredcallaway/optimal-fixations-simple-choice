@@ -12,7 +12,7 @@ function max_cost(m::MetaMDP)
     # b = Belief(s)
     function computes()
         pol = BMPSPolicy(m, θ)
-        all(pol(b) != TERM for i in 1:30)
+        all(pol(b) != ⊥ for i in 1:30)
     end
 
     while computes()

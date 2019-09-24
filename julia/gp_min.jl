@@ -4,7 +4,7 @@ using Serialization
 
 function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=true,
                      iterations=400, repetitions=1, acquisition_restarts=50,
-                     optimize_every=20,
+                     optimize_every=20, init_iters=cld(iterations, 4),
                      acquisition="ei", noisebounds = [-4, 5], )
 
     if acquisition isa String
@@ -23,7 +23,6 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=tru
       capacity = iterations + (init_Xy != nothing ? size(init_Xy[1],2) : 0)
     )
 
-    init_iters = cld(iterations, 4)
     if init_Xy != nothing
         X, y = init_Xy
         y = -y  # because we are minimizing

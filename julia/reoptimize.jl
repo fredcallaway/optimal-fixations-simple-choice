@@ -11,7 +11,7 @@ include("pseudo_likelihood.jl")
 run_name = "fit_pseudo_3_reopt"
 prm = open(deserialize, "tmp/fit_pseudo_3_model_mle")
 m = MetaMDP(prm)
-policy = optimize_bmps(m, α=prm.α)[1]
+policy = optimize_bmps(m, α=prm.α)
 save(Results(run_name), :policy, policy)
 
 
@@ -42,7 +42,7 @@ X = combinedims(collect.(X))
 mean(X[3, :, :]; dims=1)
 
 # new_res = Results(name)
-# new_pol = optimize_bmps(policy.m, α=policy.α)[1]
+# new_pol = optimize_bmps(policy.m, α=policy.α)
 # save(new_res, :policy, new_pol)
 
 
@@ -52,5 +52,5 @@ mean(X[3, :, :]; dims=1)
 # policy = load(res, :policy)
 
 # new_res = Results(join([name, i, "reopt"], "_"))
-# new_pol = optimize_bmps(policy.m, α=policy.α)[1]
+# new_pol = optimize_bmps(policy.m, α=policy.α)
 # save(new_res, :policy, new_pol)

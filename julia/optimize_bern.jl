@@ -12,7 +12,7 @@ using Printf
 function max_cost(m::MetaMDP)
     theta = [1., 0, 0, 1]
     b = Belief(m)
-    computes() = BMPSPolicy(m, theta)(b) != TERM_ACTION
+    computes() = BMPSPolicy(m, theta)(b) != ⊥_ACTION
 
     while computes()
         theta[1] *= 2

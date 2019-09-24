@@ -8,7 +8,7 @@ using SplitApplyCombine
 # using StaticArrays
 using Memoize
 
-@isdefined(TERM) || const TERM = 0
+@isdefined(⊥) || const ⊥ = 0
 
 
 @with_kw struct MetaMDP
@@ -76,7 +76,7 @@ terminate(b::Belief) = Belief(b.value, -1)
 Result = Tuple{Float64, Belief, Float64}
 function results(m::MetaMDP, b::Belief, c::Int)::Vector{Result}
     is_terminal(b) && error("Belief is terminal.")
-    if c == TERM
+    if c == ⊥
         return [(1., terminate(b), term_reward(b))]
     end
     p1 = p_heads(b.value[c])
@@ -145,7 +145,7 @@ end
 ValueFunction(m::MetaMDP) = ValueFunction(m, Dict{UInt64, Float64}())
 
 function Q(V::ValueFunction, b::Belief, c::Int)::Float64
-    c == TERM && return term_reward(b)
+    c == ⊥ && return term_reward(b)
     sum(p * (r + V(s1)) for (p, s1, r) in results(V.m, b, c))
 end
 
@@ -219,9 +219,9 @@ function rollout(policy; b=nothing, max_steps=1000, callback=(b, c)->nothing)
     # print('x')
     max_steps = min(max_steps, m.max_obs + 1)
     for step in 1:m.max_obs+1
-        c = (step == max_steps) ? TERM : policy(b)
+        c = (step == max_steps) ? ⊥ : policy(b)
         callback(b, c)
-        if c == TERM
+        if c == ⊥
             reward += term_reward(b)
             return (reward=reward, steps=step, belief=b)
         else

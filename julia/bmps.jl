@@ -64,7 +64,7 @@ end
 #     # (2) the standard error is less than 1e-4
 #     # (3) 100,000 samples of the VPI have been taken
 
-#     θ.vpi == 0. && return TERM  # no weight on VPI, VOC can't improve
+#     θ.vpi == 0. && return ⊥  # no weight on VPI, VOC can't improve
 #     vpi = VPI(b)
 #     for i in 1:200
 #         step!(vpi, VPI_SAMPLES)  # add 500 samples
@@ -75,7 +75,7 @@ end
 #         # (i == 100000) && println("Warning: VPI estimation did not converge.")
 #     end
 #     v + θ.vpi * vpi.μ > 0 && return c
-#     return TERM
+#     return ⊥
 # end
 
 function act(pol::BMPSPolicy, b::Belief; clever=true)
@@ -106,7 +106,7 @@ function act(pol::BMPSPolicy, b::Belief; clever=true)
     # (2) the standard error is less than 1e-4
     # (3) 100,000 samples of the VPI have been taken
 
-    θ.vpi == 0. && return TERM  # no weight on VPI, VOC can't improve
+    θ.vpi == 0. && return ⊥  # no weight on VPI, VOC can't improve
 
     vpi = Variance()  # tracks mean and variance of running VPI samples
 
@@ -119,7 +119,7 @@ function act(pol::BMPSPolicy, b::Belief; clever=true)
         # (i == 100000) && println("Warning: VPI estimation did not converge.")
     end
     v + θ.vpi * vpi.μ > 0 && return c
-    return TERM
+    return ⊥
 end
 
 

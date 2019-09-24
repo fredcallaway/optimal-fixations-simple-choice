@@ -5,7 +5,7 @@ end
 (pol::MetaGreedy)(b::Belief) = begin
     voc1 = [voi1(b, c) - cost(pol.m, b, c) for c in 1:pol.m.n_arm]
     v, c = findmax(noisy(voc1))
-    v <= 0 ? TERM : c
+    v <= 0 ? ⊥ : c
 end
 
 struct Noisy{T}
@@ -28,7 +28,7 @@ end
 FixedPolicy(m, plan) = FixedPolicy(m, plan, 1)
 
 (pol::FixedPolicy)(b::Belief) = begin
-    pol.state > length(pol.plan) && return TERM
+    pol.state > length(pol.plan) && return ⊥
     c = pol.plan[pol.state]
     pol.state += 1
     c

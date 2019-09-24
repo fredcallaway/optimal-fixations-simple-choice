@@ -49,15 +49,28 @@ results = filter(get_results("test_ucb_sep17")) do res
 end
 
 # %% ====================  ====================
+pol = load(results[1], :out)[1]
+bmps_policies = asyncmap(1:8) do i
+    optimize_bmps(pol.m; α=pol.α)
+end
+bmps_rs = map(bmps_policies) do pol
+    mean_reward(pol, 100_000, true)
+end
+
+# %% ====================  ====================
 T = map(results) do res
     pol, r = load(res, :out)
-    (pol.θ..., r=r, r1=mean_reward(pol, 100_000, true), load(res, :kws)...)
+    # r1 = mean_reward(pol, 100_000, true)
+    r1 = 0
+    (pol.θ..., r=r, r1=r1, time=load(res, :runtime), load(res, :kws)...)
     # (kws..., pol.θ..., r=r)
-end |> Table
+end |> FlexTable
+
 # %% ====================  ====================
 
-group(t->(t.n_iter, t.N), t->t.r1, T) |> valmap(mean) |> sort
-group(t->(t.n_iter, t.N), t->t.r1, T) |> valmap(std) |> sort
+group(t->(t.n_iter, t.N), t->t.r1, T) |> valmap(juxt(mean, std)) |> sort
+
+
 
 
 # %% ====================  ====================
