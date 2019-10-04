@@ -72,7 +72,7 @@ end
 function transition!(b::Belief, s::State, c::Computation)
     b.focused = c
     obs = s.value[c] + randn() * s.σ_obs
-    b.µ[c], b.λ[c] = bayes_update(b.μ[c], b.λ[c], obs, s.σ_obs ^ -2)
+    b.µ[c], b.λ[c] = bayes_update_normal(b.μ[c], b.λ[c], obs, s.σ_obs ^ -2)
 end
 
 "Returns updated mean and precision given a prior and observation."
@@ -93,7 +93,7 @@ function rollout(policy::Policy; state=nothing, max_steps=1000, callback=(b, c)-
         callback(b, c)
         if c == ⊥
             reward += term_reward(b)
-            return (reward=reward, choice=argmax(noisy(b.µ)), steps=t, belief=b)
+            return (reward=reward, choice=argmax(noisy(b.µ)), steps=t, state=s, belief=b)
         else
             reward -= cost(m, b, c)
             transition!(b, s, c)

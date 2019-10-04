@@ -46,14 +46,26 @@ end
 run_name = "pseudo_3"
 res = get_results(run_name)[3]
 policies = load(res, :reopt)
+policies[1] |> pretty
+# %% ====================  ====================
+run_name = "pseudo_3_epsilon"
+res = get_results(run_name)[1]
+policies = load(res, :reopt)
 
 # %% ====================  ====================
-include("bmps_moments_fitting.jl")
+run_name = "pseudo_4_top"
+res = get_results(run_name)[3]
+policies = load(res, :reopt)
+load(res, :metrics)
+policies[1] |> pretty
+
+# %% ====================  ====================
+# include("bmps_moments_fitting.jl")
 sims = asyncmap(policies) do pol
     simulate_experiment(pol; n_repeat=10)
     # simulate_experiment(pol, prm.μ, prm.σ; n_repeat=10)
 end
-describe_vec(sim_loss.(sims))
+# describe_vec(sim_loss.(sims))
 # %% ====================  ====================
 
 mkpath("figs/$run_name")
@@ -182,7 +194,7 @@ robplot("rt_kde";
 )
 
 robplot("refixate_uncertain";
-    setup=()->plot(xlabel="Fixation advantage of refixated item",
+    setup=()->plot( xlabel="Fixation advantage of refixated item",
                    ylabel="Probability density"),
     plot_human=(trials)->kdeplot!(refixate_uncertain(trials), 100., line=(:black, 2)),
     plot_model=(sim)->kdeplot!(refixate_uncertain(sim), 100., line=(RED, 2, 0.5)),

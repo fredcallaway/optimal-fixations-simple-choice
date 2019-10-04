@@ -1,15 +1,1 @@
-Glob
-Distributions
-Memoize
-Parameters
-SplitApplyCombine
-StaticArrays
-TypedTables
-LatinHypercubeSampling
-ClusterManagers
-StatsBase
-Sobol
-BayesianOptimization
-GaussianProcesses
-DataStructures
-OnlineStats
+Glob Distributions Memoize Parameters SplitApplyCombine StaticArrays TypedTables LatinHypercubeSampling ClusterManagers StatsBase Sobol BayesianOptimization GaussianProcesses DataStructures OnlineStats Optim QuadGK
