@@ -60,6 +60,15 @@ load(res, :metrics)
 policies[1] |> pretty
 
 # %% ====================  ====================
+results = filter(get_results("pseudo_mu_cv")) do res
+    exists(res, :reopt) &&
+    n_free(load(res, :space)) == 4
+end
+i = 1
+policies = load(results[i], :reopt)
+run_name = "pseudo_mu_cv-$i"
+
+# %% ====================  ====================
 # include("bmps_moments_fitting.jl")
 sims = asyncmap(policies) do pol
     simulate_experiment(pol; n_repeat=10)
@@ -204,7 +213,7 @@ robplot("refixate_uncertain";
 for (name, sel) in pairs(selectors)
     robplot("value_duration_" * name, "Item value", "Fixation duration", value_duration_alt, :integer; selector=sel)
 end
-
+run_name
 # %% ====================  ====================
 function pretty(m::MetaMDP)
     println("Parameters")

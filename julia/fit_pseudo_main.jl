@@ -9,9 +9,11 @@ const results = Results("pseudo_mu_cv")
     "fit" => (0, μ_emp),
     "emp" => μ_emp,
 )[ARGS[1]]
+
 index = Dict(
     "odd" => 1:2:length(trials),
     "even" => 2:2:length(trials),
+    "all" => 1:length(trials),
 )[ARGS[2]]
 
 space = Box(
@@ -35,7 +37,7 @@ opt_kws = (
     noisebounds=[-4, 1],
 )
 like_kws = (
-    index = 1:2:length(trials),
+    index = index,
     fit_ε = true,
 )
 
@@ -54,7 +56,8 @@ function loss(prm::Params; kws...)
          verbose=false)
     global loss_iter += 1
     baseline = length(like_kws.index) * log(P_RAND)
-    isfinite(likelihood) ? min(likelihood / baseline, 10) : 10
+    max_loss = like_kws.fit_ε ? 1 : 3
+    isfinite(likelihood) ? min(likelihood / baseline, max_loss) : max_loss
 end
 
 function loss(x::Vector{Float64}; kws...)
@@ -79,6 +82,11 @@ function reoptimize(prm::Params; N=16)
         optimize_bmps(m; α=prm.α)
     end
     save(results, :reopt, policies)
+    reopt_like = asyncmap(policies) do pol
+        total_likelihood(policy, prm; like_kws...)
+    end
+    save(results, :reopt_like, reopt_like)
+
 end
 
 opt = gp_minimize(loss, n_free(space); run=false, opt_kws...)
