@@ -48,6 +48,20 @@ function voi_action(b::Belief, a::Int)
     expect_max_dist(d, cv) - maximum(b.µ)
 end
 
+function expected_max_norm(μ, λ)
+    dists = Normal.(μ, λ.^-0.5)
+    mcdf(x) = mapreduce(*, dists) do d
+        cdf(d, x)
+    end
+
+    quadgk(x->1-mcdf(x), 0, 10, atol=1e-5)[1] -
+      quadgk(mcdf, -10, 0, atol=1e-5)[1]
+end
+
+function vpi_clever(b)
+    expected_max_norm(b.μ, b.λ) - maximum(b.μ)
+end
+
 function vpi(b::Belief, n_sample)
     R = randn!(mem_zeros(n_sample, length(b.µ)))
     @. R = R * (b.λ ^ -0.5)' + b.μ'

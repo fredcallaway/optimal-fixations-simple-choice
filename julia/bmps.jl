@@ -37,20 +37,6 @@ function full_voc(pol::BMPSPolicy, b::Belief, vpi_samples=10000)
 end
 
 
-function expected_max_norm(μ, λ)
-    dists = Normal.(μ, λ.^-0.5)
-    mcdf(x) = mapreduce(*, dists) do d
-        cdf(d, x)
-    end
-
-    quadgk(x->1-mcdf(x), 0, 5, atol=1e-5)[1] -
-      quadgk(mcdf, -5, 0, atol=1e-5)[1]
-end
-
-function vpi_clever(b)
-    expected_max_norm(b.μ, b.λ) - maximum(b.μ)
-end
-
 function act(pol::BMPSPolicy, b::Belief; clever=true)
     if !clever && (pol.α < Inf)
         voc = [0; full_voc(pol, b)]
