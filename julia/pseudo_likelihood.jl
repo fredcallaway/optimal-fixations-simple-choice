@@ -63,16 +63,23 @@ end
         (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times)
     end
 
-    function get_metrics(policy, prm, v, N)
-        ms = @distributed vcat for i in 1:N
-            sim = sim_one(policy, prm, v)
-            n_fix(sim) == 0 ? missing : apply_metrics(sim)
+    function get_metrics(policy, prm, v, N, parallel)
+        if parallel
+            ms = @distributed vcat for i in 1:N
+                sim = sim_one(policy, prm, v)
+                n_fix(sim) == 0 ? missing : apply_metrics(sim)
+            end
+        else
+            ms = map(1:N) do i
+                sim = sim_one(policy, prm, v)
+                n_fix(sim) == 0 ? missing : apply_metrics(sim)
+            end
         end
         skipmissing(ms)
     end
-    function likelihood_matrix(policy, prm, v::Vector{Float64}; N=N_SIM_HIST)
+    function likelihood_matrix(policy, prm, v::Vector{Float64}; N=N_SIM_HIST, parallel=true)
         L = zeros(histogram_size...)
-        for m in get_metrics(policy, prm, v, N)
+        for m in get_metrics(policy, prm, v, N, parallel)
             L[m...] += 1
         end
         L ./ sum(L)
@@ -80,34 +87,36 @@ end
 end
 
 # %% ====================  ====================
-using Optim
+@everywhere begin
+    using Optim
 
-const P_RAND = 1 / prod(histogram_size)
-const BASELINE = log(P_RAND) * length(trials)
+    const P_RAND = 1 / prod(histogram_size)
+    const BASELINE = log(P_RAND) * length(trials)
 
-function total_likelihood(policy, prm; fit_ε, index)
-    fit_trials = trials[index]
-    vs = unique(sort(t.value) for t in fit_trials);
-    sort!(vs, by=std)  # fastest trials last for parallel efficiency
-    out = asyncmap(vs) do v
-        likelihood_matrix(policy, prm, v)
-    end
-
-    likelihoods = Dict(zip(vs, out))
-    function likelihood(policy, t::Trial)
-        L = likelihoods[sort(t.value)]
-        L[apply_metrics(t)...]
-    end
-
-    X = likelihood.([policy], fit_trials);
-
-    if fit_ε
-        opt = Optim.optimize(0, 1) do ε
-            -sum(@. log(ε * P_RAND + (1 - ε) * X))
+    function total_likelihood(policy, prm; fit_ε, index, parallel=true)
+        fit_trials = trials[index]
+        vs = unique(sort(t.value) for t in fit_trials);
+        sort!(vs, by=std)  # fastest trials last for parallel efficiency
+        out = (parallel ? asyncmap : map)(vs) do v
+            likelihood_matrix(policy, prm, v; parallel=parallel)
         end
-        -opt.minimum
-    else
-        ε = prod(histogram_size) / (N_SIM_HIST + prod(histogram_size))
-        sum(@. log(ε * P_RAND + (1 - ε) * X))
+
+        likelihoods = Dict(zip(vs, out))
+        function likelihood(policy, t::Trial)
+            L = likelihoods[sort(t.value)]
+            L[apply_metrics(t)...]
+        end
+
+        X = likelihood.([policy], fit_trials);
+
+        if fit_ε
+            opt = Optim.optimize(0, 1) do ε
+                -sum(@. log(ε * P_RAND + (1 - ε) * X))
+            end
+            -opt.minimum
+        else
+            ε = prod(histogram_size) / (N_SIM_HIST + prod(histogram_size))
+            sum(@. log(ε * P_RAND + (1 - ε) * X))
+        end
     end
 end
