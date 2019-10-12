@@ -60,6 +60,12 @@ load(res, :metrics)
 policies[1] |> pretty
 
 # %% ====================  ====================
+run_name = "eps_0.4"
+res = get_result("results/pseudo_mu_cv/2019-10-11T14-54-09-Btf/")
+policies = load(res, :reopt)
+policies[1] |> pretty
+
+# %% ====================  ====================
 results = filter(get_results("pseudo_mu_cv")) do res
     exists(res, :reopt) &&
     n_free(load(res, :space)) == 4
@@ -68,7 +74,9 @@ i = 1
 policies = load(results[i], :reopt)
 run_name = "pseudo_mu_cv-$i"
 
-# %% ====================  ====================
+
+
+# %% ==================== GENERATE SIMS ====================
 # include("bmps_moments_fitting.jl")
 sims = asyncmap(policies) do pol
     simulate_experiment(pol; n_repeat=10)

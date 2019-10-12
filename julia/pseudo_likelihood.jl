@@ -93,12 +93,12 @@ end
     const P_RAND = 1 / prod(histogram_size)
     const BASELINE = log(P_RAND) * length(trials)
 
-    function total_likelihood(policy, prm; fit_ε, index, parallel=true)
+    function total_likelihood(policy, prm; fit_ε, index, max_ε, parallel=true, n_sim_hist=N_SIM_HIST)
         fit_trials = trials[index]
         vs = unique(sort(t.value) for t in fit_trials);
         sort!(vs, by=std)  # fastest trials last for parallel efficiency
         out = (parallel ? asyncmap : map)(vs) do v
-            likelihood_matrix(policy, prm, v; parallel=parallel)
+            likelihood_matrix(policy, prm, v; parallel=parallel, N=n_sim_hist)
         end
 
         likelihoods = Dict(zip(vs, out))
@@ -110,13 +110,13 @@ end
         X = likelihood.([policy], fit_trials);
 
         if fit_ε
-            opt = Optim.optimize(0, 1) do ε
+            opt = Optim.optimize(0, max_ε) do ε
                 -sum(@. log(ε * P_RAND + (1 - ε) * X))
             end
-            -opt.minimum
+            -opt.minimum, opt.minimizer
         else
             ε = prod(histogram_size) / (N_SIM_HIST + prod(histogram_size))
-            sum(@. log(ε * P_RAND + (1 - ε) * X))
+            sum(@. log(ε * P_RAND + (1 - ε) * X)), ε
         end
     end
 end

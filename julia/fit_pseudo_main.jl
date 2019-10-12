@@ -10,11 +10,16 @@ const results = Results("pseudo_mu_cv")
     "emp" => μ_emp,
 )[ARGS[1]]
 
+fit_ε = Dict(
+    "fit" => true,
+    "one" => false,
+)[ARGS[2]]
+
 index = Dict(
     "odd" => 1:2:length(trials),
     "even" => 2:2:length(trials),
     "all" => 1:length(trials),
-)[ARGS[2]]
+)[ARGS[3]]
 
 space = Box(
     :α => (50, 1000, :log),
@@ -38,30 +43,36 @@ opt_kws = (
 )
 like_kws = (
     index = index,
-    fit_ε = true,
+    fit_ε = fit_ε,
+    max_ε = 0.2
 )
+
 
 save(results, :opt_kws, opt_kws)
 save(results, :like_kws, like_kws)
 save(results, :metrics, the_metrics)
 save(results, :space, space)
 
+@info "Begin fitting" opt_kws like_kws
+
 loss_iter = 1
 function loss(prm::Params; kws...)
     m = MetaMDP(prm)
     policy = optimize_bmps(m; α=prm.α, kws...)
-    likelihood = total_likelihood(policy, prm; like_kws...)
+    likelihood, ε = total_likelihood(policy, prm; like_kws...)
     save(results, Symbol(string("loss_", lpad(loss_iter, 3, "0"))),
-         (prm=prm, policy=policy, likelihood=likelihood);
+         (prm=prm, policy=policy, ε=ε, likelihood=likelihood);
          verbose=false)
     global loss_iter += 1
     baseline = length(like_kws.index) * log(P_RAND)
-    max_loss = like_kws.fit_ε ? 1 : 3
-    isfinite(likelihood) ? min(likelihood / baseline, max_loss) : max_loss
+    max_loss = 2
+    ll = isfinite(likelihood) ? min(likelihood / baseline, max_loss) : max_loss
+    @printf "%.2f   %.4f" ε ll
+    ll
 end
 
 function loss(x::Vector{Float64}; kws...)
-    # println(round.(x; digits=4))
+    print(" "^80, "\r", "($loss_iter)  ", round.(x; digits=3), "  =>  ")
     loss(Params(space(x)); kws...)
 end
 
@@ -71,7 +82,7 @@ function fit(opt)
         find_model_max!(opt)
         prm = opt.model_optimizer |> space |> Params
         save(results, Symbol(string("mle_", loss_iter)), prm)
-        @info "Iteration $loss_iter" prm opt.model_optimum
+        @info "Iteration $loss_iter" prm opt
     end
     opt.model_optimizer |> space |> Params
 end
@@ -82,14 +93,15 @@ function reoptimize(prm::Params; N=16)
         optimize_bmps(m; α=prm.α)
     end
     save(results, :reopt, policies)
-    reopt_like = asyncmap(policies) do pol
+    reopt_like = asyncmap(policies) do policy
         total_likelihood(policy, prm; like_kws...)
     end
     save(results, :reopt_like, reopt_like)
 
 end
 
-opt = gp_minimize(loss, n_free(space); run=false, opt_kws...)
+opt = gp_minimize(loss, n_free(space); run=false, verbose=false, opt_kws...)
+
 mle = fit(opt)
-reoptimize(mle)
 save(results, :opt, opt)
+reoptimize(mle)

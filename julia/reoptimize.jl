@@ -10,8 +10,7 @@ end
 # results = get_result("results/pseudo_3_epsilon/2019-09-24T10-51-38-6fl/")
 
 # %% ====================  ====================
-results = get_result("results/pseudo_4_top/2019-09-25T00-49-00-BoJ/")
-
+results = get_result("results/pseudo_mu_cv/2019-10-11T14-54-09-Btf")
 
 function reoptimize(prm::Params; N=16)
     policies = asyncmap(1:N) do i
@@ -21,4 +20,4 @@ function reoptimize(prm::Params; N=16)
     save(results, :reopt, policies)
 end
 
-reoptimize(load(results, :mle_101))
+reoptimize(load(results, :mle_601))

@@ -38,10 +38,11 @@ end |> invert
 
 # %% ====================  ====================
 d = n_free(space)
-d = 2
 model = ElasticGPE(d,
   mean = MeanConst(0.),
-  kernel = Mat32Ard(zeros(d), 5.),
+  # kernel = Mat32Ard(zeros(d), 5.),
+  # kernel = SE(0., 0.),
+  kernel = Mat32Iso(0., 0.),
   logNoise = -2.,
   capacity = length(xs)
 )
@@ -49,31 +50,40 @@ model = ElasticGPE(d,
 model_optimizer = MAPGPOptimizer(
     every = 20,
     noisebounds = [-4, 5],
-    maxeval = 200
+    # kernbounds=[[-2, -2], [0, 0,]]
+    # maxeval = 200
 )
+using BayesianOptimization
 function tell!(x, y; opt=true)
     append!(model, reshape(x, (:, 1)), [y])
+    # (model_optimizer.i % model_optimizer.every == 0) |> println
+
     if opt
         BayesianOptimization.optimizemodel!(model_optimizer, model)
     end
+
+    # if opt && (model_optimizer.i % model_optimizer.every == 0)
+    #     println("opt")
+    #     # optimize!(model, noisebounds=[-4, 5])
+    # end
 end
 
-
-X = rand(d, 200)
-xs = splitdims(X)
-y = sum(X; dims=1)[:]
-# y = X[1, :] .+ X[2, :] .+ X[3, :] .+ X[4, :]
 
 for i in 1:100
     tell!(xs[i], y[i]; opt=false)
 end
 
 
+#=
+It looks like the every keyword does not work correctly?
+=#
+
 preds = map(101:length(y)) do i
     print('.')
     yhat, yvar = predict_f(model, reshape(xs[i], (:, 1)))
+    tell!(xs[i], y[i])
     (xs[i], y[i], yhat[1], √yvar[1])
-end
+end;
 
 open("tmp/preds", "w") do f
     serialize(f, preds)
