@@ -73,7 +73,17 @@ end
 i = 1
 policies = load(results[i], :reopt)
 run_name = "pseudo_mu_cv-$i"
+# %% ====================  ====================
+run_name = "propfix"
+res = get_result("results/fit_pseudo_preopt/2019-10-13T10-37-07-KEO")
+policies = load(res, :reopt)
+policies[1] |> pretty
 
+# %% ====================  ====================
+run_name = "choice_only"
+res = get_result("results/fit_pseudo_preopt/2019-10-14T11-20-42-C8W/")
+policies = load(res, :reopt)
+policies[1] |> pretty
 
 
 # %% ==================== GENERATE SIMS ====================
@@ -222,7 +232,7 @@ for (name, sel) in pairs(selectors)
     robplot("value_duration_" * name, "Item value", "Fixation duration", value_duration_alt, :integer; selector=sel)
 end
 run_name
-# %% ====================  ====================
+ # %% ====================  ====================
 function pretty(m::MetaMDP)
     println("Parameters")
     @printf "  σ_obs: %.2f\n  sample_cost: %.4f\n  switch_cost: %.4f\n" m.σ_obs m.sample_cost m.switch_cost

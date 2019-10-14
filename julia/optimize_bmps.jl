@@ -1,5 +1,4 @@
 using Distributed
-using SharedArrays
 using Printf
 using Sobol
 using OnlineStats

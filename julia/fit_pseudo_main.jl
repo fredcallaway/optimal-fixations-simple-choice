@@ -77,7 +77,7 @@ function loss(x::Vector{Float64}; kws...)
 end
 
 function fit(opt)
-    for i in 1:8
+    for i in 1:81
         boptimize!(opt)
         find_model_max!(opt)
         prm = opt.model_optimizer |> space |> Params

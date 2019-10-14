@@ -46,3 +46,7 @@ function exists(r::Results, name::Symbol)
     file = "$(dir(r))/$name"
     isfile(path(r, name))
 end
+
+function Base.keys(r::Results)
+    [Symbol(x) for x in readdir(dir(r)) if x != "_r"]
+end
