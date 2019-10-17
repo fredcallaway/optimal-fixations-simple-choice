@@ -15,3 +15,10 @@ function softmax(x)
     ex ./= sum(ex)
     ex
 end
+
+# import Serialization: serialize
+# function serialize(s::String, x)
+#     open(s, "w") do f
+#         Serialization.serialize(f, x)
+#     end
+# end

@@ -2,10 +2,11 @@ using BayesianOptimization, GaussianProcesses, Distributions
 using Distributed
 using Serialization
 
-function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=true,
+function gp_minimize(f::Function, d::Int; kernel=Mat32Ard(zeros(d), 5.), verbose=true, init_Xy=nothing, run=true,
                      iterations=400, repetitions=1, acquisition_restarts=50,
-                     optimize_every=20, init_iters=cld(iterations, 4),
-                     acquisition="ei", noisebounds = [-4, 5], )
+                     optimize_every=20, noisebounds = [-4, 5], kernbounds=nothing,
+                     init_iters=cld(iterations, 4),
+                     acquisition="ei", noise=-2, mean=0.)
 
     if acquisition isa String
         acquisition = Dict(
@@ -17,9 +18,9 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=tru
 
 
     model = ElasticGPE(d,
-      mean = MeanConst(0.),
-      kernel = Mat32Ard(zeros(d), 5.),
-      logNoise = -2.,
+      mean = MeanConst(mean),
+      kernel = kernel,
+      logNoise = float(noise),
       capacity = iterations + (init_Xy != nothing ? size(init_Xy[1],2) : 0)
     )
 
@@ -45,12 +46,16 @@ function gp_minimize(f::Function, d::Int; verbose=true, init_Xy=nothing, run=tru
         fx
     end
 
-    model_optimizer = MAPGPOptimizer(
-        every = optimize_every,
-        noisebounds = noisebounds,       # bounds of the logNoise
-        # kernbounds = [[-1, -1, 0], [4, 4, 10]],  # bounds of the 3 parameters GaussianProcesses.get_param_names(model.kernel)
-        maxeval = 200
-    )
+    if optimize_every <= 0
+        model_optimizer = NoModelOptimizer()
+    else
+        model_optimizer = MAPGPOptimizer(
+            every = optimize_every,
+            noisebounds = noisebounds,       # bounds of the logNoise
+            kernbounds = kernbounds,
+            maxeval = 200
+        )
+    end
 
     opt = BOpt(
         g, model,

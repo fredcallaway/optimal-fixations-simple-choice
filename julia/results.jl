@@ -24,7 +24,15 @@ end
 
 get_result(path) = open(deserialize, "$path/_r")
 get_result(name, timestamp) = open(deserialize, "results/$name/$timestamp/_r")
-get_results(name) = sort!(get_result.(name, readdir("results/$name")))
+function get_results(name)
+    map(readdir("results/$name")) do path
+        try
+            get_result(name, path)
+        catch
+            missing
+        end
+    end |> skipmissing |> collect |> sort!
+end
 
 path(r::Results, name::Symbol) = "$(dir(r))/$name"
 

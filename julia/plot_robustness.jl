@@ -1,5 +1,5 @@
 include("plots_base.jl")
-
+include("box.jl")
 using Glob
 using StatsBase
 plot([1,2])
@@ -85,6 +85,58 @@ res = get_result("results/fit_pseudo_preopt/2019-10-14T11-20-42-C8W/")
 policies = load(res, :reopt)
 policies[1] |> pretty
 
+# %% ====================  ====================
+run_name = "fixed"
+res = get_result("results/fit_pseudo_preopt/2019-10-14T11-43-42-IoI/")
+policies = load(res, :reopt)
+load(res, :metrics)
+policies[1] |> pretty
+
+# %% ====================  ====================
+run_name = "top_fix_prop"
+res = get_result("results/fit_pseudo_preopt/2019-10-14T12-31-13-5UF/")
+policies = load(res, :reopt)
+
+# %% ====================  ====================
+results = filter(get_results("new_pseudo")) do res
+    exists(res, :reopt) &&
+    length(load(res, :space)[:μ]) == 1
+end
+display("")
+include("params.jl")
+names = map(results) do res
+    cv = load(res, :like_kws).index[1] == 1 ? "odd" : "even"
+    run_name = join(["new_pseudo_fit_mu", cv, res.uuid], "_")
+    # pretty(load(res, :reopt)[1])
+end
+
+results = results[sortperm(names)]
+
+# %% ====================  ====================
+type2nt(p) = (;(v=>getfield(p, v) for v in fieldnames(typeof(p)))...)
+
+
+map(results) do res
+    mle = load(res, :mle)
+    x = @Select(σ_obs, sample_cost, switch_cost)(mle)
+    (x...,
+     train_loss=mean(x[1] / x[3] for x in load(res, :reopt_like)),
+     test_loss=mean(x[1] / x[3] for x in load(res, :test_like)))
+end |> Table |> println
+
+
+# %% ====================  ====================
+
+include("robust_helper.jl")
+
+for res in results
+    policies = load(res, :reopt)
+    cv = load(res, :like_kws).index[1] == 1 ? "odd" : "even"
+    run_name = join(["new_pseudo_fit_mu", cv, res.uuid], "_")
+    make_plots(policies, run_name)
+end
+
+
 
 # %% ==================== GENERATE SIMS ====================
 # include("bmps_moments_fitting.jl")
@@ -96,6 +148,7 @@ end
 # %% ====================  ====================
 
 mkpath("figs/$run_name")
+
 function robplot(name, xlabel, ylabel, feature, bin_type=nothing, type=:line; after=()->0, kws...)
     hx, hy = feature(trials; kws...)
     bins = make_bins(bin_type, hx)
@@ -231,7 +284,7 @@ robplot("refixate_uncertain";
 for (name, sel) in pairs(selectors)
     robplot("value_duration_" * name, "Item value", "Fixation duration", value_duration_alt, :integer; selector=sel)
 end
-run_name
+
  # %% ====================  ====================
 function pretty(m::MetaMDP)
     println("Parameters")

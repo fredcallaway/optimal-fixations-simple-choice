@@ -1,7 +1,7 @@
 include("results.jl")
 include("pseudo_likelihood.jl")
 include("box.jl")
-const results = Results("pseudo_mu_cv")
+const results = Results("new_pseudo")
 # const results = Results("pseudo_3_epsilon")
 
 
@@ -44,9 +44,8 @@ opt_kws = (
 like_kws = (
     index = index,
     fit_ε = fit_ε,
-    max_ε = 0.2
+    max_ε = 0.5
 )
-
 
 save(results, :opt_kws, opt_kws)
 save(results, :like_kws, like_kws)
@@ -59,32 +58,31 @@ loss_iter = 1
 function loss(prm::Params; kws...)
     m = MetaMDP(prm)
     policy = optimize_bmps(m; α=prm.α, kws...)
-    likelihood, ε = total_likelihood(policy, prm; like_kws...)
+    likelihood, ε, baseline = total_likelihood(policy, prm; like_kws...)
     save(results, Symbol(string("loss_", lpad(loss_iter, 3, "0"))),
          (prm=prm, policy=policy, ε=ε, likelihood=likelihood);
          verbose=false)
     global loss_iter += 1
-    baseline = length(like_kws.index) * log(P_RAND)
+
     max_loss = 2
     ll = isfinite(likelihood) ? min(likelihood / baseline, max_loss) : max_loss
-    @printf "%.2f   %.4f" ε ll
+    @printf "%.2f   %.4f\n" ε ll
     ll
 end
 
 function loss(x::Vector{Float64}; kws...)
-    print(" "^80, "\r", "($loss_iter)  ", round.(x; digits=3), "  =>  ")
+    print("($loss_iter)  ", round.(x; digits=3), "  =>  ")
     loss(Params(space(x)); kws...)
 end
 
 function fit(opt)
-    for i in 1:81
+    for i in 1:4
         boptimize!(opt)
         find_model_max!(opt)
         prm = opt.model_optimizer |> space |> Params
         save(results, Symbol(string("mle_", loss_iter)), prm)
         @info "Iteration $loss_iter" prm opt
     end
-    opt.model_optimizer |> space |> Params
 end
 
 function reoptimize(prm::Params; N=16)
@@ -93,15 +91,32 @@ function reoptimize(prm::Params; N=16)
         optimize_bmps(m; α=prm.α)
     end
     save(results, :reopt, policies)
+
     reopt_like = asyncmap(policies) do policy
         total_likelihood(policy, prm; like_kws...)
     end
     save(results, :reopt_like, reopt_like)
 
+    test_index = setdiff(eachindex(trials), like_kws.index)
+    test_kws = (like_kws..., index=test_index)
+    test_like = asyncmap(policies) do policy
+        total_likelihood(policy, prm; test_kws...)
+    end
+    save(results, :test_like, test_like)
 end
+
+function test_like(res)
+    test_index = setdiff(eachindex(trials), like_kws.index)
+    like_kws = (like_kws..., index=test_index)
+    map(policies) do pol
+        total_likelihood(pol, mle; like_kws...)[1:3]
+    end
 
 opt = gp_minimize(loss, n_free(space); run=false, verbose=false, opt_kws...)
 
-mle = fit(opt)
+fit(opt)
+find_model_max!(opt)
+mle = opt.model_optimizer |> space |> Params
+save(results, :mle, mle)
 save(results, :opt, opt)
 reoptimize(mle)

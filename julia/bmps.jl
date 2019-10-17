@@ -2,7 +2,7 @@ using Memoize
 using Random
 using Distributions
 using StatsBase
-using OnlineStats
+# using OnlineStats
 using QuadGK
 
 include("utils.jl")
@@ -49,38 +49,25 @@ function act(pol::BMPSPolicy, b::Belief; clever=true)
     if pol.α < Inf
         voc .+= rand(Gumbel(), pol.m.n_arm) ./ pol.α
         voc .-= rand(Gumbel()) / pol.α  # for term action
+    else
+        # break ties randomly
+        voc .+= 1e-10 * rand(length(voc))
     end
 
-    v, c = findmax(noisy(voc))
+    # Choose candidate based
+    v, c = findmax(voc)
     v > 0 && return c
 
     # No computation is good enough without VPI.
     # Try putting VPI weight on VOI_action (a lower bound on VPI)
     v + θ.vpi * voi_action(b, c) > 0 && return c
 
-    # Still no luck. Try actual VPI. To make the VPI estimation as fast and accurate as possible,
-    # we don't use a fixed number of samples. Instead, we continually add samples until
-    # the estimate is precise "enough". The estimate is precise enough when:
-    # (1) the uncertainty point (VOC=0) is not within 3 standard errors, OR
-    # (2) the standard error is less than 1e-4
-    # (3) 100,000 samples of the VPI have been taken
-
     θ.vpi == 0. && return ⊥  # no weight on VPI, VOC can't improve
 
+    # Try actual VPI.
     v + θ.vpi * vpi_clever(b) > 0 && return c
-    return ⊥
 
-    vpi = Variance()  # tracks mean and variance of running VPI samples
-
-    for i in 1:200
-        fit!(vpi, vpi!(mem_zeros(500), b))  # add 500 samples
-        μ_voc = v + θ.vpi * vpi.μ
-        σ_voc = θ.vpi * √(vpi.σ2 / vpi.n)
-        # (σ_voc < 1e-4 || abs(μ_voc - 0) > 3 * σ_voc) && println("$i iterations")
-        (σ_voc < 1e-4 || abs(μ_voc - 0) > 3 * σ_voc) && break
-        # (i == 100000) && println("Warning: VPI estimation did not converge.")
-    end
-    v + θ.vpi * vpi.μ > 0 && return c
+    # Nope.
     return ⊥
 end
 

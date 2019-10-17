@@ -68,7 +68,7 @@ end
     # const P_RAND = 1 / prod(histogram_size)
     # const BASELINE = log(P_RAND) * length(trials)
 
-    function total_likelihood(metrics, policy, prm; fit_ε, index, max_ε, parallel=true, n_sim_hist=N_SIM_HIST)
+    function total_likelihood(policy, prm; fit_ε, index, max_ε, metrics=the_metrics, parallel=true, n_sim_hist=N_SIM_HIST)
         fit_trials = trials[index]
         vs = unique(sort(t.value) for t in fit_trials);
         sort!(vs, by=std)  # fastest trials last for parallel efficiency
@@ -80,6 +80,7 @@ end
         apply_metrics = juxt(metrics...)
         histogram_size = Tuple(length(m.bins) for m in metrics)
         p_rand = 1 / prod(histogram_size)
+        baseline = log(p_rand) * length(index)
 
         function likelihood(policy, t::Trial)
             L = likelihoods[sort(t.value)]
@@ -95,6 +96,6 @@ end
         else
             ε = prod(histogram_size) / (N_SIM_HIST + prod(histogram_size))
         end
-        f(ε), ε, likelihoods
+        f(ε), ε, baseline, likelihoods
     end
 end

@@ -12,7 +12,9 @@ end
 # %% ====================  ====================
 # results = get_result("results/pseudo_mu_cv/2019-10-11T14-54-09-Btf")
 # results = get_result("results/fit_pseudo_preopt/2019-10-13T10-37-07-KEO/")
-results = get_result("results/fit_pseudo_preopt/2019-10-14T11-20-42-C8W/")
+# results = get_result("results/fit_pseudo_preopt/2019-10-14T11-43-42-IoI/")
+results = get_result(ARGS[1])
+
 function reoptimize(prm::Params; N=16)
     policies = asyncmap(1:N) do i
         m = MetaMDP(prm)
