@@ -1,6 +1,7 @@
 using Memoize
 using Distributions
 using Random
+using QuadGK
 
 # %% ==================== Utilities ====================
 
@@ -32,6 +33,7 @@ end
 
 # %% ==================== Features ====================
 
+"Value of information from n samples of item c"
 function voi_n(b::Belief, c::Computation, n::Int)
     cv = competing_value(b.µ, c)
     σ_μ = std_of_posterior_mean(b.λ[c], b.σ_obs / √n)
@@ -40,60 +42,36 @@ function voi_n(b::Belief, c::Computation, n::Int)
     expect_max_dist(d, cv) - maximum(b.µ)
 end
 
+"Myopic value of information"
 voi1(b, c) = voi_n(b, c, 1)
 
+"Value of perfect information about one action"
 function voi_action(b::Belief, a::Int)
     cv = competing_value(b.µ, a)
     d = Normal(b.µ[a], b.λ[a] ^ -0.5)
     expect_max_dist(d, cv) - maximum(b.µ)
 end
 
+"Expected maximum of Normals with means μ and precisions λ"
 function expected_max_norm(μ, λ)
     dists = Normal.(μ, λ.^-0.5)
     mcdf(x) = mapreduce(*, dists) do d
         cdf(d, x)
     end
 
-    quadgk(x->1-mcdf(x), 0, 10, atol=1e-5)[1] -
-      quadgk(mcdf, -10, 0, atol=1e-5)[1]
+    - quadgk(mcdf, -10, 0, atol=1e-5)[1]
+      + quadgk(x->1-mcdf(x), 0, 10, atol=1e-5)[1]
 end
 
-function vpi_clever(b)
+"Value of perfect information about all items"
+function vpi(b)
     expected_max_norm(b.μ, b.λ) - maximum(b.μ)
 end
 
-function vpi(b::Belief, n_sample)
+"VPI approximated with Monte Carlo instead of numerical integration"
+function vpi_montecarlo(b::Belief, n_sample)
     R = randn!(mem_zeros(n_sample, length(b.µ)))
     @. R = R * (b.λ ^ -0.5)' + b.μ'
     max_samples = maximum!(mem_zeros(n_sample), R)
     mean(max_samples) - maximum(b.µ), std(max_samples)
 end
-
-function vpi!(x::Vector{Float64}, b::Belief)
-    R = randn!(mem_zeros(length(x), length(b.µ)))
-    @. R = R * (b.λ ^ -0.5)' + b.μ'
-    maximum!(x, R)
-    x .-= maximum(b.µ)
-end
-
-
-# x = mem_zeros(1000)
-# mean(vpi!(x, b))
-
-"A structure to store increasingly precise VPI estimates."
-mutable struct VPI
-    b::Belief
-    µ::Float64  # running empirical mean
-    σ::Float64  # running empirical std (sort of)
-    n::Int      # number of samples
-end
-VPI(b::Belief) = VPI(b, 0., 0., 0)
-
-function step!(v::VPI, n_sample=100)
-    n1 = v.n + n_sample
-    μ, σ = vpi(v.b, n_sample)
-    v.μ = v.n/n1 * v.μ + n_sample/n1 * μ
-    v.σ = v.n/n1 * v.σ + n_sample/n1 * σ
-    v.n = n1
-end
-
