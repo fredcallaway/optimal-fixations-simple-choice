@@ -59,21 +59,22 @@ function plot_human!(feature::Function, bins=nothing, type=:line; kws...)
     plot_human!(bins, hx, hy, type; kws...)
 end
 
-
 function plot_model!(bins, x, y, type=:line; kws...)
     vals = bin_by(bins, x, y)
     if type == :line
         plot!(mids(bins), estimator.(vals),
-              # yerr=ci_err.(estimator, vals),
+              ribbon=ci_err.(estimator, vals),
+              fillalpha=0.1,
               color=RED,
-              line=(RED, :dash, 2),
+              line=(RED, 1),
               label="";
               kws...)
     elseif type == :discrete
-        scatter!(mids(bins), estimator.(vals),
+        plot!(mids(bins), estimator.(vals),
               # yerr=ci_err.(estimator, vals),
               grid=:none,
-              marker=(5, :diamond, RED, stroke(0)),
+              line=(RED, 1),
+              marker=(7, :diamond, RED, stroke(0)),
               label="";
               kws...)
     else
@@ -87,12 +88,6 @@ function plot_model!(sim, feature::Function, bins=nothing, type=:line; kws...)
     bins = make_bins(bins, hx)
     plot_human!(bins, hx, hy, type; kws...)
 end
-
-function plot_model!(feature::Function, bins=nothing, type=:line; kws...)
-    @assert false
-    plot_model!(sim, feature, bins, type; kws...)
-end
-
 
 function cross!(x, y)
     vline!([x], line=(:grey, 0.7), label="")
@@ -108,7 +103,6 @@ function plot_comparison(feature, sim, bins=nothing, type=:line; kws...)
     plot_model!(bins, mx, my, type)
     # title!(@sprintf "Loss = %.3f" make_loss(feature, bins)(sim))
 end
-
 
 function fig(f, name)
     _fig = f()
