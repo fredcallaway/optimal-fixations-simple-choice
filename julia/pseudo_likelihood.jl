@@ -17,12 +17,12 @@ end
     const the_metrics = [
         Metric(total_fix_time, 10),
         Metric(n_fix, Binning([0; 2:7; Inf])),
-        Metric(rank_chosen, Binning(1:4)),
+        Metric(rank_chosen, Binning(1:n_item+1)),
         # Metric(top_fix_proportion, 10)
     ]
     const N_SIM_HIST = 10_000
 
-    const max_steps = Int(cld(maximum(total_fix_time.(trials)), 100))
+    const max_steps = Int(cld(maximum(total_fix_time.(rank_trials)), 100))
 
 
     function sim_one(policy, prm, v)
@@ -36,13 +36,13 @@ end
 
         if parallel
             ms = @distributed vcat for i in 1:N
-                sim = sim_one(policy, prm, v)
+                sim = sim_one(policy, prm, v .+ prm.σ_rating .* randn(n_item))
                 apply_metrics(sim)
                 # n_fix(sim) == 0 ? missing :
             end
         else
             ms = map(1:N) do i
-                sim = sim_one(policy, prm, v)
+                sim = sim_one(policy, prm, v .+ prm.σ_rating .* randn(n_item))
                 apply_metrics(sim)
                 # n_fix(sim) == 0 ? missing :
             end
@@ -50,7 +50,7 @@ end
         skipmissing(ms)
     end
 
-    function likelihood_matrix(metrics, policy, prm, v::Vector{Float64}; N=N_SIM_HIST, parallel=true)
+    function likelihood_matrix(metrics, policy, prm, v; N=N_SIM_HIST, parallel=true)
         histogram_size = Tuple(length(m.bins) for m in metrics)
         apply_metrics = juxt(metrics...)
         L = zeros(histogram_size...)
@@ -66,10 +66,10 @@ end
     using Optim
 
     # const P_RAND = 1 / prod(histogram_size)
-    # const BASELINE = log(P_RAND) * length(trials)
+    # const BASELINE = log(P_RAND) * length(rank_trials)
 
     function total_likelihood(policy, prm; fit_ε, index, max_ε, metrics=the_metrics, parallel=true, n_sim_hist=N_SIM_HIST)
-        fit_trials = trials[index]
+        fit_trials = rank_trials[index]
         vs = unique(sort(t.value) for t in fit_trials);
         sort!(vs, by=std)  # fastest trials last for parallel efficiency
         out = (parallel ? asyncmap : map)(vs) do v
@@ -94,7 +94,7 @@ end
         if fit_ε
             ε = Optim.optimize(ε->-f(ε), 0, max_ε).minimizer
         else
-            ε = prod(histogram_size) / (N_SIM_HIST + prod(histogram_size))
+            ε = prod(histogram_size) / (n_sim_hist + prod(histogram_size))
         end
         f(ε), ε, baseline, likelihoods
     end

@@ -22,7 +22,7 @@ struct Metric{F}
 end
 
 function Metric(f::Function, n::Int)
-    bins = Binning(f.(trials), n)
+    bins = Binning(f.(rank_trials), n)
     bins.limits[1] = -Inf; bins.limits[end] = Inf
     Metric(f, bins)
 end
@@ -45,4 +45,9 @@ function fix_time_var(t)
     fft = final_fix_times(t)
     fft ./= sum(fft)
     var(fft)
+end
+
+function propfix(t)
+    prop = total_fix_times(t)
+    prop ./= sum(prop)
 end
