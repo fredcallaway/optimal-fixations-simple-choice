@@ -3,6 +3,9 @@ using Distributions
 using Random
 using QuadGK
 
+using StatsFuns: normcdf, normpdf
+Φ = normcdf
+ϕ = normpdf
 # %% ==================== Utilities ====================
 
 @memoize mem_zeros(dims...) = zeros(dims...)
@@ -54,13 +57,19 @@ end
 
 "Expected maximum of Normals with means μ and precisions λ"
 function expected_max_norm(μ, λ)
+    if length(μ) == 2
+        μ1, μ2 = μ
+        σ1, σ2 = λ .^ -0.5
+        θ = √(σ1^2 + σ2^2)
+        return μ1 * Φ((μ1 - μ2) / θ) + μ2 * Φ((μ2 - μ1) / θ) + θ * ϕ((μ1 - μ2) / θ)
+    end
+
     dists = Normal.(μ, λ.^-0.5)
     mcdf(x) = mapreduce(*, dists) do d
         cdf(d, x)
     end
 
-    - quadgk(mcdf, -10, 0, atol=1e-5)[1]
-      + quadgk(x->1-mcdf(x), 0, 10, atol=1e-5)[1]
+    - quadgk(mcdf, -10, 0, atol=1e-5)[1] + quadgk(x->1-mcdf(x), 0, 10, atol=1e-5)[1]
 end
 
 "Value of perfect information about all items"
