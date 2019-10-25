@@ -32,6 +32,10 @@ function fast_voc(pol::BMPSPolicy, b::Belief)
     end
 end
 
+function voc(pol::BMPSPolicy, b::Belief)
+    fast_voc(pol, b) .+ vpi(b)
+end
+
 function act(pol::BMPSPolicy, b::Belief; clever=true)
     θ = pol.θ
     voc = fast_voc(pol, b)
@@ -40,7 +44,7 @@ function act(pol::BMPSPolicy, b::Belief; clever=true)
         voc .+= vpi(b)
         if pol.α == Inf
             v, c = findmax(voc)
-            return v > 0 : c ? ⊥
+            return (v > 0) ? c : ⊥
         else
             p = softmax(pol.α .* [0; voc])
             return sample(0:pol.m.n_arm, Weights(p))

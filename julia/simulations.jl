@@ -51,6 +51,7 @@ end
 # end
 
 function simulate_experiment(policy::Policy, μ=μ_emp, σ=σ_emp; n_repeat=100, sample_time=100)
+    @assert policy.m.n_arm == length(trials.value[1])  # policy must be trained on correct number of items
     sim = @distributed vcat for v in repeat(trials.value, n_repeat)
         sim = simulate(policy, (v .- μ) ./ σ)
         fixs, fix_times = parse_fixations(sim.samples, sample_time)

@@ -85,7 +85,7 @@ map(counts, invert(map(juxt(metrics...), sims)))
 @everywhere function like(policy, σ_rating)
     logp, ε, baseline, lk = total_likelihood(policy,
         (μ=μ_emp, σ=σ_emp, sample_time=100, σ_rating=σ_rating);
-        n_sim_hist=1000, parallel=false, like_kws...);
+        n_sim_hist=1000, parallel=false, metrics=metrics, like_kws...);
     logp / baseline
 end
 
@@ -93,7 +93,7 @@ end
 @time l0 = pmap(policies) do pol
     like(pol, 0)
 end
-println(policies[argmin(like)])
+println(policies[argmin(l0)])
 
 @time l1 = pmap(policies) do pol
     like(pol, 1)
@@ -101,9 +101,12 @@ end
 
 rank = sortperm(l0)
 best = rank[1:50]
-l0[best]
 
+l0[old_best]
 
+[best old_best]
+
+x = [1, 2]
 
 # %% ==================== Pre simulate ====================
 

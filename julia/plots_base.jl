@@ -1,4 +1,4 @@
-rusing Distributed
+using Distributed
 nprocs() == 1 && addprocs()
 @everywhere begin
     cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
@@ -17,7 +17,6 @@ Plots.scalefontsizes(1.5)
 const N_BOOT = 1000
 using Bootstrap
 using Printf
-using Plots: px
 estimator = mean
 ci = 0.95
 RED = colorant"#FF6167"
@@ -123,4 +122,18 @@ end
 
 function kdeplot!(x, bw::Float64; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95), kws...)
     kdeplot!(kde(x, bandwidth=bw), xmin, xmax; kws...)
+end
+
+using DataFrames
+type2nt(p) = (;(v=>getfield(p, v) for v in fieldnames(typeof(p)))...)
+function results_table(results)
+    map(results) do res
+        mle = load(res, :mle)
+        # x = @Select(σ_obs, sample_cost, switch_cost, α, μ)(mle)
+        x = type2nt(mle)
+        (x...,
+         train_loss=mean(x[1] / x[3] for x in load(res, :reopt_like)),
+         test_loss=mean(x[1] / x[3] for x in load(res, :test_like))
+         )
+    end |> DataFrame
 end

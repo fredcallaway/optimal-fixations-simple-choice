@@ -1,5 +1,4 @@
 using Parameters
-
 @isdefined(⊥) || const ⊥ = 0  # terminal action
 @isdefined(Computation) || const Computation = Int
 

@@ -33,6 +33,9 @@ function relative_left(x)
     x[1] - mean(x[2:end])
 end
 
+others(i) = setdiff(1:n_item, i)
+relative(x) = [x[i] - mean(x[others(i)]) for i in eachindex(x)]
+
 function total_fix_times(t; fix_select=allfix)::Vector{Float64}
     x = zeros(n_item)
     for i in eachindex(t.fixations)
@@ -68,7 +71,7 @@ function difference_nfix(trials)
     difficulty.(trials.value), length.(trials.fixations)
 end
 
-function fixate_on_(trials, which; sample_time=10, cutoff=2000, n_bin=5, nonfinal=true)
+function fixate_on_(trials, which; sample_time=10, cutoff=2000, n_bin=5, nonfinal=false)
     n_sample = Int(cutoff / sample_time)
     spb = Int(n_sample/n_bin)
     x = Int[]
@@ -104,7 +107,7 @@ function value_bias(trials; fix_select=allfix)
     x, y
 end
 
-function refixate_uncertain(trials)
+function refixate_uncertain(trials; compare_to_prev=true)
     options = Set(1:n_item)
     x = Float64[]
     for t in trials
@@ -115,8 +118,13 @@ function refixate_uncertain(trials)
             fix_time = t.fix_times[i]
             if i > 2
                 prev = t.fixations[i-1]
-                alt = n_item == 2 ? prev : pop!(setdiff(options, [prev, fix]))
-                push!(x, cft[fix] - cft[alt])
+                if n_item == 3 && compare_to_prev
+                    others = [i for i in options if i != fix]
+                    push!(x, cft[fix] - mean(cft[others]))
+                else
+                    alt = n_item == 2 ? prev : pop!(setdiff(options, [prev, fix]))
+                    push!(x, cft[fix] - cft[alt])
+                end
             end
             cft[fix] += fix_time
             total += fix_time
@@ -255,18 +263,52 @@ function fixation_bias_corrected(trials)
     x = Float64[]; y = Float64[]
     for t in trials
         ft = total_fix_times(t)
-        b = bins.(relative_value(t))
+        b = bins.(relative(t.value))
         p_val = p_choice[b]
         corrected = (t.choice .== 1:n_item) - p_val
         ft .-= mean(ft)
         # ft ./= sum(ft)
-        for i in 1:n_item
-            push!(x, ft[i])
-            push!(y, corrected[i])
+        push!(x, relative_left(total_fix_times(t)))
+        push!(y, corrected[1])
+    end
+    x, y
+end
+
+function last_fix_bias(trials)
+    x, y = Float64[], Bool[]
+    for t in trials
+        if length(t.fixations) > 0
+            last = t.fixations[end]
+            push!(x, relative(t.value)[last])
+            push!(y, t.choice == last)
         end
     end
     x, y
 end
+
+function first_fixation_duration(trials)
+    x, y = Float64[], Bool[]
+    for t in trials
+        if length(t.fixations) > 0
+            push!(x, t.fix_times[1])
+            push!(y, t.choice == t.fixations[1])
+        end
+    end
+    x, y
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # %% ====================  ====================
@@ -312,29 +354,6 @@ end
 
 # difficulty(v) = (n_item - 1 / n_item) * maximum(v) - mean(v)
 
-
-function first_fixation_duration(trials)
-    x, y = Float64[], Bool[]
-    for t in trials
-        if length(t.fixations) > 0
-            push!(x, t.fix_times[1])
-            push!(y, t.choice == t.fixations[1])
-        end
-    end
-    x, y
-end
-
-function last_fix_bias(trials)
-    x, y = Float64[], Bool[]
-    for t in trials
-        if length(t.fixations) > 0
-            last = t.fixations[end]
-            push!(x, t.value[last] - mean(t.value))
-            push!(y, t.choice == last)
-        end
-    end
-    x, y
-end
 
 function gaze_cascade(trials; k=6)
     denom = zeros(Int, k)

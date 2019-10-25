@@ -7,12 +7,6 @@ include("results.jl")
     include("params.jl")
 end
 
-# results = get_result("results/pseudo_3_epsilon/2019-09-24T10-51-38-6fl/")
-
-# %% ====================  ====================
-# results = get_result("results/pseudo_mu_cv/2019-10-11T14-54-09-Btf")
-# results = get_result("results/fit_pseudo_preopt/2019-10-13T10-37-07-KEO/")
-# results = get_result("results/fit_pseudo_preopt/2019-10-14T11-43-42-IoI/")
 results = get_result(ARGS[1])
 
 function reoptimize(prm::Params; N=16)
@@ -23,4 +17,6 @@ function reoptimize(prm::Params; N=16)
     save(results, :reopt, policies)
 end
 
-reoptimize(load(results, :mle))
+prm = load(results, :mle)
+prm = load(results, :mle_101)
+reoptimize(prm)

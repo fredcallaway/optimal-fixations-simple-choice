@@ -14,12 +14,6 @@ end
 
 
 @everywhere begin
-    const the_metrics = [
-        Metric(total_fix_time, 10),
-        Metric(n_fix, Binning([0; 2:7; Inf])),
-        Metric(rank_chosen, Binning(1:n_item+1)),
-        # Metric(top_fix_proportion, 10)
-    ]
     const N_SIM_HIST = 10_000
 
     const max_steps = Int(cld(maximum(total_fix_time.(rank_trials)), 100))
@@ -68,10 +62,10 @@ end
     # const P_RAND = 1 / prod(histogram_size)
     # const BASELINE = log(P_RAND) * length(rank_trials)
 
-    function total_likelihood(policy, prm; fit_ε, index, max_ε, metrics=the_metrics, parallel=true, n_sim_hist=N_SIM_HIST)
+    function total_likelihood(policy, prm; fit_ε, index, max_ε, metrics, parallel=true, n_sim_hist=N_SIM_HIST)
         fit_trials = rank_trials[index]
         vs = unique(sort(t.value) for t in fit_trials);
-        sort!(vs, by=std)  # fastest trials last for parallel efficiency
+        sort!(vs, by=std)  # fastest rank_trials last for parallel efficiency
         out = (parallel ? asyncmap : map)(vs) do v
             likelihood_matrix(metrics, policy, prm, v; parallel=parallel, N=n_sim_hist)
         end
@@ -82,7 +76,7 @@ end
         p_rand = 1 / prod(histogram_size)
         baseline = log(p_rand) * length(index)
 
-        function likelihood(policy, t::Trial)
+        function likelihood(policy, t)
             L = likelihoods[sort(t.value)]
             L[apply_metrics(t)...]
         end

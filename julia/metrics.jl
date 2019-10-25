@@ -29,7 +29,7 @@ end
 (m::Metric)(t) = t |> m.f |> m.bins
 
 # m = Metric(total_fix_time, 10)
-# counts(m.(trials))  # something's wrong?
+# counts(m.(rank_trials))  # something's wrong?
 
 
 function final_fix_times(t)::Vector{Float64}
@@ -49,5 +49,5 @@ end
 
 function propfix(t)
     prop = total_fix_times(t)
-    prop ./= sum(prop)
+    prop ./= (sum(prop) + eps())
 end
