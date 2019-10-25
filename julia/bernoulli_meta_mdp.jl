@@ -1,3 +1,11 @@
+"""
+Code for the Bernoulli meta-MDP. This is just like the main meta-MDP except
+the Normal distributions are replaced by Bernoulli.
+
+This module defines the meta-MDP, the exact solution by dynamic programming,
+the VOI features, and the BMPS policy.
+"""
+
 using Distributions
 using Memoize
 import Random
@@ -10,7 +18,6 @@ using Memoize
 
 @isdefined(⊥) || const ⊥ = 0
 
-
 @with_kw struct MetaMDP
     n_arm::Int = 3
     sample_cost::Float64 = 0.001
@@ -19,46 +26,46 @@ using Memoize
 end
 
 struct Belief
-    value::Vector{Tuple{Int, Int}}
+    counts::Vector{Tuple{Int, Int}}  # number of heads and tails for each item
     focused::Int
 end
 
 Belief(m::MetaMDP) = begin
-    value = [(1,1) for _ in 1:m.n_arm]
-    Belief(value, 0)
+    counts = [(1,1) for _ in 1:m.n_arm]
+    Belief(counts, 0)
 end
 
-Base.:(==)(b1::Belief, b2::Belief) = b1.focused == b2.focused && b1.value == b2.value
-Base.hash(b::Belief) = hash(b.focused, hash(b.value))
-Base.getindex(b::Belief, idx) = b.value[idx]
-Base.length(b::Belief) = length(b.value)
-Base.iterate(b::Belief) = iterate(b.value)
-Base.iterate(b::Belief, i) = iterate(b.value, i)
+Base.:(==)(b1::Belief, b2::Belief) = b1.focused == b2.focused && b1.counts == b2.counts
+Base.hash(b::Belief) = hash(b.focused, hash(b.counts))
+Base.getindex(b::Belief, idx) = b.counts[idx]
+Base.length(b::Belief) = length(b.counts)
+Base.iterate(b::Belief) = iterate(b.counts)
+Base.iterate(b::Belief, i) = iterate(b.counts, i)
 n_obs(b::Belief) = sum(map(sum, b)) - 2length(b)
 actions(m::MetaMDP, b::Belief) = n_obs(b) >= m.max_obs ? (0:0) : (0:length(b))
 
 function Base.show(io::IO, b::Belief)
     print(io, "[ ")
-    value = map(1:length(b.value)) do i
-        h, t = b.value[i]
+    counts = map(1:length(b.counts)) do i
+        h, t = b.counts[i]
         i == b.focused ? @sprintf("<%02d %02d>", h, t) : @sprintf(" %02d %02d ", h, t)
     end
-    print(io, join(value, " "))
+    print(io, join(counts, " "))
     print(io, " ]")
 end
 
 
 function update(b::Belief, arm::Int, heads::Bool)::Belief
-    value = copy(b.value)
-    h, t = value[arm]
-    value[arm] = heads ? (h+1, t) : (h, t+1)
-    Belief(value, arm)
+    counts = copy(b.counts)
+    h, t = counts[arm]
+    counts[arm] = heads ? (h+1, t) : (h, t+1)
+    Belief(counts, arm)
 end
 
 function update!(b, c)
-    h, t = b.value[c]
+    h, t = b.counts[c]
     heads = rand() < p_heads((h, t))
-    b.value[c] = heads ? (h+1, t) : (h, t+1)
+    b.counts[c] = heads ? (h+1, t) : (h, t+1)
     b
 end
 
@@ -67,11 +74,11 @@ function cost(m::MetaMDP, b::Belief, c::Int)::Float64
     m.sample_cost * (c != b.focused ? m.switch_cost : 1)
 end
 
-p_heads(arm) = arm[1] / (arm[1] + arm[2])
+p_heads(counts) = counts[1] / (counts[1] + counts[2])
 
-term_reward(b::Belief)::Float64 = maximum(p_heads.(b.value))
+term_reward(b::Belief)::Float64 = maximum(p_heads.(b.counts))
 is_terminal(b::Belief) = b.focused == -1
-terminate(b::Belief) = Belief(b.value, -1)
+terminate(b::Belief) = Belief(b.counts, -1)
 
 Result = Tuple{Float64, Belief, Float64}
 function results(m::MetaMDP, b::Belief, c::Int)::Vector{Result}
@@ -79,7 +86,7 @@ function results(m::MetaMDP, b::Belief, c::Int)::Vector{Result}
     if c == ⊥
         return [(1., terminate(b), term_reward(b))]
     end
-    p1 = p_heads(b.value[c])
+    p1 = p_heads(b.counts[c])
     p0 = 1 - p1
     r = -cost(m, b, c)
     [(p0, update(b, c, false), r),
@@ -93,15 +100,15 @@ function voi1(m::MetaMDP, b::Belief, c)
 end
 
 function voi_action(m::MetaMDP, b::Belief, c)
-    vals = [p_heads(arm) for arm in b.value]
-    best, second = sortperm(-vals)
+    vals = [p_heads(counts) for counts in b.counts]
+    best, second = sortperm(vals; rev=true)
     competing_val = c == best ? vals[second] : vals[best]
-    h, t = b.value[c]
+    h, t = b.counts[c]
     expected_max_constant(Beta(h, t), competing_val) - term_reward(b)
 end
 
 function vpi(m::MetaMDP, b::Belief; n_sample=100000)
-    dists = Tuple(Beta(a...) for a in sort(b.value))
+    dists = Tuple(Beta(a...) for a in sort(b.counts))
     vpi(dists, n_sample) - term_reward(b)
 end
 
@@ -128,12 +135,31 @@ function features(m::MetaMDP, b::Belief)
     ]
     combinedims([phi(c) for c in 1:m.n_arm])
 end
+# %% ====================  ====================
+d = Beta(3, 2)
+cv = 0.7
+cv + quadgk(x->1-cdf(d,x), cv, 1)[1]
+quadgk(x->1-cdf(Truncated(d, cv, Inf), x), 0, 1, atol=1e-10)
+
+# %% ====================  ====================
+function emc_mc(d, k; N=100_000)
+    N \ mapreduce(+, 1:N) do i
+        max(rand(d), k)
+    end
+end
+emc_mc(d, cv)
+expected_max_constant(d, cv)
+
+
+d1 = Truncated(d, cv, 1)
+
+cdf(d, 0.70001)
 
 # # %% ==================== Solution ====================
 function symmetry_breaking_hash(s::Belief)
     key = UInt64(0)
-    for i in 1:length(s.value)
-        key += (hash(s.value[i]) << 3(i == s.focused))
+    for i in 1:length(s.counts)
+        key += (hash(s.counts[i]) << 3(i == s.focused))
     end
     key
 end
