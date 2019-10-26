@@ -28,7 +28,7 @@ function ci_err(estimator, y)
     abs.(c[2:3] .- c[1])
 end
 
-function plot_human!(bins, x, y, type=:line; kws...)
+function plot_human!(trials, bins, x, y, type=:line; kws...)
     vals = bin_by(bins, x, y)
     if type == :line
         plot!(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),

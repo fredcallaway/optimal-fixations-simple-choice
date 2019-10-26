@@ -27,22 +27,22 @@ args = parse_args(s)
 
 dataset = args["dataset"]
 const results = Results("$(dataset)_items_fixed")
-if dataset == "two"
-    println("Fitting dataset with two items.")
-    @everywhere load_dataset("two")  # what a hack
-else
-    println("Fitting dataset with three items.")
-end
-# const results = Results("pseudo_3_epsilon")
+
+println("Fitting dataset with $dataset items.")
+all_trials = map(sort_value, load_dataset(dataset))
 
 index = Dict(
-    "odd" => 1:2:length(trials),
-    "even" => 2:2:length(trials),
-    "all" => 1:length(trials),
+    "odd" => 1:2:length(all_trials),
+    "even" => 2:2:length(all_trials),
+    "all" => 1:length(all_trials),
 )[args["index"]]
 
+fit_trials = all_trials[index]
+N_ITEM = length(fit_trials[1].value)
+μ_emp, σ_emp = juxt(mean, std)(flatten(fit_trials.value))
+
 space = Box(
-    :n_arm => n_item,
+    :n_arm => N_ITEM,
     :sample_time => 100,
     :α => (50, 1000, :log),
     :σ_obs => (1, 10),
@@ -53,21 +53,21 @@ space = Box(
     :σ => σ_emp,
 )
 
-@assert all(issorted(t.value) for t in rank_trials)
+# @assert all(issorted(t.value) for t in rank_trials)
 
 if args["propfix"]
     metrics = [
-        Metric(total_fix_time, 5),
+        Metric(total_fix_time, 5, fit_trials),
         Metric(n_fix, Binning([0; 2:7; Inf])),
-        Metric(t->t.choice, Binning(1:n_item+1)),
-        Metric(t->propfix(t)[1], 5),
-        Metric(t->propfix(t)[end], 5)
+        Metric(t->t.choice, Binning(1:N_ITEM+1)),
+        Metric(t->propfix(t)[1], 5, fit_trials),
+        Metric(t->propfix(t)[end], 5, fit_trials)
     ]
 else
     metrics = [
-        Metric(total_fix_time, 10),
-        Metric(n_fix, Binning([0; 2:7; Inf])),
-        Metric(rank_chosen, Binning(1:n_item+1)),
+        Metric(total_fix_time, 10, fit_trials),
+        Metric(n_fix, Binning([0; 2:7; Inf]), fit_trials),
+        Metric(rank_chosen, Binning(1:N_ITEM+1)),
         # Metric(top_fix_proportion, 10)
     ]
 end
@@ -82,7 +82,6 @@ opt_kws = (
 )
 
 like_kws = (
-    index = index,
     fit_ε = !args["fix_eps"],
     max_ε = 0.5,
     metrics = metrics,
@@ -101,6 +100,7 @@ let
     save(results, :like_kws, like_kws)
     save(results, :metrics, metrics)
     save(results, :bmps_kws, bmps_kws)
+    save(results, :index, index)
     save(results, :space, space)
 end
 
@@ -109,7 +109,7 @@ loss_iter = 0
 function loss(prm::Params)
     m = MetaMDP(prm)
     policy = optimize_bmps(m; α=prm.α, bmps_kws...)
-    likelihood, ε, baseline = total_likelihood(policy, prm; like_kws...)
+    likelihood, ε, baseline = total_likelihood(policy, prm, fit_trials; like_kws...)
     save(results, Symbol(string("loss_", lpad(loss_iter, 3, "0"))),
          (prm=prm, policy=policy, ε=ε, likelihood=likelihood);
          verbose=false)
@@ -148,14 +148,14 @@ function reoptimize(prm::Params; N=16)
     save(results, :reopt, policies)
 
     reopt_like = asyncmap(policies) do policy
-        total_likelihood(policy, prm; like_kws...)
+        total_likelihood(policy, prm fit_trials; like_kws...)
     end
     save(results, :reopt_like, reopt_like)
 
     test_index = setdiff(eachindex(trials), like_kws.index)
-    test_kws = (like_kws..., index=test_index)
+    test_trials = all_trials[test_index]
     test_like = asyncmap(policies) do policy
-        total_likelihood(policy, prm; test_kws...)
+        total_likelihood(policy, prm, test_trials; like_kws...)
     end
     save(results, :test_like, test_like)
 end

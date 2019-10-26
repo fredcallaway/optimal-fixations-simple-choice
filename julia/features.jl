@@ -23,6 +23,7 @@ final(t,i) = i == length(t.fixations)
 nonfinal(t, i) = i != length(t.fixations)
 allfix(t, i) = true
 firstfix(t, i) = i == 1
+n_item_(t) = length(t.value)
 
 function difficulty(v)
     v = sort(v; rev=true)
@@ -33,11 +34,10 @@ function relative_left(x)
     x[1] - mean(x[2:end])
 end
 
-others(i) = setdiff(1:n_item, i)
-relative(x) = [x[i] - mean(x[others(i)]) for i in eachindex(x)]
+relative(x) = [x[i] - mean(x[setdiff(1:length(x), i)]) for i in eachindex(x)]
 
 function total_fix_times(t; fix_select=allfix)::Vector{Float64}
-    x = zeros(n_item)
+    x = zeros(n_item_(t))
     for i in eachindex(t.fixations)
         fix_select(t, i) || continue
         fi = t.fixations[i]; ti = t.fix_times[i]
@@ -62,7 +62,7 @@ function difference_time(trials)
     difficulty.(trials.value), sum.(trials.fix_times)
 end
 
-function n_fix_hist(trials)
+function nfix_hist(trials)
     n_fix = length.(trials.fix_times)
     1:10, counts(n_fix, 10) ./ length(n_fix)
 end
@@ -108,21 +108,22 @@ function value_bias(trials; fix_select=allfix)
 end
 
 function refixate_uncertain(trials; compare_to_prev=true)
-    options = Set(1:n_item)
+    n = n_item_(trials[1])
+    options = Set(1:n)
     x = Float64[]
     for t in trials
-        cft = zeros(n_item)
+        cft = zeros(n)
         total = 0
         for i in eachindex(t.fixations)
             fix = t.fixations[i]
             fix_time = t.fix_times[i]
             if i > 2
                 prev = t.fixations[i-1]
-                if n_item == 3 && compare_to_prev
+                if n == 3 && compare_to_prev
                     others = [i for i in options if i != fix]
                     push!(x, cft[fix] - mean(cft[others]))
                 else
-                    alt = n_item == 2 ? prev : pop!(setdiff(options, [prev, fix]))
+                    alt = n == 2 ? prev : pop!(setdiff(options, [prev, fix]))
                     push!(x, cft[fix] - cft[alt])
                 end
             end
@@ -190,7 +191,7 @@ function value_duration(trials; fix_select=allfix)
 end
 
 function last_fixation_duration(trials)
-    x, y = Float64[], Float64[]
+    x = Float64[]; y = Float64[]
     for t in trials
         length(t.fixations) == 0 && continue
         last = t.fixations[end]
@@ -206,9 +207,10 @@ function last_fixation_duration(trials)
 end
 
 function fix4_value(trials)
-    x = Float64[]; y = Float64[]
+    x = Float64[]; y = Float64[]; n = 3
+    @assert n_item_(trials[1]) == 3  # only makes sense for three-item case
     for t in trials
-        if length(t.fixations) > n_item && sort(t.fixations[1:n_item]) == 1:n_item && unique_values(t)
+        if length(t.fixations) > n && sort(t.fixations[1:n]) == 1:n && unique_values(t)
             f1, f2, f3, f4 = t.fixations
             push!(x, t.value[f1] - t.value[f2])
             push!(y, f4 == f1)
@@ -218,9 +220,9 @@ function fix4_value(trials)
 end
 
 function fix4_uncertain(trials)
-    x = Float64[]; y = Float64[]
+    x = Float64[]; y = Float64[]; n = 3
     for t in trials
-        if length(t.fixations) > n_item && sort(t.fixations[1:n_item]) == 1:n_item && unique_values(t)
+        if length(t.fixations) > n && sort(t.fixations[1:n]) == 1:n && unique_values(t)
             f1, f2, f3, f4 = t.fixations
             push!(x, t.fix_times[1] - t.fix_times[2])
             push!(y, f4 == f1)
@@ -229,21 +231,45 @@ function fix4_uncertain(trials)
     x, y
 end
 
-median_value = flatten(trials.value) |> median
-function fix3_value(trials; median_split)
-    x = Float64[]; y = Float64[]
+function fix3_value(trials)
+    x = Float64[]; y = Float64[]; n = 3
     for t in trials
-        if length(t.fixations) >= n_item
+        if length(t.fixations) >= n
             f1, f2, f3 = t.fixations
-            comp = Dict(:top => (>), :bottom => (<=))[median_split]
-            comp(t.value[f1], median_value) || continue
-            # push!(x, tft[f1] - tft[f2])
+            push!(x, t.value[1])
+            push!(y, f3 == f1)
+        end
+    end
+    x, y
+end
+
+function fix3_uncertain(trials)
+    x = Float64[]; y = Float64[]; n = 3
+    for t in trials
+        if length(t.fixations) >= n
+            f1, f2, f3 = t.fixations
             push!(x, t.fix_times[1])
             push!(y, f3 == f1)
         end
     end
     x, y
 end
+#
+# median_value = flatten(trials.value) |> median
+# function fix3_value(trials; median_split)
+#     x = Float64[]; y = Float64[]; n = n_item_(t)
+#     for t in trials
+#         if length(t.fixations) >= n
+#             f1, f2, f3 = t.fixations
+#             comp = Dict(:top => (>), :bottom => (<=))[median_split]
+#             comp(t.value[f1], median_value) || continue
+#             # push!(x, tft[f1] - tft[f2])
+#             push!(x, t.fix_times[1])
+#             push!(y, f3 == f1)
+#         end
+#     end
+#     x, y
+# end
 
 
 function fixation_bias(trials)
@@ -260,12 +286,12 @@ function fixation_bias_corrected(trials)
     bins = bins = Binning(v, 10)
 
     p_choice = bin_by(bins, v, c) .|> mean
-    x = Float64[]; y = Float64[]
+    x = Float64[]; y = Float64[]; n = n_item_(trials[1])
     for t in trials
         ft = total_fix_times(t)
         b = bins.(relative(t.value))
         p_val = p_choice[b]
-        corrected = (t.choice .== 1:n_item) - p_val
+        corrected = (t.choice .== 1:n) - p_val
         ft .-= mean(ft)
         # ft ./= sum(ft)
         push!(x, relative_left(total_fix_times(t)))
@@ -316,9 +342,9 @@ end
 # %% ====================  ====================
 
 function refixate_tft(trials)
-    x = Float64[]; y = Float64[]
+    x = Float64[]; y = Float64[]; n = n_item_(trials[1])
     for t in trials
-        if length(t.fixations) > n_item && sort(t.fixations[1:n_item]) == 1:n_item && unique_values(t)
+        if length(t.fixations) > n && sort(t.fixations[1:n]) == 1:n && unique_values(t)
             f1, f2, f3, f4 = t.fixations
             tft = total_fix_times(t)
             push!(x, tft[f1] - tft[f2])
@@ -352,8 +378,6 @@ function fixation_bias(trials)
     x, y
 end
 
-# difficulty(v) = (n_item - 1 / n_item) * maximum(v) - mean(v)
-
 
 function gaze_cascade(trials; k=6)
     denom = zeros(Int, k)
@@ -384,9 +408,9 @@ function fourth_rank(trials)
         return missing
     end
     n = length(x)
-    p = counts(x, n_item) ./ n
+    p = counts(x, n_item_(t)) ./ n
     std_ = @. √(p * (1 - p) / n)
-    1:n_item, p, std_
+    eachindex(p), p, std_
 end
 
 
@@ -420,13 +444,12 @@ function make_featurizer(feature::Function, bins=nothing)
 end
 
 function value_bias_split(trials; chosen=false)
-    x = Float64[]
-    y = Float64[]
+    x = Float64[]; y = Float64[]; n = n_item_(t)
     for t in trials
         rv = relative_value(t)
         tft = total_fix_times(t)
         pft = tft ./ (sum(tft) + eps())
-        for i in 1:n_item
+        for i in 1:n
             if chosen == (i == t.choice)
                 push!(x, rv[i])
                 push!(y, pft[i])

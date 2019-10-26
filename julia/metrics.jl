@@ -21,8 +21,8 @@ struct Metric{F}
     bins::Binning
 end
 
-function Metric(f::Function, n::Int)
-    bins = Binning(f.(rank_trials), n)
+function Metric(f::Function, n::Int, trials)
+    bins = Binning(f.(trials), n)
     bins.limits[1] = -Inf; bins.limits[end] = Inf
     Metric(f, bins)
 end

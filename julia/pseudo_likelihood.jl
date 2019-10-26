@@ -15,12 +15,10 @@ end
 
 @everywhere begin
     const N_SIM_HIST = 10_000
-
-    const max_steps = Int(cld(maximum(total_fix_time.(rank_trials)), 100))
-
+    const MAX_STEPS = 200  # 20 seconds
 
     function sim_one(policy, prm, v)
-        sim = simulate(policy, (v .- prm.μ) ./ prm.σ; max_steps=max_steps)
+        sim = simulate(policy, (v .- prm.μ) ./ prm.σ; max_steps=MAX_STEPS)
         fixs, fix_times = parse_fixations(sim.samples, prm.sample_time)
         (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times)
     end
@@ -30,13 +28,13 @@ end
 
         if parallel
             ms = @distributed vcat for i in 1:N
-                sim = sim_one(policy, prm, v .+ prm.σ_rating .* randn(n_item))
+                sim = sim_one(policy, prm, v .+ prm.σ_rating .* randn(length(v)))
                 apply_metrics(sim)
                 # n_fix(sim) == 0 ? missing :
             end
         else
             ms = map(1:N) do i
-                sim = sim_one(policy, prm, v .+ prm.σ_rating .* randn(n_item))
+                sim = sim_one(policy, prm, v .+ prm.σ_rating .* randn(length(v)))
                 apply_metrics(sim)
                 # n_fix(sim) == 0 ? missing :
             end
@@ -59,12 +57,8 @@ end
 @everywhere begin
     using Optim
 
-    # const P_RAND = 1 / prod(histogram_size)
-    # const BASELINE = log(P_RAND) * length(rank_trials)
-
-    function total_likelihood(policy, prm; fit_ε, index, max_ε, metrics, parallel=true, n_sim_hist=N_SIM_HIST)
-        fit_trials = rank_trials[index]
-        vs = unique(sort(t.value) for t in fit_trials);
+    function total_likelihood(policy, prm, trials; fit_ε, max_ε, metrics, parallel=true, n_sim_hist=N_SIM_HIST)
+        vs = unique(sort(t.value) for t in trials);
         sort!(vs, by=std)  # fastest rank_trials last for parallel efficiency
         out = (parallel ? asyncmap : map)(vs) do v
             likelihood_matrix(metrics, policy, prm, v; parallel=parallel, N=n_sim_hist)
@@ -81,7 +75,7 @@ end
             L[apply_metrics(t)...]
         end
 
-        X = likelihood.([policy], fit_trials);
+        X = likelihood.([policy], trials);
 
         f(ε) = sum(@. log(ε * p_rand + (1 - ε) * X))
 
