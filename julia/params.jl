@@ -1,6 +1,5 @@
 
 @with_kw mutable struct Params
-    n_arm::Int
     α::Float64
     σ_obs::Float64
     sample_cost::Float64
@@ -12,8 +11,8 @@
 end
 Params(d::AbstractDict) = Params(;d...)
 
-MetaMDP(prm::Params) = MetaMDP(
-    prm.n_arm,
+MetaMDP(n_arm, prm::Params) = MetaMDP(
+    n_arm,
     prm.σ_obs,
     prm.sample_cost,
     prm.switch_cost,

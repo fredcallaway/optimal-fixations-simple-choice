@@ -68,7 +68,7 @@ end
         apply_metrics = juxt(metrics...)
         histogram_size = Tuple(length(m.bins) for m in metrics)
         p_rand = 1 / prod(histogram_size)
-        baseline = log(p_rand) * length(index)
+        baseline = log(p_rand) * length(trials)
 
         function likelihood(policy, t)
             L = likelihoods[sort(t.value)]

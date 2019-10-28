@@ -49,11 +49,25 @@ show(results_table(results), allcols=true, splitcols=false)
 
 show(results_table(both_res), allcols=true, splitcols=false)
 
+empirical_prior(trials) = juxt(mean, std)(flatten(trials.value))
+empirical_prior.(both_trials)
+# %% ====================  ====================
 prm = type2dict(load(both_res[1], :mle))
 prm[:n_arm] = 3
 prm = Params(prm)
 m23 = MetaMDP(prm)
-pol23 = optimize_bmps(m23; α=prm.α)
+# policies = asyncmap(1:16) do i
+#     optimize_bmps(m23; α=prm.α)
+# end
+sim23 = let
+    i = 2
+    trials = both_trials[i]
+    asyncmap(policies) do pol
+        simulate_experiment(pol, trials, μ=prm.μ, σ=prm.σ; sample_time=prm.sample_time, n_repeat=10)
+    end
+end
+both_sims[2] = sim23;
+run_name = "dummy"
 
 # %% ====================  ====================
 both_res = [res2, res3]
@@ -70,7 +84,23 @@ end;
 println("Done")
 run_name = "combined"
 
+# %% ==================== Joint fitting results ====================
 
+run_name = "joint_fit"
+res = get_result("results/both_items_fixed/2019-10-26T16-32-24-O5k/")
+reopt = load(res, :reopt);
+prm = load(res, :mle)
+
+both_trials = load_dataset.(["two", "three"])
+both_sims = map(1:2) do i
+    trials = both_trials[i]
+    policies = reopt[i][1]
+    asyncmap(policies) do pol
+        simulate_experiment(pol, trials, μ=prm.μ, σ=prm.σ; sample_time=prm.sample_time, n_repeat=10)
+    end
+end;
+
+run_name
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
     if xline != nothing
@@ -151,7 +181,6 @@ function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string
     savefig(ff, "figs/$run_name/$name.pdf")
     nothing
 end
-
 
 # %% ==================== Basic psychometrics ====================
 mkpath("figs/$run_name")

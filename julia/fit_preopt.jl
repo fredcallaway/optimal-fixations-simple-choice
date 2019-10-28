@@ -1,8 +1,5 @@
 include("results.jl")
 include("pseudo_likelihood.jl")
-res = Results("rating_noise_preopt")
-# const results = Results("pseudo_3_epsilon")
-
 
 
 @everywhere begin

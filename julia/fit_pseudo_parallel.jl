@@ -1,6 +1,10 @@
-include("results.jl")
-include("pseudo_likelihood.jl")
-include("box.jl")
+using Distributed
+
+@time begin
+    include("results.jl")
+    include("pseudo_likelihood.jl")
+    include("box.jl")
+end
 
 # push!(ARGS, "both", "odd")
 # push!(ARGS, "--propfix", "--fit_mu")
@@ -28,12 +32,15 @@ s = ArgParseSettings()
     "fold"
         required = true
         range_tester = x -> x in ("even", "odd", "all")
+    "job"
+        required = true
+        arg_type = Int
 end
 
 args = parse_args(s)
 dataset = args["dataset"]
 println("Fitting dataset with $dataset items.")
-results = Results("$(dataset)_items_fixed")
+results = Results("$(dataset)_items_fixed_parallel")
 
 function train_test_split(trials, fold)
     train_idx = Dict(
@@ -56,12 +63,13 @@ end
 @assert args["fit_mu"]
 # μ_emp, σ_emp = juxt(mean, std)(flatten(fit_trials.value))
 
+
 space = Box(
     :sample_time => 100,
-    :α => (50, 1000, :log),
-    :σ_obs => (1, 10),
-    :sample_cost => (1e-3, 5e-2, :log),
-    :switch_cost => (1e-3, 1e-1, :log),
+    :α => (50, 300, :log),
+    :σ_obs => (1, 6),
+    :sample_cost => (.001, .01, :log),
+    :switch_cost => (.01, .05, :log),
     :σ_rating => args["rating_noise"] ? (0., 1.) : 0.,
     # :µ => args["fit_mu"] ? (0, μ_emp) : μ_emp,
     :μ => (0,5),
@@ -122,8 +130,6 @@ let
     save(results, :space, space)
 end
 
-loss_iter = 0
-
 
 function loss(prm::Params)
     losses = asyncmap(1:2) do i
@@ -142,55 +148,13 @@ function loss(prm::Params)
     loss
 end
 
-function loss(x::Vector{Float64})
-    global loss_iter += 1
-    print("($loss_iter)  ", round.(x; digits=3), "  =>  ")
-    @time loss(Params(space(x)))
-end
 
-function fit(opt)
-    @info "Begin fitting" opt_kws like_kws
-    for i in 1:4
-        boptimize!(opt)
-        find_model_max!(opt)
-        prm = opt.model_optimizer |> space |> Params
-        save(results, Symbol(string("mle_", loss_iter)), prm)
-        save(results, :gp_model, opt.model)
-        ℓ = -log.(opt.model.kernel.iℓ2) / 2 # log length scales
-        loss = opt.model_optimum
-        @info "Iteration $loss_iter" loss prm repr(ℓ)
-    end
-end
+seq = SobolSeq(n_free(space))
+skip(seq, args["job"]-1; exact=true)
+x = next!(seq)
+prm = Params(space(x))
+println(prm)
+save(results, :prm, prm)
 
-function reoptimize(prm::Params; N=16)
-    reopt = map(1:2) do i
-        policies = asyncmap(1:N) do j
-            m = MetaMDP(i+1, prm)
-            optimize_bmps(m; α=prm.α)
-        end
+@time save(results, :loss, loss(prm))
 
-        train_like = asyncmap(policies) do policy
-            total_likelihood(policy, prm, all_trials[i].train;
-                metrics=both_metrics[i], like_kws...)
-        end
-
-        test_like = asyncmap(policies) do policy
-            total_likelihood(policy, prm, all_trials[i].test;
-                metrics=both_metrics[i], like_kws...)
-        end
-        (policies, train_like, test_like)
-    end
-
-    save(results, :reopt, reopt)
-end
-
-opt = gp_minimize(loss, n_free(space); run=false, verbose=false, opt_kws...)
-
-let
-    fit(opt)
-    find_model_max!(opt)
-    mle = opt.model_optimizer |> space |> Params
-    save(results, :mle, mle)
-    save(results, :opt, opt)
-    reoptimize(mle)
-end
