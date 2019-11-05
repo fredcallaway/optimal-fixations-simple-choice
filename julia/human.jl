@@ -26,6 +26,14 @@ end
 # end
 
 load_dataset(num) = open(deserialize, "data/$(num)_items.jls")
+function load_dataset(num, subject::Int)
+    if subject == -1
+        load_dataset(num)
+    end
+    filter(load_dataset(num)) do t
+        t.subject == subject
+    end
+end
 
 function discretize_fixations(t; sample_time=100)
     mapmany(t.fixations, t.fix_times) do item, ft
