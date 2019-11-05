@@ -33,7 +33,7 @@ function fast_voc(pol::BMPSPolicy, b::Belief)
 end
 
 function voc(pol::BMPSPolicy, b::Belief)
-    fast_voc(pol, b) .+ vpi(b)
+    fast_voc(pol, b) .+ pol.θ.vpi * vpi(b)
 end
 
 function act(pol::BMPSPolicy, b::Belief; clever=true)
@@ -41,7 +41,7 @@ function act(pol::BMPSPolicy, b::Belief; clever=true)
     voc = fast_voc(pol, b)
 
     if !clever  # computationally inefficient, but clearly correct
-        voc .+= vpi(b)
+        voc .+= θ.vpi * vpi(b)
         if pol.α == Inf
             v, c = findmax(voc)
             return (v > 0) ? c : ⊥
