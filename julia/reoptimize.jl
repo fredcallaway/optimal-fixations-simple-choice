@@ -8,15 +8,20 @@ include("results.jl")
 end
 
 results = get_result(ARGS[1])
+# results = get_result("results/both_items_fixed_parallel_post/2019-10-28T12-31-17-5Zc/")
 
 function reoptimize(prm::Params; N=16)
-    policies = asyncmap(1:N) do i
-        m = MetaMDP(prm)
-        optimize_bmps(m; α=prm.α)
+    reopt = map(1:2) do i
+        policies = asyncmap(1:N) do j
+            m = MetaMDP(i+1, prm)
+            optimize_bmps(m; α=prm.α)
+        end
+        (policies=policies,)
     end
-    save(results, :reopt, policies)
+    save(results, :reopt, reopt)
 end
 
+
+# prm = load(results, :mle)
 prm = load(results, :mle)
-prm = load(results, :mle_101)
 reoptimize(prm)

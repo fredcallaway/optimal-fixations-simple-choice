@@ -6,101 +6,51 @@ using Glob
 using StatsBase
 plot([1,2])
 
-# %% ==================== Two items ====================
-run_name = "fixed_$n_item"
-display("")
-results = filter(get_results("two_items_fixed")) do res
-    exists(res, :like_kws) || return false
-    length(load(res, :metrics)) == 5 &&
-    length(load(res, :space)[:μ]) == 2 &&
-    length(load(res, :space)[:σ_rating]) == 1 &&
-    exists(res, :reopt) &&
-    true
-    # length(load(res, :space)[:μ]) == 1
-end
-# load_two_item_dataset()
-res2 = results[1]
-show(results_table(results), allcols=true, splitcols=false)
-
-# %% ==================== Three items ====================
-results = filter(get_results("three_items_fixed")) do res
-    exists(res, :like_kws) || return false
-    length(load(res, :metrics)) == 5 &&
-    length(load(res, :space)[:μ]) == 2 &&
-    length(load(res, :space)[:σ_rating]) == 1 &&
-    exists(res, :reopt_like) &&
-    true
-end
-
-res3 = results[1]
-show(results_table(results), allcols=true, splitcols=false)
-
-# %% ====================  ====================
-# show(results_table(results), allcols=true, splitcols=false)
-
-
-# names = map(results) do res
-#     cv = load(res, :like_kws).index[1] == 1 ? "odd" : "even"
-#     run_name = join(["new_pseudo_fit_mu", cv, res.uuid], "_")
-#     # pretty(load(res, :reopt)[1])
-# end
-# results = results[sortperm(names)]
-
-
-show(results_table(both_res), allcols=true, splitcols=false)
-
-empirical_prior(trials) = juxt(mean, std)(flatten(trials.value))
-empirical_prior.(both_trials)
-# %% ====================  ====================
-prm = type2dict(load(both_res[1], :mle))
-prm[:n_arm] = 3
-prm = Params(prm)
-m23 = MetaMDP(prm)
-# policies = asyncmap(1:16) do i
-#     optimize_bmps(m23; α=prm.α)
-# end
-sim23 = let
-    i = 2
-    trials = both_trials[i]
-    asyncmap(policies) do pol
-        simulate_experiment(pol, trials, μ=prm.μ, σ=prm.σ; sample_time=prm.sample_time, n_repeat=10)
-    end
-end
-both_sims[2] = sim23;
-run_name = "dummy"
-
-# %% ====================  ====================
-both_res = [res2, res3]
-both_trials = load_dataset.(["two", "three"])
-both_sims = map(1:2) do i
-    res = both_res[i]
-    trials = both_trials[i]
-    prm = load(res, :mle)
-    policies = load(res, :reopt)
-    asyncmap(policies) do pol
-        simulate_experiment(pol, trials, μ=prm.μ, σ=prm.σ; sample_time=prm.sample_time, n_repeat=10)
-    end
-end;
-println("Done")
-run_name = "combined"
-
 # %% ==================== Joint fitting results ====================
-
 run_name = "joint_fit"
-res = get_result("results/both_items_fixed/2019-10-26T16-32-24-O5k/")
-reopt = load(res, :reopt);
+both_trials = load_dataset.(["two", "three"])
+# res = get_result("results/both_items_fixed/2019-10-26T16-32-24-O5k/")
+# res = get_result("results/both_items_fixed_parallel_post/2019-10-28T12-31-17-5Zc/")
+res = get_result("results/test_post/2019-10-28T16-01-38-Hly/")
 prm = load(res, :mle)
 
-both_trials = load_dataset.(["two", "three"])
+
+function train_test_split(trials, fold)
+    train_idx = Dict(
+        "odd" => 1:2:length(trials),
+        "even" => 2:2:length(trials),
+        "all" => 1:length(trials),
+    )[fold]
+    test_idx = setdiff(eachindex(trials), train_idx)
+    (train=trials[train_idx], test=trials[test_idx])
+end
+
+fold = load(res, :args)["fold"]
+both_trials = map(["two", "three"]) do n
+    trials = load_dataset(n)
+    train_test_split(trials, fold).test
+end
+
+empirical_prior(trials) = juxt(mean, std)(flatten(trials.value))
+emp_priors = map(both_trials) do trials
+    empirical_prior(trials)
+end
+
+
+# %% ====================  ====================
+reopt = load(res, :reopt);
+
 both_sims = map(1:2) do i
     trials = both_trials[i]
-    policies = reopt[i][1]
+    μ_emp, σ_emp = empirical_prior(trials)
+    policies = reopt[i]
     asyncmap(policies) do pol
-        simulate_experiment(pol, trials, μ=prm.μ, σ=prm.σ; sample_time=prm.sample_time, n_repeat=10)
+        simulate_experiment(pol, trials; μ=prm.β_μ * μ_emp, σ=prm.β_σ * σ_emp,
+            sample_time=prm.sample_time, n_repeat=10)
     end
 end;
 
-run_name
+
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
     if xline != nothing
@@ -118,17 +68,20 @@ end
 
 function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
         binning=nothing, type=:line, xline=nothing, yline=nothing,
-        after=()->0, kws...)
+        save=false, name=string(feature), kws...)
     hx, hy = feature(trials; kws...)
     bins = make_bins(binning, hx)
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
 
-    plot_human!(trials, bins, hx, hy, type)
+    plot_human!(bins, hx, hy, type)
     for sim in sims
         mx, my = feature(sim; kws...)
         plot_model!(bins, mx, my, type, alpha=0.5)
     end
     make_lines!(xline, yline, trials)
+    if save
+        savefig(f, "figs/$run_name/$name.pdf")
+    end
     f
 end
 
@@ -148,7 +101,7 @@ end
 
 # left_rv = n_item == 2 ? "Left rating - right rating" : "Left rating - mean other rating"
 # best_rv = n_item == 2 ? "Best rating - worst rating" : "Best rating - mean other rating"
-
+DISABLE_ALIGN = true
 function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string(feature), kws...)
     xlab1, xlab2 =
         (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
@@ -165,7 +118,7 @@ function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string
         if align != :y_only
             xlims!(f, min(x1[1], x2[1]), max(x1[2], x2[2]))
         end
-        if align == :default
+        if align == :default || DISABLE_ALIGN
             ylims!(f, min(y1[1], y2[1]), max(y1[2], y2[2]))
         elseif align == :chance
             rng = max(maximum(abs.(y1 .- 1/2)), maximum(abs.(y2 .- 1/3)))
@@ -181,6 +134,8 @@ function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string
     savefig(ff, "figs/$run_name/$name.pdf")
     nothing
 end
+
+include("features.jl")
 
 # %% ==================== Basic psychometrics ====================
 mkpath("figs/$run_name")
@@ -207,11 +162,11 @@ plot_both(difference_nfix, :best_rv, "Number of fixations",
 
 plot_both(fixate_on_best, "Time since trial onset [ms]", "P(fixate best)",
     (xticks=(0.5:2:8.5, string.(0:500:2000)), xlims=(0,8.5)),
-    binning=:integer, yline=:chance, align=:chance, cutoff=2000, n_bin=8)
+    binning=:integer, yline=:chance, align=:chance,
+    cutoff=2000, n_bin=8)
 
 plot_both(value_bias, :left_rv, "Proportion fixation time";
     xline=0, yline=:chance)
-
 
 plot_both("refixate_uncertain", "Fixation advantage\n of refixated item [ms]", "Density",
     (yticks=[],),
@@ -236,6 +191,36 @@ plot_both(chosen_fix_time, "", "Average fixation duration",
 plot_both(value_duration, "Item value", "Fixation duration",
     binning=:integer; fix_select=firstfix)
 
+    # %% ====================  ====================
+
+x = map(both_sims[1]) do sim
+    x, y = value_duration(sim; fix_select=firstfix)
+    bins = make_bins(7, x)
+    vals = bin_by(bins, x, y)
+    mean.(vals)[1]
+end
+findall(x .> 600)
+pol_values = map(reopt[1]) do pol
+    mean_reward(pol, 100_000, true)
+end
+findall(x .> 600)
+plot(pol_values ./ maximum(pol_values))
+plot!(x ./ maximum(x))
+
+cor([pol_values x])
+
+# μ_emp = emp_priors[1][1]
+# prm.β_μ * μ_emp
+# %% ====================  ====================
+function first_fix_time(val)
+    n = 10000
+    n \ @distributed (+) for i in 1:n
+        sim = simulate(reopt[1][15], val * ones(2))
+        parse_fixations(sim.samples, 100)[2][1]
+    end
+end
+fft = asyncmap(first_fix_time, -3:0.1:3)
+plot(fft)
 # %% ==================== Last fixations ====================
 plot_both(value_duration, "Item value",  "Fixation duration [ms]",
     binning=:integer, fix_select=final)
@@ -248,22 +233,22 @@ plot_both(last_fixation_duration, "Chosen item time advantage\nbefore last fixat
 
 plot_one(fix4_value, "Rating of first minus second fixated item",
     "P(4th fixation is refixation\nto first fixated item)",
-    both_trials[2], both_sims[2], (xticks=-6:2:6,), xline=0)
+    both_trials[2], both_sims[2], (xticks=-6:2:6,), xline=0, save=true)
 
 plot_one(fix4_uncertain,
     "First minus second fixation duration [ms]",
     "P(4th fixation is refixation\nto first fixated item)",
-    both_trials[2], both_sims[2], xline=0)
+    both_trials[2], both_sims[2], xline=0, save=true)
 
 plot_one(fix3_value,
     "Rating of first fixated item",
     "P(3rd fixation is refixation\nto first fixated item)",
-    both_trials[2], both_sims[2])
+    both_trials[2], both_sims[2], save=true)
 
 plot_one(fix3_uncertain,
     "Duration of first fixation",
     "P(3rd fixation is refixation\nto first fixated item)",
-    both_trials[2], both_sims[2])
+    both_trials[2], both_sims[2], save=true)
 
 
 # %% ==================== Choice biases ====================
@@ -271,10 +256,52 @@ plot_both(last_fix_bias, "Last fixated item relative rating", "P(last fixated it
     binning=:integer; xline=0, yline=:chance)
 
 plot_both(fixation_bias, "Final time advantage left [ms]", "P(left chosen)",
-    ; xline=0, yline=:chance)
+    ; xline=0, yline=:chance,
+    # trial_select=(t)->t.value[1] == 3
+    )
+
 
 plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected P(left chosen)",
     ; xline=0, yline=0)
 
 plot_both(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
     )
+
+# %% ====================  ====================
+
+ranks = sortperm(sortperm(t.value; rev=true))
+ranks[t.fixations[1]]
+
+map(trials) do t
+
+
+
+
+# %% ====================  ====================
+
+function fixate_on_(trials, which; sample_time=10, cutoff=2000, n_bin=8, nonfinal=false)
+    n_sample = Int(cutoff / sample_time)
+    spb = Int(n_sample/n_bin)
+    x = Int[]
+    y = Float64[]
+    for t in trials
+        unique_values(t) || continue
+        fix = discretize_fixations(t; sample_time=sample_time)
+        # fix = fix[1:n_sample]
+        ns = min(n_sample, length(fix))
+        fix_best = fix[1:ns] .== which(t.value)
+        props = mean.(Iterators.partition(fix_best, spb))
+        if nonfinal
+            props = props[1:end-1]
+        end
+
+        push!(x, eachindex(props)...)
+        push!(y, props...)
+    end
+    x, y
+end
+
+plot_both(fixate_on_best, "Time since trial onset [ms]", "P(fixate best)",
+    # (xticks=(0.5:2:10.5, string.(0:500:2000)), xlims=(0,8.5)),
+    binning=:integer, yline=:chance, align=:chance,
+    cutoff=3000, n_bin=10)

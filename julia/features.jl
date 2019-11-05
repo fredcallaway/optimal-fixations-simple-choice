@@ -84,7 +84,7 @@ function fixate_on_(trials, which; sample_time=10, cutoff=2000, n_bin=5, nonfina
             sum(t.fix_times) < cutoff && continue
         end
         fix = discretize_fixations(t; sample_time=sample_time)
-        fix = fix[1:n_sample]
+        # fix = fix[1:n_sample]
         fix_best = fix[1:n_sample] .== which(t.value)
 
         push!(x, (1:n_bin)...)
@@ -272,9 +272,10 @@ end
 # end
 
 
-function fixation_bias(trials)
+function fixation_bias(trials; trial_select=(t)->true)
     x = Float64[]; y = Bool[];
     for t in trials
+        trial_select(t) || continue
         push!(x, relative_left(total_fix_times(t)))
         push!(y, t.choice == 1)
     end

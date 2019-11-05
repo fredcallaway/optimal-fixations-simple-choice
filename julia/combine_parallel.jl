@@ -1,29 +1,34 @@
 include("results.jl")
-include("pseudo_likelihood.jl")
-include("box.jl")
-
-all_res = filter(get_results("both_items_fixed_parallel")) do res
+all_res = filter(get_results("test")) do res
+    exists(res, :args) || return false
+    args = load(res, :args)
+    args["bmps_iter"] == 500 &&
+    args["fold"] == "even" &&
     exists(res, :loss)
 end
 
+all_res = unique(all_res) do res
+    load(res, :args)["job"]
+end
+
+all_args = map(all_res) do res
+    load(res, :args)
+end
+
+jobs = Int[]
+u_args = unique(all_args) do args
+    push!(jobs, pop!(args, "job"))
+    args
+end
+@assert length(u_args) == 1
+args = u_args[1]
+res = Results("test_post")
+include("fit_pseudo_base.jl")
+
+# %% ====================  ====================
 prms, losses = map(all_res) do res
     load(res, :prm), load(res, :loss)
 end |> invert;
-
-
-space = Box(
-    :sample_time => 100,
-    :α => (50, 300, :log),
-    :σ_obs => (1, 6),
-    :sample_cost => (.001, .01, :log),
-    :switch_cost => (.01, .05, :log),
-    :σ_rating => 0.,
-    # :µ => args["fit_mu"] ? (0, μ_emp) : μ_emp,
-    :μ => (0,5),
-    :σ => 2.55,  # FIXME
-)
-
-# %% ====================  ====================
 
 xs = map(prms) do prm
     space(type2dict(prm))
@@ -31,10 +36,51 @@ end
 
 X = combinedims(xs)
 y = losses
+# %% ====================  ====================
 
-opt = gp_minimize(x->0, n_free(space);
-    init_Xy=(X, y),
-    run=false, verbose=false)
+# train = sample(eachindex(y), 800; replace=false)
+train = eachindex(y)
+# train = 1:512
+# test = setdiff(eachindex(y), train)
+opt = gp_minimize(loss, n_free(space);
+    init_Xy=(X[:, train], y[train]), run=false, verbose=false, iterations=50)
+
+# optimize!(opt.model);
+# ℓ = -log.(opt.model.kernel.iℓ2) / 2 # log length scales
+# find_model_max!(opt)
+
+# prm = opt.model_optimizer |> space |> Params
+# save(res, :mle, prm)
+# loss(opt.model_optimizer)
+
+fit(opt; n_iter=4)
+# %% ====================  ====================
+prm = opt.model_optimizer |> space |> Params
+
+
+# %% ====================  ====================
+
+d = n_free(space)
+model = GP(X[:, train], y[train], MeanConst(0.), Mat32Ard(zeros(d), 5.), -2.)
+optimize!(model)
+
+yhat, yvar = predict_f(model, X[:, test]);
+
+
+cor([y[test] yhat])
+
+# %% ====================  ====================
+
+
+
+# save(results, Symbol(string("mle_", loss_iter)), prm)
+# save(results, :gp_model, opt.model)
+ℓ = -log.(opt.model.kernel.iℓ2) / 2 # log length scales
+loss = opt.model_optimum
+@info "Iteration $loss_iter" loss prm repr(ℓ)
+
+fit(opt)
+
 
 optimize!(opt.model)
 y1, x1 = find_model_max!(opt)

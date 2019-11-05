@@ -15,11 +15,12 @@ end
 
 @everywhere begin
     const N_SIM_HIST = 10_000
+    const SAMPLE_TIME = 100
     const MAX_STEPS = 200  # 20 seconds
 
     function sim_one(policy, prm, v)
         sim = simulate(policy, (v .- prm.μ) ./ prm.σ; max_steps=MAX_STEPS)
-        fixs, fix_times = parse_fixations(sim.samples, prm.sample_time)
+        fixs, fix_times = parse_fixations(sim.samples, SAMPLE_TIME)
         (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times)
     end
 

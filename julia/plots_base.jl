@@ -28,8 +28,10 @@ function ci_err(estimator, y)
     abs.(c[2:3] .- c[1])
 end
 
-function plot_human!(trials, bins, x, y, type=:line; kws...)
+function plot_human!(bins, x, y, type=:line; kws...)
     vals = bin_by(bins, x, y)
+    @time e = ci_err.(estimator, vals)
+    println(e)
     if type == :line
         plot!(mids(bins), estimator.(vals), yerr=ci_err.(estimator, vals),
               grid=:none,
@@ -93,7 +95,7 @@ function cross!(x, y)
     hline!([y], line=(:grey, 0.7), label="")
 end
 
-function plot_comparison(feature, sim, bins=nothing, type=:line; kws...)
+function plot_comparison(feature, trials, sim, bins=nothing, type=:line; kws...)
     plot()
     hx, hy = feature(trials; kws...)
     mx, my = feature(sim; kws...)

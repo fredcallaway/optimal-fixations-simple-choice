@@ -4,8 +4,8 @@
     σ_obs::Float64
     sample_cost::Float64
     switch_cost::Float64
-    µ::Float64
-    σ::Float64
+    β_µ::Float64
+    β_σ::Float64
     sample_time::Float64
     σ_rating::Float64
 end
