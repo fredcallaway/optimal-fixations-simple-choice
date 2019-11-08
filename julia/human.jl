@@ -27,9 +27,7 @@ end
 
 load_dataset(num) = open(deserialize, "data/$(num)_items.jls")
 function load_dataset(num, subject::Int)
-    if subject == -1
-        load_dataset(num)
-    end
+    subject == -1 && return load_dataset(num)
     filter(load_dataset(num)) do t
         t.subject == subject
     end
@@ -40,5 +38,23 @@ function discretize_fixations(t; sample_time=100)
         repeat([item], Int(round(ft/sample_time)))
     end
 end
+
+function train_test_split(trials, fold::String)
+    fold == "all" && return (train=trials, test=trials)
+
+    test_idx = if occursin("/", fold)
+        this, total = parse.(Int, (split(fold, "/")))
+        this:total:length(trials)
+    else
+        Dict(
+            "odd" => 1:2:length(trials),
+            "even" => 2:2:length(trials),
+        )[fold]
+    end
+    train_idx = setdiff(eachindex(trials), test_idx)
+    (train=trials[train_idx], test=trials[test_idx])
+end
+
+empirical_prior(trials) = juxt(mean, std)(flatten(trials.value))
 
 

@@ -15,6 +15,12 @@ res = get_result("results/test_post/2019-10-28T16-01-38-Hly/")
 prm = load(res, :mle)
 
 
+res = get_result("results/fit_pseudo/2019-11-06T00-07-11-Gsg")
+load(res, :mle)
+
+res = get_result("results/fit_pseudo/2019-11-06T00-07-11-2Ga")
+load(res, :mle)
+
 function train_test_split(trials, fold)
     train_idx = Dict(
         "odd" => 1:2:length(trials),
@@ -28,7 +34,7 @@ end
 fold = load(res, :args)["fold"]
 both_trials = map(["two", "three"]) do n
     trials = load_dataset(n)
-    train_test_split(trials, fold).test
+    # train_test_split(trials, fold).test
 end
 
 empirical_prior(trials) = juxt(mean, std)(flatten(trials.value))
@@ -39,17 +45,16 @@ end
 
 # %% ====================  ====================
 reopt = load(res, :reopt);
-
 both_sims = map(1:2) do i
     trials = both_trials[i]
     μ_emp, σ_emp = empirical_prior(trials)
-    policies = reopt[i]
+    policies = reopt[i].policies
     asyncmap(policies) do pol
         simulate_experiment(pol, trials; μ=prm.β_μ * μ_emp, σ=prm.β_σ * σ_emp,
             sample_time=prm.sample_time, n_repeat=10)
     end
 end;
-
+length.(both_sims)
 
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
@@ -108,6 +113,9 @@ function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string
         (xlab == :best_rv) ? ("Best rating - worst rating", "Best rating - mean other rating") :
         (xlab, xlab)
 
+    # return plot_one(feature, xlab, ylab, trials, sims, plot_kws; kws...)
+
+
     f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
     f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
 
@@ -138,10 +146,12 @@ end
 include("features.jl")
 
 # %% ==================== Basic psychometrics ====================
+# run_name = "indiv2"
+run_name = "nov8_both_400"
 mkpath("figs/$run_name")
 
 plot_both(value_choice, :left_rv, "P(left chosen)";
-    xline=0, yline=:chance, binning=Binning(-4.5:1:4.5));
+    xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
 
 plot_both(difference_time, :best_rv, "Total fixation time [ms]")
 
@@ -191,36 +201,7 @@ plot_both(chosen_fix_time, "", "Average fixation duration",
 plot_both(value_duration, "Item value", "Fixation duration",
     binning=:integer; fix_select=firstfix)
 
-    # %% ====================  ====================
 
-x = map(both_sims[1]) do sim
-    x, y = value_duration(sim; fix_select=firstfix)
-    bins = make_bins(7, x)
-    vals = bin_by(bins, x, y)
-    mean.(vals)[1]
-end
-findall(x .> 600)
-pol_values = map(reopt[1]) do pol
-    mean_reward(pol, 100_000, true)
-end
-findall(x .> 600)
-plot(pol_values ./ maximum(pol_values))
-plot!(x ./ maximum(x))
-
-cor([pol_values x])
-
-# μ_emp = emp_priors[1][1]
-# prm.β_μ * μ_emp
-# %% ====================  ====================
-function first_fix_time(val)
-    n = 10000
-    n \ @distributed (+) for i in 1:n
-        sim = simulate(reopt[1][15], val * ones(2))
-        parse_fixations(sim.samples, 100)[2][1]
-    end
-end
-fft = asyncmap(first_fix_time, -3:0.1:3)
-plot(fft)
 # %% ==================== Last fixations ====================
 plot_both(value_duration, "Item value",  "Fixation duration [ms]",
     binning=:integer, fix_select=final)

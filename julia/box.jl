@@ -32,6 +32,7 @@ function unscale(d, x)
 end
 
 n_free(b::Box) = sum(length(d) > 1 for d in values(b.dims))
+free(b::Box) = [k for (k,d) in b.dims if length(d) > 1]
 
 
 function apply(box::Box, x::Vector{Float64})
