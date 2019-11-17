@@ -1,6 +1,8 @@
 include("results.jl")
 using ArgParse
 
+using Logging; global_logger(SimpleLogger(stdout, Logging.Info))
+
 s = ArgParseSettings()
 @add_arg_table s begin
     # "--propfix"
@@ -14,6 +16,12 @@ s = ArgParseSettings()
     "--bmps_iter"
         arg_type = Int
         default = 500
+    "--fit_iter"
+        arg_type = Int
+        default = 1000
+    "--save_freq"
+        arg_type = Int
+        default = 10
     "--n_sim_hist"
         arg_type = Int
         default = 10000
@@ -33,30 +41,40 @@ s = ArgParseSettings()
         default = 0
     "--res"
         arg_type = String
-        default = "fit_pseudo"
+        default = "test"
+    "--init"
+        arg_type = String
+        default = ""
+    "--hist_bins"
+        arg_type = Int
+        default=5
 end
 
-
 args = parse_args(s)
-# %% ==================== Debugging ====================
-# println("WARNING OVERRIDING ARGUMENTS")
-args["propfix"] = true
+args["propfix"] = true  # old arguments, now with fixed values
 args["fitmu"] = true
-# %% ====================  ====================
 res = Results(args["res"])
 
 println("Initializing...")
 @time include("fit_pseudo_base.jl")
 flush(stdout)
 preopt = args["preopt"]
+init = args["init"]
 if preopt == 0
-    println("Running BayesOpt fitting")
-    opt = gp_minimize(loss, n_free(space); run=false, verbose=false, opt_kws...)
+    init_Xy = (init == "") ? sobol_init() : preopt_init(datasets, init)
+
+    opt = gp_minimize(loss, n_free(space);
+        run=false, verbose=false,
+        opt_kws...,
+        init_Xy=init_Xy
+    )
+    record_mle(opt, 0)
+
     @time fit(opt)
     find_model_max!(opt)
     mle = opt.model_optimizer |> space |> Params
     save(res, :mle, mle)
-    save(res, :opt, opt)
+    # save(res, :opt, opt)
     println("Computing policies for MLE")
     @time reoptimize(mle)
 else
@@ -66,16 +84,21 @@ else
     skip(seq, preopt-1; exact=true)
     x = next!(seq)
     prm = Params(space(x))
+    @assert prm.σ_rating == 0
 
-    policies = asyncmap(datasets) do d
+    @time policies = map(datasets) do d
         m = MetaMDP(d.n_item, prm)
         policy = optimize_bmps(m; α=prm.α, bmps_kws...)
-        # @assert prm.σ_rating == 0
-        # sim = sim_one(policy, prm, v)
     end
 
     save(res, :sobol_i, preopt)
-    save(res, :policy, policy)
+    save(res, :policies, policies)
+
+    # vs = unique(sort(t.value) for t in [d.train_trials; d.test_trials]);
+    # sort!(vs, by=v->abs(v[1] - v[2]))  # slowest trials first for parallel efficiency
+    # sims = pmap(vs) do v
+    #     v => [sim_one(policy, prm, v) for _ in 1:10_0]
+    # end |> Dict
 
     # save(res, :loss, loss(prm))
     # println("Computing loss for sobol $(preopt)")

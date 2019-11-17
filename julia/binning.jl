@@ -1,3 +1,5 @@
+using SplitApplyCombine
+
 struct Binning{T}
     limits::Vector{T}
 end

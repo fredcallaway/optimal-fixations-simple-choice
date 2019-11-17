@@ -5,15 +5,21 @@ include("box.jl")
 using Glob
 using StatsBase
 plot([1,2])
+# %% ====================  ====================
+
+filter(get_results("two_items_fixed")) do res
+    exists(res, :reopt()) || return false
+end
+
 
 # %% ==================== Joint fitting results ====================
 run_name = "joint_fit"
 both_trials = load_dataset.(["two", "three"])
+
 # res = get_result("results/both_items_fixed/2019-10-26T16-32-24-O5k/")
 # res = get_result("results/both_items_fixed_parallel_post/2019-10-28T12-31-17-5Zc/")
 res = get_result("results/test_post/2019-10-28T16-01-38-Hly/")
 prm = load(res, :mle)
-
 
 res = get_result("results/fit_pseudo/2019-11-06T00-07-11-Gsg")
 load(res, :mle)
@@ -41,7 +47,6 @@ empirical_prior(trials) = juxt(mean, std)(flatten(trials.value))
 emp_priors = map(both_trials) do trials
     empirical_prior(trials)
 end
-
 
 # %% ====================  ====================
 reopt = load(res, :reopt);
@@ -113,7 +118,13 @@ function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string
         (xlab == :best_rv) ? ("Best rating - worst rating", "Best rating - mean other rating") :
         (xlab, xlab)
 
-    # return plot_one(feature, xlab, ylab, trials, sims, plot_kws; kws...)
+    # ff = plot_one(feature, xlab, ylab, trials, sims, plot_kws; kws...)
+    # if haskey(Dict(kws), :fix_select)
+    #     name *= "_$(kws[:fix_select])"
+    # end
+    # savefig(ff, "figs/$run_name/$name.pdf")
+    # return ff
+
 
 
     f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
@@ -146,8 +157,8 @@ end
 include("features.jl")
 
 # %% ==================== Basic psychometrics ====================
-# run_name = "indiv2"
-run_name = "nov8_both_400"
+run_name = "indinit"
+# run_name = "nov8_both_400"
 mkpath("figs/$run_name")
 
 plot_both(value_choice, :left_rv, "P(left chosen)";
@@ -198,14 +209,13 @@ plot_both(chosen_fix_time, "", "Average fixation duration",
     (xticks=(0:1, ["Unchosen", "Chosen"]),),
     binning=:integer, type=:discrete; fix_select=nonfinal)
 
-plot_both(value_duration, "Item value", "Fixation duration",
-    binning=:integer; fix_select=firstfix)
-
+plot_both(value_duration, "Item value",  "Fixation duration [ms]",
+    binning=:integer, fix_select=firstfix)
 
 # %% ==================== Last fixations ====================
+
 plot_both(value_duration, "Item value",  "Fixation duration [ms]",
     binning=:integer, fix_select=final)
-
 plot_both(last_fixation_duration, "Chosen item time advantage\nbefore last fixation [ms]",
     # (xticks=[],),
     "Last fixation duration [ms]")
@@ -247,15 +257,6 @@ plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected 
 
 plot_both(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
     )
-
-# %% ====================  ====================
-
-ranks = sortperm(sortperm(t.value; rev=true))
-ranks[t.fixations[1]]
-
-map(trials) do t
-
-
 
 
 # %% ====================  ====================
