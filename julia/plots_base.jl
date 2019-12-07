@@ -18,11 +18,13 @@ using Printf
 
 RED = colorant"#FF6167"
 
+NO_RIBBON = false
 FAST = false
 const CI = 0.95
 const N_BOOT = 1000
 using Bootstrap
 function ci_err(y)
+    NO_RIBBON & return (0., 0.)
     FAST && return (sem(y) * 2, sem(y) * 2)
     isempty(y) && return (NaN, NaN)
     bs = bootstrap(mean, y, BasicSampling(N_BOOT))
@@ -72,15 +74,16 @@ function plot_model!(x::Vector{Float64}, y, err, type; color=RED, kws...)
         plot!(x, y,
               ribbon=err,
               fillalpha=0.1,
-              # color=color,
-              line=(color, 1),
+              color=color,
+              linewidth=1,
               label="";
               kws...)
     elseif type == :discrete
         plot!(x, y,
               yerr=err,
               grid=:none,
-              line=(color, 1),
+              color=color,
+              linewidth=1,
               marker=(7, :diamond, color, stroke(0)),
               label="";
               kws...)

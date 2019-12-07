@@ -84,7 +84,7 @@ both_sims = map(1:2) do i
 end
 
 # %% ==================== Joint fitting results ====================
-run_name = "joint_fit_dec2"
+run_name = "joint_fit_dec3"
 function get_sims(res; load_previous=true)
     load_previous && exists(res, :both_sims) && return load(res, :both_sims)
     reopt = load(res, :reopt);
@@ -102,9 +102,10 @@ function get_sims(res; load_previous=true)
     save(res, :both_sims, both_sims)
     return both_sims
 end
-multi_sims = get_sims.(load_recent_results("both"))
-# res = best_result("both")
-# both_sims = get_sims(res)
+
+multi_sims = map(load_recent_results("both")) do res
+    get_sims(res, load_previous=false);
+end;
 
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
@@ -120,6 +121,7 @@ function make_lines!(xline, yline, trials)
     end
 end
 
+
 function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
         binning=nothing, type=:line, xline=nothing, yline=nothing,
         save=false, name=string(feature), kws...)
@@ -128,22 +130,34 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
     plot_human!(bins, hx, hy, type)
 
-    if FAST
-        sims = sims[1:2]
-    end
+    @assert sims[1] isa Array
 
-    for sim in sims
-        mx, my = feature(sim; kws...)
-        plot_model!(bins, mx, my, type, alpha=0.5, color=:blue)
+    for (i, sims) in enumerate(sims)
+        if FAST
+            sims = sims[1:4]
+        end
+
+        for sim in sims
+            mx, my = feature(sim; kws...)
+            c = [:red, :blue, :green, :yellow]
+            plot_model!(bins, mx, my, type, color=i, alpha=0.7)  # alpha=0.5,  FIXME
+        end
     end
+    #
+    # if FAST
+    #     sims = sims[1:2]
+    # end
+    #
+    # for sim in sims
+    #     mx, my = feature(sim; kws...)
+    #     plot_model!(bins, mx, my, type, alpha=0.5)
+    # end
     make_lines!(xline, yline, trials)
     if save
         savefig(f, "figs/$run_name/$name.pdf")
     end
     f
 end
-combinedims(multi_sims) |> (x->reshape(x, :, 2)) |> splitdims
-
 
 function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
         xline=nothing, yline=nothing,
@@ -151,18 +165,22 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
 
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
 
-    if FAST
-        sims = sims[1:2]
-    end
-
     plot_human(trials)
-    for sim in sims
-        plot_model(sim, color=:blue)
+
+    @assert sims[1] isa Array
+
+    for (i, sims) in enumerate(sims)
+        if FAST
+            sims = sims[1:4]
+        end
+
+        for sim in sims
+            plot_model(sim, color=i)
+        end
     end
     make_lines!(xline, yline, trials)
     f
 end
-
 
 # left_rv = n_item == 2 ? "Left rating - right rating" : "Left rating - mean other rating"
 # best_rv = n_item == 2 ? "Best rating - worst rating" : "Best rating - mean other rating"
@@ -204,26 +222,31 @@ function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string
         name *= "_$(kws[:fix_select])"
     end
     savefig(ff, "figs/$run_name/$name.pdf")
-    return ff
+    # return ff
+    display(ff)
+    return
 end
 
-include("features.jl")
-include("plots_base.jl")
+# include("features.jl")
+# include("plots_base.jl")
 
 
 # %% ==================== Basic psychometrics ====================
 FAST = true
+NO_RIBBON = true
 mkpath("figs/$run_name")
 
+both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
+
 plot_both(value_choice, :left_rv, "P(left chosen)";
-    xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
+xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
 
 plot_both(difference_time, :best_rv, "Total fixation time [m]",
     binning=:integer)
 
 plot_both("rt_kde", "Total fixation time [ms]", "Density", (yticks=[],),
     plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
-    plot_model=(sim)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(RED, 2, 0.5))
+    plot_model=(sim; color=RED)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, 0.5))
 )
 
 # %% ==================== Number of fixations ====================
@@ -247,7 +270,7 @@ plot_both(value_bias, :left_rv, "Proportion fixation time";
 plot_both("refixate_uncertain", "Fixation advantage\n of refixated item [ms]", "Density",
     (yticks=[],),
     plot_human=(trials)->kdeplot!(refixate_uncertain(trials), 100., xmin=-1000, xmax=1000, line=(:black, 2)),
-    plot_model=(sim)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(RED, 2, 0.5)),
+    plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(color, 2, 0.5)),
     xline=0
 )
 
@@ -312,6 +335,7 @@ plot_both(fixation_bias, "Final time advantage left [ms]", "P(left chosen)",
 
 plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected P(left chosen)",
     ; xline=0, yline=0)
+
 
 plot_both(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
     )

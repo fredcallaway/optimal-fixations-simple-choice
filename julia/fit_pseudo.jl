@@ -16,6 +16,9 @@ s = ArgParseSettings()
     "--bmps_iter"
         arg_type = Int
         default = 500
+    "--bmps_roll"
+        arg_type = Int
+        default = 10000
     "--fit_iter"
         arg_type = Int
         default = 1000
@@ -36,7 +39,7 @@ s = ArgParseSettings()
         arg_type = String
         default = "even"
         # range_tester = x -> x in ("even", "odd", "all")
-    "--preopt"
+    "--sobol"
         arg_type = Int
         default = 0
     "--res"
@@ -45,54 +48,70 @@ s = ArgParseSettings()
     "--init"
         arg_type = String
         default = ""
+    "--n_init"
+        arg_type = Int
+        default = 100
     "--hist_bins"
         arg_type = Int
         default=5
+    "--n_inner"
+        arg_type = Int
+        default = 2
 end
 
+
+
 args = parse_args(s)
+
 args["propfix"] = true  # old arguments, now with fixed values
 args["fitmu"] = true
 res = Results(args["res"])
 
 println("Initializing...")
 @time include("fit_pseudo_base.jl")
+save_args()
 flush(stdout)
-preopt = args["preopt"]
+sobol = args["sobol"]
 init = args["init"]
-if preopt == 0
-    init_Xy = (init == "") ? sobol_init() : preopt_init(datasets, init)
 
-    opt = gp_minimize(loss, n_free(space);
+if sobol == 0
+    # init_Xy = (init == "") ? sobol_init() : preopt_init(datasets, init)
+    init_Xy = (init == "") ? sobol_init() : precomputed_init(init)
+
+    opt = gp_minimize(loss, n_free(outer_space);
         run=false, verbose=false,
         opt_kws...,
         init_Xy=init_Xy
     )
     record_mle(opt, 0)
 
-    @time fit(opt)
-    find_model_max!(opt)
-    mle = opt.model_optimizer |> space |> Params
-    save(res, :mle, mle)
+    @time mle = fit(opt)
     # save(res, :opt, opt)
     println("Computing policies for MLE")
     @time reoptimize(mle)
 else
-    println("Preoptimizing #$(preopt)")
+    println("Precomputing loss for sobol #$(sobol)")
 
-    seq = SobolSeq(n_free(space))
-    skip(seq, preopt-1; exact=true)
+    seq = SobolSeq(n_free(outer_space))
+    skip(seq, sobol-1; exact=true)
     x = next!(seq)
-    prm = Params(space(x))
-    @assert prm.σ_rating == 0
 
-    @time policies = map(datasets) do d
-        m = MetaMDP(d.n_item, prm)
-        policy = optimize_bmps(m; α=prm.α, bmps_kws...)
-    end
+    prm_outer = namedtuple(outer_space(x))
+    policies, pol_time = @timed optimal_policies(prm_outer)
+    (x_inner, fx), inner_time = @timed inner_optimize(policies)
+    prm_inner = x_inner |> inner_space |> namedtuple
 
-    save(res, :sobol_i, preopt)
+    println(
+        round.([x; x_inner]; digits=3),
+        @sprintf("  =>  %.2f  (%ds + %ds)", fx, pol_time, inner_time)
+    )
+    flush(stdout)
+
+    save(res, :sobol_i, sobol)
+    save(res, :prm_outer, prm_outer)
+    save(res, :prm_inner, prm_inner)
     save(res, :policies, policies)
+    save(res, :loss, fx)
 
     # vs = unique(sort(t.value) for t in [d.train_trials; d.test_trials]);
     # sort!(vs, by=v->abs(v[1] - v[2]))  # slowest trials first for parallel efficiency
@@ -101,13 +120,13 @@ else
     # end |> Dict
 
     # save(res, :loss, loss(prm))
-    # println("Computing loss for sobol $(preopt)")
+    # println("Computing loss for sobol $(sobol)")
     # seq = SobolSeq(n_free(space))
-    # skip(seq, preopt-1; exact=true)
+    # skip(seq, sobol-1; exact=true)
     # x = next!(seq)
     # prm = Params(space(x))
     # println(prm)
-    # save(res, :sobol, preopt)
+    # save(res, :sobol, sobol)
     # save(res, :prm, prm)
     # save(res, :loss, loss(prm))
 end
