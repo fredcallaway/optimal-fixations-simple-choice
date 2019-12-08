@@ -68,7 +68,8 @@ println("Dataset sizes: ", join(map(d->length(d.train_trials), datasets), " "))
     )
     inner_space = Box(
         :α=>(50., 500., :log),
-        :β_μ=>(0.,1.),
+        :β_μ=>0.,
+        # :β_μ=>(0.,1.),
         :β_σ=>1.,
         :σ_rating => args["rating_noise"] ? (0., 1.) : 0.,
     )
@@ -133,19 +134,10 @@ function inner_loss(policies, x)
 end
 
 function inner_optimize(policies)
-    # randomly initialzie
-    x1 = rand(); x2 = rand()
-    for i in 1:args["n_inner"]
-        # optimize the decision temperature given that prior
-        x1 = optimize(x1->inner_loss([x1, x2]), 0, 1, abs_tol=0.01, iterations=10).minimizer
-        # optimize the prior given that temperature
-        x2 = optimize(x2->inner_loss([x1, x2]), 0, 1, abs_tol=0.01, iterations=10).minimizer
-    end
-    # we don't seem to improve by optimizing more than that...
-    best = [x1, x2]
-    best, inner_loss(best)
+    # randomly initialize
+    x = optimize(x->inner_loss(policies, [x]), 0, 1, abs_tol=0.01, iterations=10).minimizer
+    [x], inner_loss(policies, [x])
 end
-
 
 
 function optimal_policies(prm)
@@ -266,7 +258,7 @@ function record_mle(opt, i)
     println("*"^60)
     ℓ = -log.(opt.model.kernel.iℓ2) / 2 # log length scales
     println("Iteration $loss_iter")
-    println("  ", round.(-opt.model_optimizer; digits=3))
+    println("  ", round.(opt.model_optimizer; digits=3))
     println("  ", round(-opt.model_optimum; digits=3),
             "  ", round(fx; digits=3))
     println("  ", round.(ℓ; digits=1))
