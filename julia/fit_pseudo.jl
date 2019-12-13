@@ -11,8 +11,8 @@ s = ArgParseSettings()
         action = :store_true
     "--rating_noise"
         action = :store_true
-    # "--fitmu"
-    #     action = :store_true
+    "--fit_mu"
+        action = :store_true
     "--bmps_iter"
         arg_type = Int
         default = 500
@@ -64,7 +64,7 @@ end
 args = parse_args(s)
 
 args["propfix"] = true  # old arguments, now with fixed values
-args["fitmu"] = true
+# args["fitmu"] = true
 res = Results(args["res"])
 
 println("Initializing...")

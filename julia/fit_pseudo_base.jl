@@ -68,7 +68,7 @@ println("Dataset sizes: ", join(map(d->length(d.train_trials), datasets), " "))
     )
     inner_space = Box(
         :α=>(50., 500., :log),
-        :β_μ=>0.,
+        :β_μ=>(args["fit_mu"] ? (0, 1) : 1.),
         # :β_μ=>(0.,1.),
         :β_σ=>1.,
         :σ_rating => args["rating_noise"] ? (0., 1.) : 0.,
@@ -135,6 +135,7 @@ end
 
 function inner_optimize(policies)
     # randomly initialize
+    @assert !args["fit_mu"]
     x = optimize(x->inner_loss(policies, [x]), 0, 1, abs_tol=0.01, iterations=10).minimizer
     [x], inner_loss(policies, [x])
 end
