@@ -6,7 +6,9 @@ const CUTOFF = 2000
 
 function make_bins(bins, hx)
     if bins == :integer
-        return Binning(minimum(hx)-0.5:1:maximum(hx)+0.5)
+        lo = floor(minimum(hx) - 0.5) + 0.5
+        hi = ceil(maximum(hx) + 0.5) - 0.5
+        return Binning(lo:1:hi)
     elseif bins isa Nothing
         bins = 7
     end

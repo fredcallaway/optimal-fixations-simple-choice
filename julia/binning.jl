@@ -31,7 +31,7 @@ function bin_means(x, y; n=5)
     (xx, yy)
 end
 
-function bin_by(bins::Binning, x, y) where T
+function bin_by(bins::Binning, x, y)
     grp = group(i->bins(x[i]), i->y[i], 1:length(x))
     typeof(y)[get(grp, i, []) for i in 1:length(bins)]
 end

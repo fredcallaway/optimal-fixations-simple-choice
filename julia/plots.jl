@@ -8,7 +8,7 @@ plot([1,2])
 
 # %% ====================  ====================
 function load_recent_results(dataset)
-    name = (dataset == "both") ? "both_inner" : "test"
+    name = (dataset == "both") ? "no-inner" : "test"
     all_res = filter(get_results(name)) do res
         exists(res, :reopt) || return false
         length(load(res, :xy).y) >= 400 || return false
@@ -24,8 +24,8 @@ function best_result(dataset)
     ress[argmin(results_table(ress).train_loss)]
 end
 
-both_trials = load_dataset.(["two", "three"]);
 
+both_trials = load_dataset.(["two", "three"]);
 
 # %% ==================== Summarize fits ====================
 res = load_recent_results("both")[1]
@@ -84,7 +84,10 @@ both_sims = map(1:2) do i
 end
 
 # %% ==================== Joint fitting results ====================
-run_name = "joint_fit_dec3"
+# run_name = "joint_fit_dec3"
+run_name = "no_inner"
+
+
 function get_sims(res; load_previous=true)
     load_previous && exists(res, :both_sims) && return load(res, :both_sims)
     reopt = load(res, :reopt);
@@ -103,9 +106,11 @@ function get_sims(res; load_previous=true)
     return both_sims
 end
 
-multi_sims = map(load_recent_results("both")) do res
-    get_sims(res, load_previous=false);
-end;
+res = best_result("both")
+@time sims = get_sims(res);
+# multi_sims = map(load_recent_results("both")) do res
+#     get_sims(res, load_previous=false);
+# end;
 
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
@@ -130,28 +135,14 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
     plot_human!(bins, hx, hy, type)
 
-    @assert sims[1] isa Array
-
-    for (i, sims) in enumerate(sims)
-        if FAST
-            sims = sims[1:4]
-        end
-
-        for sim in sims
-            mx, my = feature(sim; kws...)
-            c = [:red, :blue, :green, :yellow]
-            plot_model!(bins, mx, my, type, color=i, alpha=0.7)  # alpha=0.5,  FIXME
-        end
+    if FAST
+        sims = sims[1:2]
     end
-    #
-    # if FAST
-    #     sims = sims[1:2]
-    # end
-    #
-    # for sim in sims
-    #     mx, my = feature(sim; kws...)
-    #     plot_model!(bins, mx, my, type, alpha=0.5)
-    # end
+
+    for sim in sims
+        mx, my = feature(sim; kws...)
+        plot_model!(bins, mx, my, type, alpha=0.5)
+    end
     make_lines!(xline, yline, trials)
     if save
         savefig(f, "figs/$run_name/$name.pdf")
@@ -167,16 +158,12 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
 
     plot_human(trials)
 
-    @assert sims[1] isa Array
+    if FAST
+        sims = sims[1:4]
+    end
 
-    for (i, sims) in enumerate(sims)
-        if FAST
-            sims = sims[1:4]
-        end
-
-        for sim in sims
-            plot_model(sim, color=i)
-        end
+    for sim in sims
+        plot_model(sim)
     end
     make_lines!(xline, yline, trials)
     f
@@ -185,7 +172,7 @@ end
 # left_rv = n_item == 2 ? "Left rating - right rating" : "Left rating - mean other rating"
 # best_rv = n_item == 2 ? "Best rating - worst rating" : "Best rating - mean other rating"
 DISABLE_ALIGN = true
-function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string(feature), kws...)
+function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
     xlab1, xlab2 =
         (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
         (xlab == :best_rv) ? ("Best rating - worst rating", "Best rating - mean other rating") :
@@ -197,11 +184,15 @@ function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string
     # end
     # savefig(ff, "figs/$run_name/$name.pdf")
     # return ff
+    if !yticks
+        plot_kws = (plot_kws..., yticks=[])
+        ylab *= "\n"
+    end
 
     f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
     f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
 
-    ylabel!(f2, "  ")
+    ylabel!(f2, yticks ? "  " : " \n ")
     x1 = xlims(f1); x2 = xlims(f2)
     y1 = ylims(f1); y2 = ylims(f2)
     for (i, f) in enumerate([f1, f2])
@@ -227,35 +218,35 @@ function plot_both(feature, xlab, ylab, plot_kws=(); align=:default, name=string
     return
 end
 
-# include("features.jl")
+include("features.jl")
 # include("plots_base.jl")
 
-
 # %% ==================== Basic psychometrics ====================
-FAST = true
-NO_RIBBON = true
+FAST = false
+run_name = "no_inner"
 mkpath("figs/$run_name")
 
-both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
+# both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
 
 plot_both(value_choice, :left_rv, "P(left chosen)";
-xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
+    xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
 
-plot_both(difference_time, :best_rv, "Total fixation time [m]",
+plot_both(difference_time, :best_rv, "Total fixation time [ms]",
     binning=:integer)
 
-plot_both("rt_kde", "Total fixation time [ms]", "Density", (yticks=[],),
+plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
     plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
     plot_model=(sim; color=RED)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, 0.5))
 )
 
 # %% ==================== Number of fixations ====================
+
 plot_both(nfix_hist, "Number of fixations", "Proportion of trials",
     (xticks=[1,5,10], ),
     binning=:integer, type=:discrete)
 
 plot_both(difference_nfix, :best_rv, "Number of fixations",
-    binning=:integer)
+    binning=:integer)  # FIXME binning is weird
 
 # %% ==================== Fixation locations ====================
 
@@ -264,26 +255,27 @@ plot_both(fixate_on_best, "Time since trial onset [ms]", "P(fixate best)",
     binning=:integer, yline=:chance, align=:chance,
     cutoff=2000, n_bin=8)
 
-plot_both(value_bias, :left_rv, "Proportion fixation time";
+plot_both(value_bias, :left_rv, "Proportion fixate left";
     xline=0, yline=:chance)
 
 plot_both("refixate_uncertain", "Fixation advantage\n of refixated item [ms]", "Density",
-    (yticks=[],),
+    yticks = false,
     plot_human=(trials)->kdeplot!(refixate_uncertain(trials), 100., xmin=-1000, xmax=1000, line=(:black, 2)),
-    plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(color, 2, 0.5)),
+    plot_model=(sim)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(RED, 2, 0.5)),
     xline=0
 )
 
+
 # %% ==================== Fixation durations ====================
 
-plot_both(binned_fixation_times, "Fixation type", "Fixation duration",
+plot_both(binned_fixation_times, "Fixation type", "Fixation duration [ms]",
     (xticks=(1:4, ["first", "second", "middle", "last"]),),
     binning=:integer, type=:discrete)
 
-plot_both(full_fixation_times, "Fixation number", "Fixation duration",
+plot_both(full_fixation_times, "Fixation number", "Fixation duration [ms]",
     binning=:integer)
 
-plot_both(chosen_fix_time, "", "Average fixation duration",
+plot_both(chosen_fix_time, "", "Average fixation duration [ms]",
     (xticks=(0:1, ["Unchosen", "Chosen"]),),
     binning=:integer, type=:discrete; fix_select=nonfinal)
 
@@ -294,6 +286,7 @@ plot_both(value_duration, "Item value",  "Fixation duration [ms]",
 
 plot_both(value_duration, "Item value",  "Fixation duration [ms]",
     binning=:integer, fix_select=final)
+
 plot_both(last_fixation_duration, "Chosen item time advantage\nbefore last fixation [ms]",
     # (xticks=[],),
     "Last fixation duration [ms]")
@@ -321,7 +314,6 @@ plot_one(fix3_uncertain,
 
 
 
-
 # %% ==================== Choice biases ====================
 
 plot_both(last_fix_bias, "Last fixated item relative rating", "P(last fixated item chosen)",
@@ -331,7 +323,6 @@ plot_both(fixation_bias, "Final time advantage left [ms]", "P(left chosen)",
     ; xline=0, yline=:chance,
     # trial_select=(t)->t.value[1] == 3
     )
-
 
 plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected P(left chosen)",
     ; xline=0, yline=0)

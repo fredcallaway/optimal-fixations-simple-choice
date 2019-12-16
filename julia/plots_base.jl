@@ -24,7 +24,8 @@ const CI = 0.95
 const N_BOOT = 1000
 using Bootstrap
 function ci_err(y)
-    NO_RIBBON & return (0., 0.)
+    length(y) == 1 && return (0., 0.)
+    NO_RIBBON && return (0., 0.)
     FAST && return (sem(y) * 2, sem(y) * 2)
     isempty(y) && return (NaN, NaN)
     bs = bootstrap(mean, y, BasicSampling(N_BOOT))
@@ -66,7 +67,13 @@ end
 function plot_model!(bins, x, y, type=:line; kws...)
     vals = bin_by(bins, x, y)
     err = invert(ci_err.(vals))
-    plot_model!(mids(bins), mean.(vals), err, type; kws...)
+    x = mids(bins)
+    y = mean.(vals)
+    too_few = length.(vals) .< 30
+    if !all(length.(vals) .== 1)
+        x[too_few] .= NaN; y[too_few] .= NaN
+    end
+    plot_model!(x, y, err, type; kws...)
 end
 
 function plot_model!(x::Vector{Float64}, y, err, type; color=RED, kws...)
@@ -145,7 +152,7 @@ function results_table(results; drop_constant=true)
     end |> DataFrame
     delete!(tbl, :i)
     delete!(tbl, :n_obs)
-    if drop_constant
+    if size(tbl, 1) > 1 && drop_constant
         for k in names(tbl)
             length(unique(tbl[:, k])) == 1 && delete!(tbl, k)
         end
