@@ -24,7 +24,7 @@ s = ArgParseSettings()
         default = 1000
     "--save_freq"
         arg_type = Int
-        default = 10
+        default = 20
     "--n_sim_hist"
         arg_type = Int
         default = 10000
@@ -96,6 +96,7 @@ else
     skip(seq, sobol-1; exact=true)
     x = next!(seq)
 
+    @assert false
     prm_outer = namedtuple(outer_space(x))
     policies, pol_time = @timed optimal_policies(prm_outer)
     (x_inner, fx), inner_time = @timed inner_optimize(policies)

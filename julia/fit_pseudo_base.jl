@@ -65,9 +65,11 @@ println("Dataset sizes: ", join(map(d->length(d.train_trials), datasets), " "))
         :σ_obs => (1, 10),
         :sample_cost => (.001, .01, :log),
         :switch_cost => (.01, .1, :log),
+        :α=>(50., 500., :log),
+
     )
     inner_space = Box(
-        :α=>(50., 500., :log),
+        # :α=>(50., 500., :log),
         :β_μ=>(args["fit_mu"] ? (0, 1) : 1.),
         # :β_μ=>(0.,1.),
         :β_σ=>1.,
@@ -81,7 +83,7 @@ println("Dataset sizes: ", join(map(d->length(d.train_trials), datasets), " "))
     bmps_kws = (
         n_iter=args["bmps_iter"],
         n_roll=args["bmps_roll"],
-        α=500.
+        # α=500.
     )
     opt_kws = (
         iterations=10_000,
@@ -144,7 +146,7 @@ end
 function optimal_policies(prm)
     asyncmap(datasets) do d
         m = MetaMDP(d.n_item, prm.σ_obs, prm.sample_cost, prm.switch_cost)
-        optimize_bmps(m; bmps_kws...)
+        optimize_bmps(m; α=prm.α, bmps_kws...)
     end
 end
 
@@ -152,7 +154,13 @@ loss_iter = 0
 function loss(x::Vector{Float64}; verbose=true)
     prm = namedtuple(outer_space(x))
     policies, pol_time = @timed optimal_policies(prm)
-    (x_inner, fx), inner_time = @timed inner_optimize(policies)
+    x_inner = Float64[]
+    lp = namedtuple(inner_space(x_inner))
+    fx, inner_time = @timed mapreduce(+, datasets, policies) do d, policy
+        logp, ε, baseline = likelihood(d, policy, lp);
+        clip_loss(logp / baseline)
+    end
+
 
     global loss_iter += 1
     if verbose
@@ -247,11 +255,13 @@ end
 function record_mle(opt, i)
     find_model_max!(opt)
     prm_outer = opt.model_optimizer |> outer_space |> namedtuple
-    policies = optimal_policies(prm_outer)
-    x_inner, fx = inner_optimize(policies)
+    # policies = optimal_policies(prm_outer)
+    # x_inner, fx = inner_optimize(policies)
+    fx = loss(opt.model_optimizer)
+    x_inner = Float64[]
     prm_inner = x_inner |> inner_space |> namedtuple
-
     prm = (n_obs=length(opt.model.y), prm_outer..., prm_inner...)
+
     save(res, :mle, prm)
     save(res, Symbol("mle_$i"), prm, verbose=false)
     save(res, :xy, (x=opt.model.x, y=opt.model.y), verbose=false)
@@ -287,7 +297,7 @@ function reoptimize(prm; N=16)
     reopt = map(datasets) do d
         policies = asyncmap(1:N) do j
             m = MetaMDP(d.n_item, prm.σ_obs, prm.sample_cost, prm.switch_cost)
-            policy = optimize_bmps(m; bmps_kws...)
+            policy = optimize_bmps(m; bmps_kws..., α=prm.α)
             change_α(policy, prm.α)
         end
 
