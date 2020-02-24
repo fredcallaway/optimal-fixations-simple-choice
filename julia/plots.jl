@@ -64,9 +64,7 @@ open("fits.txt", "w") do f
     end
 end
 
-
 # %% ==================== Separate fitting results ====================
-
 ress = best_result.(["two", "three"])
 run_name = "separate_fit_nov25"
 
@@ -107,10 +105,11 @@ function get_sims(res; load_previous=true)
 end
 
 res = best_result("both")
-@time sims = get_sims(res);
+@time both_sims = get_sims(res);
 # multi_sims = map(load_recent_results("both")) do res
 #     get_sims(res, load_previous=false);
 # end;
+
 
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
@@ -176,6 +175,7 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
     xlab1, xlab2 =
         (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
         (xlab == :best_rv) ? ("Best rating - worst rating", "Best rating - mean other rating") :
+        (xlab == :last_rv) ? ("Last fixated rating - other rating", "Last fixated rating - mean other") :
         (xlab, xlab)
 
     # ff = plot_one(feature, xlab, ylab, trials, sims, plot_kws; kws...)
@@ -273,7 +273,7 @@ plot_both(binned_fixation_times, "Fixation type", "Fixation duration [ms]",
     binning=:integer, type=:discrete)
 
 plot_both(full_fixation_times, "Fixation number", "Fixation duration [ms]",
-    binning=:integer)
+    binning=Binning(0.5:1:9.5))
 
 plot_both(chosen_fix_time, "", "Average fixation duration [ms]",
     (xticks=(0:1, ["Unchosen", "Chosen"]),),
@@ -281,6 +281,11 @@ plot_both(chosen_fix_time, "", "Average fixation duration [ms]",
 
 plot_both(value_duration, "Item value",  "Fixation duration [ms]",
     binning=:integer, fix_select=firstfix)
+
+plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
+    plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
+    plot_model=(sim; color=RED)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, 0.5))
+)
 
 # %% ==================== Last fixations ====================
 
@@ -294,6 +299,7 @@ plot_both(last_fixation_duration, "Chosen item time advantage\nbefore last fixat
 # %% ==================== Mechanism tests for 3 items ====================
 
 plot_one(fix4_value, "Rating of first minus second fixated item",
+    binning=:integer,
     "P(4th fixation is refixation\nto first fixated item)",
     both_trials[2], both_sims[2], (xticks=-6:2:6,), xline=0, save=true)
 
@@ -303,6 +309,7 @@ plot_one(fix4_uncertain,
     both_trials[2], both_sims[2], xline=0, save=true)
 
 plot_one(fix3_value,
+    binning=:integer,
     "Rating of first fixated item",
     "P(3rd fixation is refixation\nto first fixated item)",
     both_trials[2], both_sims[2], save=true)
@@ -316,13 +323,14 @@ plot_one(fix3_uncertain,
 
 # %% ==================== Choice biases ====================
 
-plot_both(last_fix_bias, "Last fixated item relative rating", "P(last fixated item chosen)",
-    binning=:integer; xline=0, yline=:chance)
+plot_both(last_fix_bias, :last_rv, "P(last fixated item chosen)",
+    binning=:integer, xline=0, yline=:chance)
 
 plot_both(fixation_bias, "Final time advantage left [ms]", "P(left chosen)",
     ; xline=0, yline=:chance,
     # trial_select=(t)->t.value[1] == 3
     )
+
 
 plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected P(left chosen)",
     ; xline=0, yline=0)
@@ -330,3 +338,25 @@ plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected 
 
 plot_both(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
     )
+
+
+
+# %% ====================  ====================
+
+function foo(trials; trial_select=(t)->true)
+    x = Float64[]; y = Bool[];
+    for t in trials
+        trial_select(t) || continue
+        push!(x, relative_left(total_fix_times(t; fix_select=nonfinal)))
+        push!(y, t.choice == 1)
+    end
+    x, y
+end
+
+plot_both(foo, "Final time advantage left [ms]", "P(left chosen)",
+; xline=0, yline=:chance,
+# trial_select=(t)->t.value[1] == 3
+)
+
+# %% ====================  ====================
+FAST = true
