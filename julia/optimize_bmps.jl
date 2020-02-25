@@ -85,4 +85,28 @@ function optimize_bmps(m::MetaMDP; α=Inf, n_iter=500, seed=nothing, n_roll=1000
 end
 
 
+function bmps_opt(m::MetaMDP; α=Inf, n_iter=500, seed=nothing, n_roll=10000,
+                  verbose=false, parallel=true; kws...)
+    if seed != nothing
+        Random.seed!(seed)
+    end
+    mc = max_cost(m)
+
+    function loss(x, nr=n_roll)
+        policy = BMPSPolicy(m, x2theta(mc, x), α)
+        reward, secs = @timed mean_reward(policy, n_roll, parallel)
+        if verbose
+            print("θ = ", round.(x2theta(mc, x); digits=2), "   ")
+            @printf "reward = %.3f   seconds = %.3f\n" reward secs
+            flush(stdout)
+        end
+        -reward
+    end
+
+    opt = gp_minimize(loss, 3; noisebounds=[-4, -2], iterations=n_iter,
+                      verbose=false, kws...)
+    return opt
+end
+
+
 

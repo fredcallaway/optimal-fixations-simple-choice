@@ -135,25 +135,6 @@ function features(m::MetaMDP, b::Belief)
     ]
     combinedims([phi(c) for c in 1:m.n_arm])
 end
-# %% ====================  ====================
-d = Beta(3, 2)
-cv = 0.7
-cv + quadgk(x->1-cdf(d,x), cv, 1)[1]
-quadgk(x->1-cdf(Truncated(d, cv, Inf), x), 0, 1, atol=1e-10)
-
-# %% ====================  ====================
-function emc_mc(d, k; N=100_000)
-    N \ mapreduce(+, 1:N) do i
-        max(rand(d), k)
-    end
-end
-emc_mc(d, cv)
-expected_max_constant(d, cv)
-
-
-d1 = Truncated(d, cv, 1)
-
-cdf(d, 0.70001)
 
 # # %% ==================== Solution ====================
 function symmetry_breaking_hash(s::Belief)

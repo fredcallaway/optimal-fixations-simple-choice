@@ -6,8 +6,9 @@ const CUTOFF = 2000
 
 function make_bins(bins, hx)
     if bins == :integer
-        lo = floor(minimum(hx) - 0.5) + 0.5
-        hi = ceil(maximum(hx) + 0.5) - 0.5
+        low, high = quantile(hx, [0.025, 0.975])
+        lo = floor(low - 0.5) + 0.5
+        hi = ceil(high + 0.5) - 0.5
         return Binning(lo:1:hi)
     elseif bins isa Nothing
         bins = 7
@@ -157,7 +158,7 @@ function full_fixation_times(trials; fix_select=allfix)
     y = Float64[]
     for t in trials
         for (i, f) in enumerate(t.fix_times)
-            i > 10 && break
+            # i > 10 && break
             fix_select(t, i) || continue
             push!(x, i)
             push!(y, f)

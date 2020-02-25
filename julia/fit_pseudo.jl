@@ -13,6 +13,9 @@ s = ArgParseSettings()
         action = :store_true
     "--fit_mu"
         action = :store_true
+    "--mu"
+        arg_type = Float64
+        default = 1.0
     "--bmps_iter"
         arg_type = Int
         default = 500
@@ -37,7 +40,7 @@ s = ArgParseSettings()
         default = -1  # fit all subjects
     "--fold"
         arg_type = String
-        default = "even"
+        default = "odd"
         # range_tester = x -> x in ("even", "odd", "all")
     "--sobol"
         arg_type = Int

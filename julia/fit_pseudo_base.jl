@@ -1,9 +1,17 @@
 using Distributed
 
-include("results.jl")
+@everywhere include("results.jl")
 include("pseudo_likelihood.jl")
 
 # @assert @isdefined(res)  # only necessary for functions that save
+
+
+LOAD_EXISTING = exists(res, :args)
+if LOAD_EXISTING
+    println("Loading existing result.")
+    args = load(res, :args)
+end
+
 @assert @isdefined(args)
 
 display(args); println()
@@ -14,7 +22,7 @@ function build_metrics(trials)
         hb = args["hist_bins"]
         metrics = [
             Metric(total_fix_time, hb, trials),
-            Metric(n_fix, Binning([0; 2:7; Inf])),
+            Metric(n_fix, Binning([0; 2:hb; Inf])),
             Metric(t->t.choice, Binning(1:n_item+1)),
         ]
         for i in 1:(n_item-1)
@@ -58,41 +66,53 @@ println("Dataset sizes: ", join(map(d->length(d.train_trials), datasets), " "))
 
 @everywhere begin
     args = $args
+    res = $res
     include("box.jl")
 
-    outer_space = Box(
-        :sample_time => 100,
-        :σ_obs => (1, 10),
-        :sample_cost => (.001, .01, :log),
-        :switch_cost => (.01, .1, :log),
-        :α=>(50., 500., :log),
+    if $LOAD_EXISTING
+        outer_space = load(res, :outer_space)
+        inner_space = load(res, :inner_space)
+        like_kws = load(res, :like_kws)
+        bmps_kws = load(res, :bmps_kws)
+        opt_kws = load(res, :opt_kws)
+    else
+        outer_space = Box(
+            :sample_time => 100,
+            :σ_obs => (1, 10),
+            :sample_cost => (.001, .01, :log),
+            :switch_cost => (.01, .1, :log),
+            :α=>(50., 500., :log),
+            :β_μ=>(args["fit_mu"] ? (0, 1) : args["mu"]),
+            :β_σ=>1.,
+            :σ_rating => args["rating_noise"] ? (0., 1.) : 0.,
 
-    )
-    inner_space = Box(
-        # :α=>(50., 500., :log),
-        :β_μ=>(args["fit_mu"] ? (0, 1) : 1.),
-        # :β_μ=>(0.,1.),
-        :β_σ=>1.,
-        :σ_rating => args["rating_noise"] ? (0., 1.) : 0.,
-    )
-    like_kws = (
-        fit_ε = !args["fix_eps"],
-        max_ε = 0.5,
-        n_sim_hist = args["n_sim_hist"]
-    )
-    bmps_kws = (
-        n_iter=args["bmps_iter"],
-        n_roll=args["bmps_roll"],
-        # α=500.
-    )
-    opt_kws = (
-        iterations=10_000,
-        init_iters=args["n_init"],
-        acquisition="ei",
-        optimize_every=5,
-        acquisition_restarts=200,
-        noisebounds=[-4, 1],
-    )
+        )
+        inner_space = Box(
+            # :α=>(50., 500., :log),
+            # :β_μ=>(args["fit_mu"] ? (0, 1) : 1.),
+            # :β_μ=>(0.,1.),
+            # :β_σ=>1.,
+            # :σ_rating => args["rating_noise"] ? (0., 1.) : 0.,
+        )
+        like_kws = (
+            fit_ε = !args["fix_eps"],
+            max_ε = 0.5,
+            n_sim_hist = args["n_sim_hist"]
+        )
+        bmps_kws = (
+            n_iter=args["bmps_iter"],
+            n_roll=args["bmps_roll"],
+            # α=500.
+        )
+        opt_kws = (
+            iterations=10_000,  # this gets overwritten
+            init_iters=args["n_init"],
+            acquisition="ei",
+            optimize_every=5,
+            acquisition_restarts=200,
+            noisebounds=[-3.5, 1],
+        )
+    end
 
     like_params(d, prm) = (
         μ=prm.β_μ * d.μ_emp,
@@ -127,6 +147,7 @@ end
 change_α(policy, α) = BMPSPolicy(policy.m, policy.θ, float(α))
 
 function inner_loss(policies, x)
+    @assert false
     lp = namedtuple(inner_space(collect(x)))
     mapreduce(+, datasets, policies) do d, policy
         pol = change_α(policy, lp.α)
@@ -151,13 +172,26 @@ function optimal_policies(prm)
 end
 
 loss_iter = 0
+
+function loss(prm::NamedTuple; verbose=true)
+    policies, pol_time = @timed optimal_policies(prm)
+    x_inner = Float64[]
+    # lp = namedtuple(inner_space(x_inner))
+    fx, inner_time = @timed mapreduce(+, datasets, policies) do d, policy
+        logp, ε, baseline = likelihood(d, policy, prm);
+        clip_loss(logp / baseline)
+    end
+    return fx
+end
+
+
 function loss(x::Vector{Float64}; verbose=true)
     prm = namedtuple(outer_space(x))
     policies, pol_time = @timed optimal_policies(prm)
     x_inner = Float64[]
-    lp = namedtuple(inner_space(x_inner))
+    # lp = namedtuple(inner_space(x_inner))
     fx, inner_time = @timed mapreduce(+, datasets, policies) do d, policy
-        logp, ε, baseline = likelihood(d, policy, lp);
+        logp, ε, baseline = likelihood(d, policy, prm);
         clip_loss(logp / baseline)
     end
 
@@ -258,6 +292,7 @@ function record_mle(opt, i)
     # policies = optimal_policies(prm_outer)
     # x_inner, fx = inner_optimize(policies)
     fx = loss(opt.model_optimizer)
+    global loss_iter -= 1
     x_inner = Float64[]
     prm_inner = x_inner |> inner_space |> namedtuple
     prm = (n_obs=length(opt.model.y), prm_outer..., prm_inner...)
@@ -283,11 +318,14 @@ end
 function fit(opt)
     @info "Begin fitting" opt_kws like_kws
     maxiterations!(opt, args["save_freq"])  # set maxiterations for the next call
-    n_loop = Int(args["fit_iter"] / args["save_freq"])
+    n_loop = Int((args["fit_iter"] - args["n_init"]) / args["save_freq"])
     mle = nothing
     for i in 1:n_loop
         boptimize!(opt)
         mle = record_mle(opt, i)
+        if loss_iter > args["fit_iter"]
+            break
+        end
         # save(res, :gp_model, opt.model)
     end
     return mle

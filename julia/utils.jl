@@ -20,6 +20,9 @@ function softmax(x)
     ex
 end
 
+Base.dropdims(idx::Int...) = X -> dropdims(X, dims=idx)
+Base.reshape(idx::Union{Int,Colon}...) = x -> reshape(x, idx...)
+
 # import Serialization: serialize
 # function serialize(s::String, x)
 #     open(s, "w") do f

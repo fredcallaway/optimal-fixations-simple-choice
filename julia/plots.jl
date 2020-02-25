@@ -1,3 +1,6 @@
+using Distributed
+addprocs(40)
+
 include("plots_base.jl")
 include("pseudo_likelihood.jl")
 include("params.jl")
@@ -7,8 +10,10 @@ using StatsBase
 plot([1,2])
 
 # %% ====================  ====================
-function load_recent_results(dataset)
-    name = (dataset == "both") ? "no-inner" : "test"
+function load_results(dataset, name="feb17")
+    if name == "OLD"
+        name = (dataset == "both") ? "no-inner" : "test"
+    end
     all_res = filter(get_results(name)) do res
         exists(res, :reopt) || return false
         length(load(res, :xy).y) >= 400 || return false
@@ -20,15 +25,15 @@ function load_recent_results(dataset)
 end
 
 function best_result(dataset)
-    ress = load_recent_results(dataset)
+    ress = load_results(dataset)
     ress[argmin(results_table(ress).train_loss)]
 end
 
-
-both_trials = load_dataset.(["two", "three"]);
+both_trials = load_dataset.(["two", "three"])
+# dir(best_result("both"))
 
 # %% ==================== Summarize fits ====================
-res = load_recent_results("both")[1]
+res = load_results("both")[1]
 param_names = [free(load(res, :outer_space)); free(load(res, :inner_space))]
 
 function load_x(res)
@@ -55,14 +60,14 @@ function plot_fits(results, name; kws...)
     display(f)
 end
 
-open("fits.txt", "w") do f
+open("old_fits.txt", "w") do f
     for dataset in ["two", "three", "both"]
-        all_res = load_recent_results(dataset)
+        all_res = load_results(dataset, "OLD")
         println(f, "\n\n********* $dataset *********",)
         plot_fits(all_res, dataset)
         show(f, results_table(all_res), allcols=true, splitcols=false)
     end
-end
+end;
 
 # %% ==================== Separate fitting results ====================
 ress = best_result.(["two", "three"])
@@ -83,8 +88,8 @@ end
 
 # %% ==================== Joint fitting results ====================
 # run_name = "joint_fit_dec3"
-run_name = "no_inner"
-
+# run_name = "joint_feb17"
+run_name = "old_check"
 
 function get_sims(res; load_previous=true)
     load_previous && exists(res, :both_sims) && return load(res, :both_sims)
@@ -110,6 +115,8 @@ res = best_result("both")
 #     get_sims(res, load_previous=false);
 # end;
 
+# %% ====================  ====================
+x, ε, y = invert(load(res, :reopt)[1].train_like)
 
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
@@ -219,13 +226,11 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
 end
 
 include("features.jl")
-# include("plots_base.jl")
+include("plots_base.jl")
 
 # %% ==================== Basic psychometrics ====================
-FAST = false
-run_name = "no_inner"
+# run_name = "no_inner"
 mkpath("figs/$run_name")
-
 # both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
 
 plot_both(value_choice, :left_rv, "P(left chosen)";
@@ -272,8 +277,8 @@ plot_both(binned_fixation_times, "Fixation type", "Fixation duration [ms]",
     (xticks=(1:4, ["first", "second", "middle", "last"]),),
     binning=:integer, type=:discrete)
 
-plot_both(full_fixation_times, "Fixation number", "Fixation duration [ms]",
-    binning=Binning(0.5:1:9.5))
+# plot_both(full_fixation_times, "Fixation number", "Fixation duration [ms]",
+#     binning=Binning(0.5:1:9.5))
 
 plot_both(chosen_fix_time, "", "Average fixation duration [ms]",
     (xticks=(0:1, ["Unchosen", "Chosen"]),),
@@ -289,8 +294,8 @@ plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
 
 # %% ==================== Last fixations ====================
 
-plot_both(value_duration, "Item value",  "Fixation duration [ms]",
-    binning=:integer, fix_select=final)
+# plot_both(value_duration, "Item value",  "Fixation duration [ms]",
+#     binning=:integer, fix_select=final)
 
 plot_both(last_fixation_duration, "Chosen item time advantage\nbefore last fixation [ms]",
     # (xticks=[],),
@@ -303,10 +308,10 @@ plot_one(fix4_value, "Rating of first minus second fixated item",
     "P(4th fixation is refixation\nto first fixated item)",
     both_trials[2], both_sims[2], (xticks=-6:2:6,), xline=0, save=true)
 
-plot_one(fix4_uncertain,
-    "First minus second fixation duration [ms]",
-    "P(4th fixation is refixation\nto first fixated item)",
-    both_trials[2], both_sims[2], xline=0, save=true)
+# plot_one(fix4_uncertain,
+#     "First minus second fixation duration [ms]",
+#     "P(4th fixation is refixation\nto first fixated item)",
+#     both_trials[2], both_sims[2], xline=0, save=true)
 
 plot_one(fix3_value,
     binning=:integer,
@@ -314,10 +319,10 @@ plot_one(fix3_value,
     "P(3rd fixation is refixation\nto first fixated item)",
     both_trials[2], both_sims[2], save=true)
 
-plot_one(fix3_uncertain,
-    "Duration of first fixation",
-    "P(3rd fixation is refixation\nto first fixated item)",
-    both_trials[2], both_sims[2], save=true)
+# plot_one(fix3_uncertain,
+#     "Duration of first fixation",
+#     "P(3rd fixation is refixation\nto first fixated item)",
+#     both_trials[2], both_sims[2], save=true)
 
 
 
