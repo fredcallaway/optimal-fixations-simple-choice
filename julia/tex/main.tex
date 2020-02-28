@@ -1,0 +1,42 @@
+\documentclass[12pt,a4paperpaper,]{article}
+
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{array}
+
+\usepackage{geometry}
+\geometry{
+    top=1in,
+    bottom=1in,
+    left=1.25in,
+    right=1.25in,
+    headheight=3ex,
+    headsep=3ex
+}
+
+\begin{document}
+
+
+\newcommand*{\thead}[1]{\multicolumn{1}{l}{\sffamily \bfseries #1}}
+\newcommand{\tablehead}{\thead{Two items} & \thead{Three items} \\}
+\newcommand{\figrow}[3][0.8]{
+  {\sffamily \Large #2} \\ \includegraphics[width=#1\textwidth]{../figs/old_check/#3.pdf} \\
+}
+
+% \newcommand*{\thead}[1]{{\centering \sffamily \bfseries #1}}
+% \newcommand{\tablehead}{\thead{Individual fit} \\}
+% \newcommand{\figrow}[3][0.8]{
+%   {\sffamily \Large #2} && \includegraphics[width=0.4\textwidth]{../indinit/#3.pdf} \\
+% }
+
+
+\include{psychometrics}
+\include{nfix}
+\include{fixloc}
+\include{fixtimes}
+% \include{lastfix}
+\include{three_mechanism}
+\include{choice_bias}
+
+
+\end{document}
