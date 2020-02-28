@@ -67,6 +67,7 @@ end
 args = parse_args(s)
 
 args["propfix"] = true  # old arguments, now with fixed values
+@assert !args["rating_noise"]
 # args["fitmu"] = true
 res = Results(args["res"])
 

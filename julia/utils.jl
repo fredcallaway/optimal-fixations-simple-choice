@@ -1,4 +1,6 @@
 using Printf
+using Parameters
+
 function describe_vec(x::Vector)
     @printf("%.3f ± %.3f  [%.3f, %.3f]\n", juxt(mean, std, minimum, maximum)(x)...)
 end
@@ -23,9 +25,13 @@ end
 Base.dropdims(idx::Int...) = X -> dropdims(X, dims=idx)
 Base.reshape(idx::Union{Int,Colon}...) = x -> reshape(x, idx...)
 
-# import Serialization: serialize
-# function serialize(s::String, x)
-#     open(s, "w") do f
-#         Serialization.serialize(f, x)
-#     end
-# end
+# type2dict(x::T) where T = Dict(fn=>getfield(x, fn) for fn in fieldnames(T))
+
+function background(f, name; save=false)
+    @async begin
+        x, t = @timed f()
+        println(name, " finished in ", round(t), " seconds")
+        mkpath("background_tasks")
+        serialize("background_tasks/$name", x)
+    end
+end

@@ -86,7 +86,7 @@ end
 
 
 function bmps_opt(m::MetaMDP; α=Inf, n_iter=500, seed=nothing, n_roll=10000,
-                  verbose=false, parallel=true; kws...)
+                  verbose=false, parallel=true, kws...)
     if seed != nothing
         Random.seed!(seed)
     end
@@ -105,7 +105,7 @@ function bmps_opt(m::MetaMDP; α=Inf, n_iter=500, seed=nothing, n_roll=10000,
 
     opt = gp_minimize(loss, 3; noisebounds=[-4, -2], iterations=n_iter,
                       verbose=false, kws...)
-    return opt
+    return opt, loss
 end
 
 

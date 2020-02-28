@@ -3,26 +3,25 @@ using TypedTables
 using SplitApplyCombine
 # using Distributions
 using StatsBase
-using Lazy: @>>
 using Serialization
 
 include("utils.jl")
 
 function process_data(reducer, csv, name)
-    trials = @>> begin
-        CSV.File(csv)
-        Table
-        group(x->(x.subject, x.trial))
-        values
-        map(reducer)
+    trials =
+        CSV.File(csv) |>
+        Table |>
+        d -> group(x->(x.subject, x.trial), d) |>
+        pairs |> Dict |> values |>
+        d -> map(reducer, d) |>
         Table
         # normalize_values!
-    end
     serialize("data/$name.jls", trials)
     trials
 end
 
 process_data("../krajbich_PNAS_2011/data.csv", "three_items") do t
+    t = Table(t)
     r = t[1]
     (choice = argmax([r.choice1, r.choice2, r.choice3]),
      value = Int[r.rating1, r.rating2, r.rating3],
@@ -34,6 +33,7 @@ process_data("../krajbich_PNAS_2011/data.csv", "three_items") do t
 end
 
 process_data("../krajbich_NatNeu_2010/Data/fixations_final.csv", "two_items") do t
+    t = Table(t)
     r = t[1]
     (choice = Int(r.choice == 0 ? 2 : 1),
      value = Int[r.leftrating, r.rightrating],
