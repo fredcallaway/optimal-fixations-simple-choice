@@ -41,28 +41,60 @@ losses = get_loss(pols, ds, x[end])
     datasets = [build_dataset("two", -1), build_dataset("three", -1)];
     map(datasets) do ds
         pols = get_policies(ds.n_item, x2prm(x))
-        get_loss(pols, ds)
+        get_loss(pols, ds, x[end])
     end
 end
 
-test_xs = repeat(xs[rank[1:30]], 30);
+top_xs = xs[rank[1:30]]
+test_xs = repeat(top_xs, 30);
 test_task = background("test"; save=true) do
     pmap(test_xs) do x
         loss(x)
     end
 end
-# test_results = fetch(test_task);
+istaskdone(test_task)
+test_results = fetch(test_task);
+
+# %% ====================  ====================
+test_results = deserialize("background_tasks/test")
+reshape(combinedims(test_xs), 5, 30, 30)
+L = reshape(combinedims(test_results), 2, 30, 30)
+L = sum(L; dims=1) |> dropdims(1)
+Lm = mean(L; dims=2) |> dropdims(2)
+Ls = std(L; dims=2) |> dropdims(2)
+
+top_rank = sortperm(Lm)
+new_top = top_xs[top_rank]
+new_top
+
+mkpath("results/sobol/sims")
+mkpath("results/sobol/sim_pols/")
+
+sim_task = background("simulate") do
+    pmap(enumerate(new_top)) do (i, x)
+        both_sims = map(["two", "three"]) do num
+            ds = build_dataset(num, -1)
+            try
+                pols = deserialize("results/sobol/sim_pols/$num$i")
+            catch
+                pols = get_policies(ds.n_item, x2prm(x))
+                serialize("results/sobol/sim_pols/$num$i", pols)
+            end
+            map(pols) do pol
+                simulate_test(pol, ds, x[end])
+            end
+        end
+        serialize("results/sobol/sims/$i", both_sims)
+        println("Wrote results/sobol/sims/$i")
+    end
+end
 
 
-# test_xs2 = repeat(xs[rank[1:30]], 100);
-# test_task2 = background("test"; save=true) do
-#     pmap(test_xs2) do x
-#         loss(x)
-#     end
-# end
-# test_results2 = fetch(test_task2);
 
-serialize("tmp/Xy", (X, y))
+
+# %% ====================  ====================
+
+
 # %% ====================  ====================
 
 rank = sortperm(y)

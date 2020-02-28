@@ -9,6 +9,7 @@ using Glob
 using StatsBase
 plot([1,2])
 
+
 # %% ====================  ====================
 function load_results(dataset, name="feb17")
     if name == "OLD"
@@ -178,6 +179,8 @@ end
 # left_rv = n_item == 2 ? "Left rating - right rating" : "Left rating - mean other rating"
 # best_rv = n_item == 2 ? "Best rating - worst rating" : "Best rating - mean other rating"
 DISABLE_ALIGN = true
+silly_sim = [deserialize("tmp/silly_sim")];
+mean(total_fix_time.(silly_sim[1]))
 function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
     xlab1, xlab2 =
         (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
@@ -196,8 +199,12 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
         ylab *= "\n"
     end
 
-    f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
-    f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
+    f2 = plot_one(feature, xlab2, ylab, both_trials[2], silly_sim, plot_kws; kws...)
+    display(f2)
+    return
+
+    # f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
+    # f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
 
     ylabel!(f2, yticks ? "  " : " \n ")
     x1 = xlims(f1); x2 = xlims(f2)
@@ -287,11 +294,6 @@ plot_both(chosen_fix_time, "", "Average fixation duration [ms]",
 plot_both(value_duration, "Item value",  "Fixation duration [ms]",
     binning=:integer, fix_select=firstfix)
 
-plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
-    plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
-    plot_model=(sim; color=RED)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, 0.5))
-)
-
 # %% ==================== Last fixations ====================
 
 # plot_both(value_duration, "Item value",  "Fixation duration [ms]",
@@ -306,18 +308,18 @@ plot_both(last_fixation_duration, "Chosen item time advantage\nbefore last fixat
 plot_one(fix4_value, "Rating of first minus second fixated item",
     binning=:integer,
     "P(4th fixation is refixation\nto first fixated item)",
-    both_trials[2], both_sims[2], (xticks=-6:2:6,), xline=0, save=true)
+    both_trials[2], silly_sim, (xticks=-6:2:6,), xline=0, save=true)
 
 # plot_one(fix4_uncertain,
 #     "First minus second fixation duration [ms]",
 #     "P(4th fixation is refixation\nto first fixated item)",
-#     both_trials[2], both_sims[2], xline=0, save=true)
+#     both_trials[2], silly_sim[1], xline=0, save=true)
 
 plot_one(fix3_value,
     binning=:integer,
     "Rating of first fixated item",
     "P(3rd fixation is refixation\nto first fixated item)",
-    both_trials[2], both_sims[2], save=true)
+    both_trials[2], silly_sim, save=true)
 
 # plot_one(fix3_uncertain,
 #     "Duration of first fixation",

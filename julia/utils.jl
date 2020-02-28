@@ -29,9 +29,15 @@ Base.reshape(idx::Union{Int,Colon}...) = x -> reshape(x, idx...)
 
 function background(f, name; save=false)
     @async begin
-        x, t = @timed f()
-        println(name, " finished in ", round(t), " seconds")
-        mkpath("background_tasks")
-        serialize("background_tasks/$name", x)
+        try
+            x, t = @timed f()
+            println(name, " finished in ", round(t), " seconds")
+            mkpath("background_tasks")
+            serialize("background_tasks/$name", x)
+            return x
+        catch e
+            println("ERROR: $name failed")
+            rethrow(e)
+        end
     end
 end

@@ -1,6 +1,7 @@
 using Glob
 using SplitApplyCombine
-
+using Serialization
+include("utils.jl")
 
 results = begin
     xs = map(glob("results/moment_ucb/*")) do f
@@ -16,7 +17,6 @@ results = begin
     results = flatten(xs)
 end;
 
-
 xs, y = map(results) do (prm, losses)
     x = [space(type2dict(prm)); prm.β_μ]
     x, sum(losses)
@@ -27,15 +27,46 @@ rank = sortperm(y)
 top = xs[rank[1:30]]
 x2prm(top[5])
 
-
-
-
-
-
-
+@everywhere include("new_moment_base.jl")
 
 
 # %% ====================  ====================
+
+
+mkpath("results/moments/sim_pols/")
+mkpath("results/moments/sims/")
+include("utils.jl")
+sim_task = background("simulate") do
+    pmap(enumerate(top)) do (i, x)
+        both_sims = map(["two", "three"]) do num
+            ds = build_dataset(num)
+            try
+                pols = deserialize("results/moments/sim_pols/$i")
+            catch
+                pols = get_policies(ds.n_item, x2prm(x))
+                serialize("results/moments/sim_pols/$i", pols)
+            end
+            map(pols) do pol
+                simulate_test(pol, ds, x[end])
+            end
+        end
+        serialize("results/moments/sims/$i", both_sims)
+        println("Wrote results/moments/sims/$i")
+    end
+end
+
+pmap(top) do x
+    map(["two", "three"]) do num
+        ds = build_dataset(num)
+        pols = get_policies(ds.n_item, x2prm(x))
+
+
+
+pol, β_μ = X[rank[1]]
+sim = simulate_experiment(pol, ds.test_trials; μ=β_μ * ds.μ_emp, σ=ds.σ_emp,
+    sample_time=100, n_repeat=10);
+serialize("tmp/silly_sim", sim)
+
 
 # %% ==================== Load preoptimized policies ====================
 @everywhere include("model_base.jl")

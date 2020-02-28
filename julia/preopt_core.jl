@@ -43,3 +43,17 @@ function get_loss(policies, ds, β_µ)
     logp, ε, baseline = likelihood(ds, policies, prm; parallel=false);
     logp / baseline
 end
+
+function sim_one(policy, μ, σ, v)
+    sim = simulate(policy, (v .- μ) ./ σ; max_steps=MAX_STEPS)
+    fixs, fix_times = parse_fixations(sim.samples, SAMPLE_TIME)
+    (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times)
+end
+
+function simulate_test(policy::Policy, ds, β_μ::Float64)
+    μ = β_μ * ds.μ_emp
+    σ = ds.σ_emp
+    map(ds.test_trials.value) do v
+        sim_one(policy, μ, σ, v)
+    end |> Table
+end

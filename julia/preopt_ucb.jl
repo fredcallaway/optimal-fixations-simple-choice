@@ -1,4 +1,6 @@
-mkpath("results/preopt_ucb")
+out = "results/grid/ucb"
+mkpath(out)
+
 
 using Distributed
 using Serialization
@@ -10,14 +12,25 @@ include("ucb_bmps.jl")
 
 space = Box(
     :sample_time => 100,
-    :α => (50, 200),
+    # :α => (50, 200),
+    :α => 200,
     :σ_obs => (1, 5),
-    :sample_cost => (.001, .01),
+    :sample_cost => (.002, .006),
     :switch_cost => (.01, .05),
 )
 
+function get_prm(job)
+    # seq = SobolSeq(n_free(space))
+    # skip(seq, job-1; exact=true)
+    # x = next!(seq)
+    g = range(0,1,length=11)
+    mg = Iterators.product(repeat([g], n_free(space))...)
+    x = collect(collect(mg)[job])
+    x |> space |> namedtuple
+end
+
 function run_ucb(job)
-    dest = "results/preopt_ucb/$job"
+    dest = "$out/$job"
     if isfile(dest)
         println("Job $job has been completed")
         return
@@ -29,11 +42,7 @@ function run_ucb(job)
     try
         println("Running UCB for job ", job)
         flush(stdout)
-        seq = SobolSeq(n_free(space))
-        skip(seq, job-1; exact=true)
-        x = next!(seq)
-        prm = x |> space |> namedtuple
-        # println(prm)
+        prm = get_prm(job)
 
         results = map(2:3) do n_item
             m = MetaMDP(n_item, prm.σ_obs, prm.sample_cost, prm.switch_cost)

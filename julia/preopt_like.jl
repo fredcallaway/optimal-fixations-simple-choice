@@ -1,3 +1,8 @@
+ucb_path = "results/grid/ucb"
+out = "results/grid/like"
+mkpath(out)
+
+
 include("pseudo_likelihood.jl")
 include("pseudo_base.jl")
 args = Dict(
@@ -13,10 +18,10 @@ like_kws = (
 )
 n_top = 80
 
-mkpath("results/like_ucb")
+
 
 function compute_likelihood(job)
-    dest = "results/like_ucb/$job"
+    dest = "$out/$job"
     if isfile(dest)
         println("Job $job has been completed")
         return
@@ -28,7 +33,7 @@ function compute_likelihood(job)
     println("Computing likelihood for job ", job)
 
     datasets = [build_dataset("two", -1), build_dataset("three", -1)]
-    ucb = deserialize("results/preopt_ucb/$job")
+    ucb = deserialize("$ucb_path/$job")
     results = map(0:0.1:1) do β_μ
         losses = map(1:2) do item_idx
             policies, μ, sem = ucb[item_idx]
@@ -44,7 +49,7 @@ function compute_likelihood(job)
     end
 
     serialize(dest, results)
-    rm(dest*"x")
+    isfile(test*"x") && rm(dest*"x")
     println("Wrote $dest")
 end
 
