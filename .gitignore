@@ -15,3 +15,10 @@ julia/tmp/
 julia/figs/
 julia/human_trials.jls
 julia/scratch_plots.jl
+mcts_julia/
+julia/sync.sh
+julia/run_multi.jl
+julia/fits.txt
+julia/old_fits.txt
+julia/plots_scratch.jl
+julia/data/
