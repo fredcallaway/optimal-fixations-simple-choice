@@ -3,12 +3,13 @@ using TypedTables
 using SplitApplyCombine
 using Statistics
 using Serialization
+using Memoize
 include("utils.jl")
 
 "This allows us to treat trials with the same value sets (but in different
 order) as equivalent, which is useful for fitting"
 function sort_value(t)
-    rank = sortperm(t.value)
+    rank = sortperm(-t.value)
     remap = sortperm(rank)
     (
         value = t.value[rank],
@@ -18,14 +19,8 @@ function sort_value(t)
     )
 end
 
-# if !@isdefined trials
-#     trials = open(deserialize, "data/three_items.jls")
-#     μ_emp, σ_emp = juxt(mean, std)(flatten(trials.value))
-#     n_item = length(trials[1].value)
-#     const rank_trials = map(sort_value, trials)
-# end
-
-load_dataset(num) = open(deserialize, "data/$(num)_items.jls")
+@memoize load_dataset(num::String) = open(deserialize, "data/$(num)_items.jls")
+load_dataset(n::Int) = load_dataset(["", "two", "three"][n])
 function load_dataset(num, subject::Int)
     subject == -1 && return load_dataset(num)
     filter(load_dataset(num)) do t

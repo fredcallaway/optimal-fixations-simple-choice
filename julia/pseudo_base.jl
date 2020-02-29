@@ -1,30 +1,20 @@
 function build_metrics(trials)
     n_item = length(trials[1].value)
-    hb = args["hist_bins"]
+    hb = LIKELIHOOD_PARAMS.hist_bins
     metrics = [
         Metric(total_fix_time, hb, trials),
         Metric(n_fix, Binning([0; 2:hb; Inf])),
         Metric(t->t.choice, Binning(1:n_item+1)),
     ]
-    if args["propfix"]
-        for i in 1:(n_item-1)
-            push!(metrics, Metric(t->propfix(t)[i], hb, trials))
-        end
+    for i in 1:(n_item-1)
+        push!(metrics, Metric(t->propfix(t)[i], hb, trials))
     end
     return metrics
-    # else
-    #     [
-    #         Metric(total_fix_time, hb, trials),
-    #         Metric(n_fix, Binning([0; 2:7; Inf])),
-    #         Metric(rank_chosen, Binning(1:n_item+1)),
-    #         # Metric(top_fix_proportion, 10)
-    #     ]
-    # end
 end
 
 function build_dataset(num, subject)
     trials = map(sort_value, load_dataset(num, subject))
-    train, test = train_test_split(trials, args["fold"])
+    train, test = train_test_split(trials, LIKELIHOOD_PARAMS.test_fold)
     μ_emp, σ_emp = empirical_prior(trials)
     (
         subject=subject,
