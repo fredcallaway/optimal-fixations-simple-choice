@@ -1,5 +1,11 @@
-ucb_path = "results/grid/ucb"
-out = "results/grid/like"
+
+out = "results/sobol2/ucb"
+mkpath(out)
+
+ucb_path = "results/sobol2/ucb"
+out = "results/sobol2/like"
+# ucb_path = "results/grid/ucb"
+# out = "results/grid/like"
 mkpath(out)
 
 
@@ -34,7 +40,7 @@ function compute_likelihood(job)
 
     datasets = [build_dataset("two", -1), build_dataset("three", -1)]
     ucb = deserialize("$ucb_path/$job")
-    results = map(0:0.1:1) do β_μ
+    results = map(0.5:0.05:1) do β_μ
         losses = map(1:2) do item_idx
             policies, μ, sem = ucb[item_idx]
             ds = datasets[item_idx]
@@ -49,7 +55,7 @@ function compute_likelihood(job)
     end
 
     serialize(dest, results)
-    isfile(test*"x") && rm(dest*"x")
+    isfile(dest*"x") && rm(dest*"x")
     println("Wrote $dest")
 end
 

@@ -20,13 +20,14 @@ RED = colorant"#FF6167"
 
 NO_RIBBON = false
 FAST = false
+SKIP_BOOT = false
 const CI = 0.95
 const N_BOOT = 1000
 using Bootstrap
 function ci_err(y)
     length(y) == 1 && return (0., 0.)
     NO_RIBBON && return (0., 0.)
-    FAST && return (sem(y) * 2, sem(y) * 2)
+    (FAST || SKIP_BOOT) && return (sem(y) * 2, sem(y) * 2)
     isempty(y) && return (NaN, NaN)
     bs = bootstrap(mean, y, BasicSampling(N_BOOT))
     c = confint(bs, BCaConfInt(CI))[1]
@@ -48,6 +49,7 @@ function plot_human!(bins, x, y, type=:line; kws...)
             yerr=err,
               grid=:none,
               fill=:white,
+              fillalpha=0,
               line=(2,),
               color=:black,
               label="";
@@ -80,7 +82,7 @@ function plot_model!(x::Vector{Float64}, y, err, type; color=RED, kws...)
     if type == :line
         plot!(x, y,
               ribbon=err,
-              fillalpha=0.1,
+              fillalpha=0.05,
               color=color,
               linewidth=1,
               label="";

@@ -1,7 +1,24 @@
-# %% ==================== Simulation ====================
+include("box.jl")
+include("meta_mdp.jl")
+include("bmps.jl")
+include("optimize_bmps.jl")
+include("ucb_bmps.jl")
+include("human.jl")
+
 const MAX_STEPS = 200  # 20 seconds
 const SAMPLE_TIME = 100
 
+space = Box(
+    :sample_time => 100,
+    :α => (50, 200),
+    :σ_obs => (1, 5),
+    :sample_cost => (.001, .01),
+    :switch_cost => (.01, .05),
+)
+
+x2prm(x) = x |> space |> namedtuple
+
+# %% ==================== Data ====================
 
 function build_dataset(num; fold="odd")
     trials = load_dataset(num)
@@ -16,6 +33,16 @@ function build_dataset(num; fold="odd")
     )
 end
 Dataset = NamedTuple{(:n_item, :train_trials, :test_trials, :μ_emp, :σ_emp)}
+
+# %% ==================== Simulation ====================
+
+function simulate(policy, value; max_steps=1000)
+    cs = Int[]
+    s = State(policy.m, value)
+    roll = rollout(policy, state=s, callback=(b,c)->push!(cs, c); max_steps=max_steps)
+    (samples=cs[1:end-1], choice=roll.choice, value=value)
+end
+
 
 function sim_one(policy, μ, σ, v)
     sim = simulate(policy, (v .- μ) ./ σ; max_steps=MAX_STEPS)

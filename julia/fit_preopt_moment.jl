@@ -3,6 +3,11 @@ using SplitApplyCombine
 using Serialization
 include("utils.jl")
 
+@everywhere include("new_moment_base.jl")
+
+
+
+
 results = begin
     xs = map(glob("results/moment_ucb/*")) do f
         endswith(f, "x") && return missing
@@ -27,7 +32,6 @@ rank = sortperm(y)
 top = xs[rank[1:30]]
 x2prm(top[5])
 
-@everywhere include("new_moment_base.jl")
 
 
 # %% ====================  ====================

@@ -5,6 +5,9 @@ function describe_vec(x::Vector)
     @printf("%.3f ± %.3f  [%.3f, %.3f]\n", juxt(mean, std, minimum, maximum)(x)...)
 end
 
+Base.show(io::IO, f::Float64) = @printf(io, "%1.3f", f)
+
+
 Base.map(f, d::AbstractDict) = [f(k, v) for (k, v) in d]
 valmap(f, d::AbstractDict) = Dict(k => f(v) for (k, v) in d)
 valmap(f) = d->valmap(f, d)

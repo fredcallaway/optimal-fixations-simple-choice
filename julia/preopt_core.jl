@@ -5,10 +5,11 @@ include("meta_mdp.jl")
 include("bmps.jl")
 include("optimize_bmps.jl")
 include("ucb_bmps.jl")
+include("human.jl")
+include("simulations.jl")
 
-include("pseudo_likelihood.jl")
-include("pseudo_base.jl")
-
+const MAX_STEPS = 200  # 20 seconds
+const SAMPLE_TIME = 100
 
 space = Box(
     :sample_time => 100,
@@ -38,22 +39,24 @@ function get_policies(n_item, prm; n_top=80)
     return policies[partialsortperm(-μ, 1:n_top)]
 end
 
-function get_loss(policies, ds, β_µ)
-    prm = (β_μ=β_μ, β_σ=1., σ_rating=NaN)
-    logp, ε, baseline = likelihood(ds, policies, prm; parallel=false);
-    logp / baseline
-end
-
 function sim_one(policy, μ, σ, v)
     sim = simulate(policy, (v .- μ) ./ σ; max_steps=MAX_STEPS)
     fixs, fix_times = parse_fixations(sim.samples, SAMPLE_TIME)
     (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times)
 end
 
-function simulate_test(policy::Policy, ds, β_μ::Float64)
-    μ = β_μ * ds.μ_emp
-    σ = ds.σ_emp
-    map(ds.test_trials.value) do v
+function simulate_trials(policy::Policy, trials::Table, μ::Float64, σ::Float64)
+    map(trials.value) do v
         sim_one(policy, μ, σ, v)
     end |> Table
 end
+
+# include("pseudo_base.jl")
+# include("pseudo_likelihood.jl")
+
+
+# function get_loss(policies, ds, β_µ)
+#     prm = (β_μ=β_μ, β_σ=1., σ_rating=NaN)
+#     logp, ε, baseline = likelihood(ds, policies, prm; parallel=false);
+#     logp / baseline
+# end

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.17 (TeX Live 2016) (preloaded format=pdflatex 2016.5.22)  24 FEB 2020 12:19
+This is pdfTeX, Version 3.14159265-2.6-1.40.17 (TeX Live 2016) (preloaded format=pdflatex 2016.5.22)  28 FEB 2020 23:50
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -229,31 +229,31 @@ LaTeX Font Info:    External font `cmex10' loaded for size
 (Font)              <8> on input line 3.
 LaTeX Font Info:    External font `cmex10' loaded for size
 (Font)              <6> on input line 3.
-<../figs/old_check/value_choice.pdf, id=1, 650.43pt x 289.08pt>
-File: ../figs/old_check/value_choice.pdf Graphic file (type pdf)
-<use ../figs/old_check/value_choice.pdf>
-Package pdftex.def Info: ../figs/old_check/value_choice.pdf used on input line 
+<../figs/all_sobol/value_choice.pdf, id=1, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/value_choice.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/value_choice.pdf>
+Package pdftex.def Info: ../figs/all_sobol/value_choice.pdf used on input line 
 7.
 (pdftex.def)             Requested size: 346.89732pt x 154.17767pt.
-<../figs/old_check/difference_time.pdf, id=2, 650.43pt x 289.08pt>
-File: ../figs/old_check/difference_time.pdf Graphic file (type pdf)
-<use ../figs/old_check/difference_time.pdf>
-Package pdftex.def Info: ../figs/old_check/difference_time.pdf used on input li
+<../figs/all_sobol/difference_time.pdf, id=2, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/difference_time.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/difference_time.pdf>
+Package pdftex.def Info: ../figs/all_sobol/difference_time.pdf used on input li
 ne 8.
 (pdftex.def)             Requested size: 346.89732pt x 154.17767pt.
-<../figs/old_check/rt_kde.pdf, id=3, 650.43pt x 289.08pt>
-File: ../figs/old_check/rt_kde.pdf Graphic file (type pdf)
-<use ../figs/old_check/rt_kde.pdf>
-Package pdftex.def Info: ../figs/old_check/rt_kde.pdf used on input line 9.
+<../figs/all_sobol/rt_kde.pdf, id=3, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/rt_kde.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/rt_kde.pdf>
+Package pdftex.def Info: ../figs/all_sobol/rt_kde.pdf used on input line 9.
 (pdftex.def)             Requested size: 346.89732pt x 154.17767pt.
 ) [1{/usr/local/texlive/2016/texmf-var/fonts/map/pdftex/updmap/pdftex.map} <../
-figs/old_check/value_choice.pdf> <../figs/old_check/difference_time.pdf
+figs/all_sobol/value_choice.pdf> <../figs/all_sobol/difference_time.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/difference_time.pdf): PDF incl
+pdfTeX warning: pdflatex (file ../figs/all_sobol/difference_time.pdf): PDF incl
 usion: multiple pdfs with page group included in a single page
-> <../figs/old_check/rt_kde.pdf
+> <../figs/all_sobol/rt_kde.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/rt_kde.pdf): PDF inclusion: mu
+pdfTeX warning: pdflatex (file ../figs/all_sobol/rt_kde.pdf): PDF inclusion: mu
 ltiple pdfs with page group included in a single page
 >]
 \openout2 = `nfix.aux'.
@@ -263,20 +263,20 @@ ltiple pdfs with page group included in a single page
 LaTeX Warning: No positions in optional float specifier.
                Default added (so using `tbp') on input line 1.
 
-<../figs/old_check/nfix_hist.pdf, id=110, 650.43pt x 289.08pt>
-File: ../figs/old_check/nfix_hist.pdf Graphic file (type pdf)
-<use ../figs/old_check/nfix_hist.pdf>
-Package pdftex.def Info: ../figs/old_check/nfix_hist.pdf used on input line 7.
+<../figs/all_sobol/nfix_hist.pdf, id=111, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/nfix_hist.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/nfix_hist.pdf>
+Package pdftex.def Info: ../figs/all_sobol/nfix_hist.pdf used on input line 7.
 (pdftex.def)             Requested size: 346.89732pt x 154.17767pt.
-<../figs/old_check/difference_nfix.pdf, id=111, 650.43pt x 289.08pt>
-File: ../figs/old_check/difference_nfix.pdf Graphic file (type pdf)
-<use ../figs/old_check/difference_nfix.pdf>
-Package pdftex.def Info: ../figs/old_check/difference_nfix.pdf used on input li
+<../figs/all_sobol/difference_nfix.pdf, id=112, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/difference_nfix.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/difference_nfix.pdf>
+Package pdftex.def Info: ../figs/all_sobol/difference_nfix.pdf used on input li
 ne 8.
 (pdftex.def)             Requested size: 346.89732pt x 154.17767pt.
-) [2 <../figs/old_check/nfix_hist.pdf> <../figs/old_check/difference_nfix.pdf
+) [2 <../figs/all_sobol/nfix_hist.pdf> <../figs/all_sobol/difference_nfix.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/difference_nfix.pdf): PDF incl
+pdfTeX warning: pdflatex (file ../figs/all_sobol/difference_nfix.pdf): PDF incl
 usion: multiple pdfs with page group included in a single page
 >]
 \openout2 = `fixloc.aux'.
@@ -286,31 +286,31 @@ usion: multiple pdfs with page group included in a single page
 LaTeX Warning: No positions in optional float specifier.
                Default added (so using `tbp') on input line 1.
 
-<../figs/old_check/fixate_on_best.pdf, id=246, 650.43pt x 289.08pt>
-File: ../figs/old_check/fixate_on_best.pdf Graphic file (type pdf)
-<use ../figs/old_check/fixate_on_best.pdf>
-Package pdftex.def Info: ../figs/old_check/fixate_on_best.pdf used on input lin
+<../figs/all_sobol/fixate_on_best.pdf, id=302, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/fixate_on_best.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/fixate_on_best.pdf>
+Package pdftex.def Info: ../figs/all_sobol/fixate_on_best.pdf used on input lin
 e 7.
 (pdftex.def)             Requested size: 346.89732pt x 154.17767pt.
-<../figs/old_check/value_bias.pdf, id=247, 650.43pt x 289.08pt>
-File: ../figs/old_check/value_bias.pdf Graphic file (type pdf)
-<use ../figs/old_check/value_bias.pdf>
-Package pdftex.def Info: ../figs/old_check/value_bias.pdf used on input line 8.
+<../figs/all_sobol/value_bias.pdf, id=303, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/value_bias.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/value_bias.pdf>
+Package pdftex.def Info: ../figs/all_sobol/value_bias.pdf used on input line 8.
 
 (pdftex.def)             Requested size: 346.89732pt x 154.17767pt.
-<../figs/old_check/refixate_uncertain.pdf, id=248, 650.43pt x 289.08pt>
-File: ../figs/old_check/refixate_uncertain.pdf Graphic file (type pdf)
-<use ../figs/old_check/refixate_uncertain.pdf>
-Package pdftex.def Info: ../figs/old_check/refixate_uncertain.pdf used on input
+<../figs/all_sobol/refixate_uncertain.pdf, id=304, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/refixate_uncertain.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/refixate_uncertain.pdf>
+Package pdftex.def Info: ../figs/all_sobol/refixate_uncertain.pdf used on input
  line 9.
 (pdftex.def)             Requested size: 346.89732pt x 154.17767pt.
-) [3 <../figs/old_check/fixate_on_best.pdf> <../figs/old_check/value_bias.pdf
+) [3 <../figs/all_sobol/fixate_on_best.pdf> <../figs/all_sobol/value_bias.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/value_bias.pdf): PDF inclusion
+pdfTeX warning: pdflatex (file ../figs/all_sobol/value_bias.pdf): PDF inclusion
 : multiple pdfs with page group included in a single page
-> <../figs/old_check/refixate_uncertain.pdf
+> <../figs/all_sobol/refixate_uncertain.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/refixate_uncertain.pdf): PDF i
+pdfTeX warning: pdflatex (file ../figs/all_sobol/refixate_uncertain.pdf): PDF i
 nclusion: multiple pdfs with page group included in a single page
 >]
 \openout2 = `fixtimes.aux'.
@@ -320,45 +320,45 @@ nclusion: multiple pdfs with page group included in a single page
 LaTeX Warning: No positions in optional float specifier.
                Default added (so using `tbp') on input line 1.
 
-<../figs/old_check/binned_fixation_times.pdf, id=349, 650.43pt x 289.08pt>
-File: ../figs/old_check/binned_fixation_times.pdf Graphic file (type pdf)
-<use ../figs/old_check/binned_fixation_times.pdf>
-Package pdftex.def Info: ../figs/old_check/binned_fixation_times.pdf used on in
+<../figs/all_sobol/binned_fixation_times.pdf, id=405, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/binned_fixation_times.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/binned_fixation_times.pdf>
+Package pdftex.def Info: ../figs/all_sobol/binned_fixation_times.pdf used on in
 put line 7.
 (pdftex.def)             Requested size: 281.85036pt x 125.26797pt.
-<../figs/old_check/chosen_fix_time_nonfinal.pdf, id=350, 650.43pt x 289.08pt>
-File: ../figs/old_check/chosen_fix_time_nonfinal.pdf Graphic file (type pdf)
-<use ../figs/old_check/chosen_fix_time_nonfinal.pdf>
-Package pdftex.def Info: ../figs/old_check/chosen_fix_time_nonfinal.pdf used on
+<../figs/all_sobol/chosen_fix_time_nonfinal.pdf, id=406, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/chosen_fix_time_nonfinal.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/chosen_fix_time_nonfinal.pdf>
+Package pdftex.def Info: ../figs/all_sobol/chosen_fix_time_nonfinal.pdf used on
  input line 9.
 (pdftex.def)             Requested size: 281.85036pt x 125.26797pt.
-<../figs/old_check/value_duration_firstfix.pdf, id=351, 650.43pt x 289.08pt>
-File: ../figs/old_check/value_duration_firstfix.pdf Graphic file (type pdf)
-<use ../figs/old_check/value_duration_firstfix.pdf>
-Package pdftex.def Info: ../figs/old_check/value_duration_firstfix.pdf used on 
+<../figs/all_sobol/value_duration_firstfix.pdf, id=407, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/value_duration_firstfix.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/value_duration_firstfix.pdf>
+Package pdftex.def Info: ../figs/all_sobol/value_duration_firstfix.pdf used on 
 input line 10.
 (pdftex.def)             Requested size: 281.85036pt x 125.26797pt.
-<../figs/old_check/last_fixation_duration.pdf, id=352, 650.43pt x 289.08pt>
-File: ../figs/old_check/last_fixation_duration.pdf Graphic file (type pdf)
-<use ../figs/old_check/last_fixation_duration.pdf>
-Package pdftex.def Info: ../figs/old_check/last_fixation_duration.pdf used on i
+<../figs/all_sobol/last_fixation_duration.pdf, id=408, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/last_fixation_duration.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/last_fixation_duration.pdf>
+Package pdftex.def Info: ../figs/all_sobol/last_fixation_duration.pdf used on i
 nput line 11.
 (pdftex.def)             Requested size: 281.85036pt x 125.26797pt.
 
 LaTeX Warning: Float too large for page by 29.27548pt on input line 15.
 
-) [4 <../figs/old_check/binned_fixation_times.pdf> <../figs/old_check/chosen_fi
+) [4 <../figs/all_sobol/binned_fixation_times.pdf> <../figs/all_sobol/chosen_fi
 x_time_nonfinal.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/chosen_fix_time_nonfinal.pdf):
+pdfTeX warning: pdflatex (file ../figs/all_sobol/chosen_fix_time_nonfinal.pdf):
  PDF inclusion: multiple pdfs with page group included in a single page
-> <../figs/old_check/value_duration_firstfix.pdf
+> <../figs/all_sobol/value_duration_firstfix.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/value_duration_firstfix.pdf): 
+pdfTeX warning: pdflatex (file ../figs/all_sobol/value_duration_firstfix.pdf): 
 PDF inclusion: multiple pdfs with page group included in a single page
-> <../figs/old_check/last_fixation_duration.pdf
+> <../figs/all_sobol/last_fixation_duration.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/last_fixation_duration.pdf): P
+pdfTeX warning: pdflatex (file ../figs/all_sobol/last_fixation_duration.pdf): P
 DF inclusion: multiple pdfs with page group included in a single page
 >]
 \openout2 = `three_mechanism.aux'.
@@ -368,21 +368,21 @@ DF inclusion: multiple pdfs with page group included in a single page
 LaTeX Warning: No positions in optional float specifier.
                Default added (so using `tbp') on input line 1.
 
-<../figs/old_check/fix4_value.pdf, id=559, 433.62pt x 289.08pt>
-File: ../figs/old_check/fix4_value.pdf Graphic file (type pdf)
-<use ../figs/old_check/fix4_value.pdf>
-Package pdftex.def Info: ../figs/old_check/fix4_value.pdf used on input line 4.
+<../figs/all_sobol/fix4_value.pdf, id=674, 433.62pt x 289.08pt>
+File: ../figs/all_sobol/fix4_value.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/fix4_value.pdf>
+Package pdftex.def Info: ../figs/all_sobol/fix4_value.pdf used on input line 4.
 
 (pdftex.def)             Requested size: 173.44534pt x 115.62994pt.
-<../figs/old_check/fix3_value.pdf, id=560, 433.62pt x 289.08pt>
-File: ../figs/old_check/fix3_value.pdf Graphic file (type pdf)
-<use ../figs/old_check/fix3_value.pdf>
-Package pdftex.def Info: ../figs/old_check/fix3_value.pdf used on input line 6.
+<../figs/all_sobol/fix3_value.pdf, id=675, 433.62pt x 289.08pt>
+File: ../figs/all_sobol/fix3_value.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/fix3_value.pdf>
+Package pdftex.def Info: ../figs/all_sobol/fix3_value.pdf used on input line 6.
 
 (pdftex.def)             Requested size: 173.44534pt x 115.62994pt.
-) [5 <../figs/old_check/fix4_value.pdf> <../figs/old_check/fix3_value.pdf
+) [5 <../figs/all_sobol/fix4_value.pdf> <../figs/all_sobol/fix3_value.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/fix3_value.pdf): PDF inclusion
+pdfTeX warning: pdflatex (file ../figs/all_sobol/fix3_value.pdf): PDF inclusion
 : multiple pdfs with page group included in a single page
 >]
 \openout2 = `choice_bias.aux'.
@@ -392,45 +392,45 @@ pdfTeX warning: pdflatex (file ../figs/old_check/fix3_value.pdf): PDF inclusion
 LaTeX Warning: No positions in optional float specifier.
                Default added (so using `tbp') on input line 1.
 
-<../figs/old_check/last_fix_bias.pdf, id=631, 650.43pt x 289.08pt>
-File: ../figs/old_check/last_fix_bias.pdf Graphic file (type pdf)
-<use ../figs/old_check/last_fix_bias.pdf>
-Package pdftex.def Info: ../figs/old_check/last_fix_bias.pdf used on input line
+<../figs/all_sobol/last_fix_bias.pdf, id=746, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/last_fix_bias.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/last_fix_bias.pdf>
+Package pdftex.def Info: ../figs/all_sobol/last_fix_bias.pdf used on input line
  7.
 (pdftex.def)             Requested size: 281.85036pt x 125.26797pt.
-<../figs/old_check/fixation_bias.pdf, id=632, 650.43pt x 289.08pt>
-File: ../figs/old_check/fixation_bias.pdf Graphic file (type pdf)
-<use ../figs/old_check/fixation_bias.pdf>
-Package pdftex.def Info: ../figs/old_check/fixation_bias.pdf used on input line
+<../figs/all_sobol/fixation_bias.pdf, id=747, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/fixation_bias.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/fixation_bias.pdf>
+Package pdftex.def Info: ../figs/all_sobol/fixation_bias.pdf used on input line
  8.
 (pdftex.def)             Requested size: 281.85036pt x 125.26797pt.
-<../figs/old_check/fixation_bias_corrected.pdf, id=633, 650.43pt x 289.08pt>
-File: ../figs/old_check/fixation_bias_corrected.pdf Graphic file (type pdf)
-<use ../figs/old_check/fixation_bias_corrected.pdf>
-Package pdftex.def Info: ../figs/old_check/fixation_bias_corrected.pdf used on 
+<../figs/all_sobol/fixation_bias_corrected.pdf, id=748, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/fixation_bias_corrected.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/fixation_bias_corrected.pdf>
+Package pdftex.def Info: ../figs/all_sobol/fixation_bias_corrected.pdf used on 
 input line 9.
 (pdftex.def)             Requested size: 281.85036pt x 125.26797pt.
-<../figs/old_check/first_fixation_duration.pdf, id=634, 650.43pt x 289.08pt>
-File: ../figs/old_check/first_fixation_duration.pdf Graphic file (type pdf)
-<use ../figs/old_check/first_fixation_duration.pdf>
-Package pdftex.def Info: ../figs/old_check/first_fixation_duration.pdf used on 
+<../figs/all_sobol/first_fixation_duration.pdf, id=749, 650.43pt x 289.08pt>
+File: ../figs/all_sobol/first_fixation_duration.pdf Graphic file (type pdf)
+<use ../figs/all_sobol/first_fixation_duration.pdf>
+Package pdftex.def Info: ../figs/all_sobol/first_fixation_duration.pdf used on 
 input line 10.
 (pdftex.def)             Requested size: 281.85036pt x 125.26797pt.
 
 LaTeX Warning: Float too large for page by 29.27548pt on input line 14.
 
-) [6 <../figs/old_check/last_fix_bias.pdf> <../figs/old_check/fixation_bias.pdf
+) [6 <../figs/all_sobol/last_fix_bias.pdf> <../figs/all_sobol/fixation_bias.pdf
 
 
-pdfTeX warning: pdflatex (file ../figs/old_check/fixation_bias.pdf): PDF inclus
+pdfTeX warning: pdflatex (file ../figs/all_sobol/fixation_bias.pdf): PDF inclus
 ion: multiple pdfs with page group included in a single page
-> <../figs/old_check/fixation_bias_corrected.pdf
+> <../figs/all_sobol/fixation_bias_corrected.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/fixation_bias_corrected.pdf): 
+pdfTeX warning: pdflatex (file ../figs/all_sobol/fixation_bias_corrected.pdf): 
 PDF inclusion: multiple pdfs with page group included in a single page
-> <../figs/old_check/first_fixation_duration.pdf
+> <../figs/all_sobol/first_fixation_duration.pdf
 
-pdfTeX warning: pdflatex (file ../figs/old_check/first_fixation_duration.pdf): 
+pdfTeX warning: pdflatex (file ../figs/all_sobol/first_fixation_duration.pdf): 
 PDF inclusion: multiple pdfs with page group included in a single page
 >] (./main.aux (./psychometrics.aux) (./nfix.aux) (./fixloc.aux) (./fixtimes.au
 x) (./three_mechanism.aux) (./choice_bias.aux))
@@ -449,9 +449,9 @@ Here is how much of TeX's memory you used:
 </usr/local/texlive/2016/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb>
 </usr/local/texlive/2016/texmf-dist/fonts/type1/public/amsfonts/cm/cmss17.pfb><
 /usr/local/texlive/2016/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb>
-Output written on main.pdf (6 pages, 358667 bytes).
+Output written on main.pdf (6 pages, 477591 bytes).
 PDF statistics:
- 801 PDF objects out of 1000 (max. 8388607)
+ 914 PDF objects out of 1000 (max. 8388607)
  119 compressed objects within 2 object streams
  0 named destinations out of 1000 (max. 500000)
  91 words of extra memory for PDF output out of 10000 (max. 10000000)

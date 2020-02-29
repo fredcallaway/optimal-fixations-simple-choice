@@ -1,4 +1,4 @@
-out = "results/grid/ucb"
+out = "results/sobol2/ucb"
 mkpath(out)
 
 
@@ -13,19 +13,24 @@ include("ucb_bmps.jl")
 space = Box(
     :sample_time => 100,
     # :α => (50, 200),
-    :α => 200,
-    :σ_obs => (1, 5),
-    :sample_cost => (.002, .006),
-    :switch_cost => (.01, .05),
+    # :α => (95, 300),
+    :α => (100, 300),
+    :σ_obs => (2, 3.5),
+    :sample_cost => (.001, .006),
+    :switch_cost => (.013, .025),
 )
 
+
+
 function get_prm(job)
-    # seq = SobolSeq(n_free(space))
-    # skip(seq, job-1; exact=true)
-    # x = next!(seq)
-    g = range(0,1,length=11)
-    mg = Iterators.product(repeat([g], n_free(space))...)
-    x = collect(collect(mg)[job])
+    seq = SobolSeq(n_free(space))
+    skip(seq, job-1; exact=true)
+    x = next!(seq)
+    
+    # g = range(0,1,length=11)
+    # mg = Iterators.product(repeat([g], n_free(space))...)
+    # x = collect(collect(mg)[job])
+
     x |> space |> namedtuple
 end
 

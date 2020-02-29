@@ -31,6 +31,11 @@ function best_result(dataset)
 end
 
 both_trials = load_dataset.(["two", "three"])
+
+
+both_trials = map(["two", "three"]) do num
+    load_dataset(num)[1:2:end]
+end;
 # dir(best_result("both"))
 
 # %% ==================== Summarize fits ====================
@@ -117,7 +122,12 @@ res = best_result("both")
 # end;
 
 # %% ====================  ====================
-x, ε, y = invert(load(res, :reopt)[1].train_like)
+run_name = "all_sobol"
+@time both_sims = map(1:30) do i
+    map(deserialize("results/sobol/sims/$i")) do sims
+        reduce(vcat, sims)
+    end
+end |> invert;
 
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
@@ -140,7 +150,7 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
     hx, hy = feature(trials; kws...)
     bins = make_bins(binning, hx)
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
-    plot_human!(bins, hx, hy, type)
+    # plot_human!(bins, hx, hy, type)
 
     if FAST
         sims = sims[1:2]
@@ -150,6 +160,8 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
         mx, my = feature(sim; kws...)
         plot_model!(bins, mx, my, type, alpha=0.5)
     end
+    plot_human!(bins, hx, hy, type)
+
     make_lines!(xline, yline, trials)
     if save
         savefig(f, "figs/$run_name/$name.pdf")
@@ -163,7 +175,7 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
 
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
 
-    plot_human(trials)
+    # plot_human(trials)
 
     if FAST
         sims = sims[1:4]
@@ -172,6 +184,8 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
     for sim in sims
         plot_model(sim)
     end
+    plot_human(trials)
+
     make_lines!(xline, yline, trials)
     f
 end
@@ -179,8 +193,6 @@ end
 # left_rv = n_item == 2 ? "Left rating - right rating" : "Left rating - mean other rating"
 # best_rv = n_item == 2 ? "Best rating - worst rating" : "Best rating - mean other rating"
 DISABLE_ALIGN = true
-silly_sim = [deserialize("tmp/silly_sim")];
-mean(total_fix_time.(silly_sim[1]))
 function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
     xlab1, xlab2 =
         (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
@@ -199,12 +211,8 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
         ylab *= "\n"
     end
 
-    f2 = plot_one(feature, xlab2, ylab, both_trials[2], silly_sim, plot_kws; kws...)
-    display(f2)
-    return
-
-    # f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
-    # f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
+    f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
+    f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
 
     ylabel!(f2, yticks ? "  " : " \n ")
     x1 = xlims(f1); x2 = xlims(f2)
@@ -234,12 +242,12 @@ end
 
 include("features.jl")
 include("plots_base.jl")
-
+NO_RIBBON = false
+SKIP_BOOT = true
 # %% ==================== Basic psychometrics ====================
 # run_name = "no_inner"
 mkpath("figs/$run_name")
 # both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
-
 plot_both(value_choice, :left_rv, "P(left chosen)";
     xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
 
@@ -277,7 +285,6 @@ plot_both("refixate_uncertain", "Fixation advantage\n of refixated item [ms]", "
     xline=0
 )
 
-
 # %% ==================== Fixation durations ====================
 
 plot_both(binned_fixation_times, "Fixation type", "Fixation duration [ms]",
@@ -308,25 +315,13 @@ plot_both(last_fixation_duration, "Chosen item time advantage\nbefore last fixat
 plot_one(fix4_value, "Rating of first minus second fixated item",
     binning=:integer,
     "P(4th fixation is refixation\nto first fixated item)",
-    both_trials[2], silly_sim, (xticks=-6:2:6,), xline=0, save=true)
-
-# plot_one(fix4_uncertain,
-#     "First minus second fixation duration [ms]",
-#     "P(4th fixation is refixation\nto first fixated item)",
-#     both_trials[2], silly_sim[1], xline=0, save=true)
+    both_trials[2], both_sims[2], (xticks=-6:2:6,), xline=0, save=true)
 
 plot_one(fix3_value,
     binning=:integer,
     "Rating of first fixated item",
     "P(3rd fixation is refixation\nto first fixated item)",
-    both_trials[2], silly_sim, save=true)
-
-# plot_one(fix3_uncertain,
-#     "Duration of first fixation",
-#     "P(3rd fixation is refixation\nto first fixated item)",
-#     both_trials[2], both_sims[2], save=true)
-
-
+    both_trials[2], both_sims[2], save=true)
 
 # %% ==================== Choice biases ====================
 

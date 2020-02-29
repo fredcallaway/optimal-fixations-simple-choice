@@ -30,12 +30,9 @@ xs, y = map(results) do (prm, losses)
 end |> invert
 X = combinedims(xs)
 rank = sortperm(y)
+top_xs = xs[rank[1:30]]
 
-# %% ====================  ====================
-ds = build_dataset("two", -1);
-
-pols = get_policies(ds.n_item, x2prm(x))
-losses = get_loss(pols, ds, x[end])
+# %% ==================== Re-evaluate top 30 ====================
 
 @everywhere function loss(x)
     datasets = [build_dataset("two", -1), build_dataset("three", -1)];
@@ -45,19 +42,16 @@ losses = get_loss(pols, ds, x[end])
     end
 end
 
-top_xs = xs[rank[1:30]]
-test_xs = repeat(top_xs, 30);
-test_task = background("test"; save=true) do
-    pmap(test_xs) do x
-        loss(x)
-    end
-end
-istaskdone(test_task)
-test_results = fetch(test_task);
+# test_xs = repeat(top_xs, 30);
+# test_task = background("test"; save=true) do
+#     pmap(test_xs) do x
+#         loss(x)
+#     end
+# end
+# istaskdone(test_task)
+# test_results = fetch(test_task);
 
-# %% ====================  ====================
 test_results = deserialize("background_tasks/test")
-reshape(combinedims(test_xs), 5, 30, 30)
 L = reshape(combinedims(test_results), 2, 30, 30)
 L = sum(L; dims=1) |> dropdims(1)
 Lm = mean(L; dims=2) |> dropdims(2)
@@ -65,32 +59,61 @@ Ls = std(L; dims=2) |> dropdims(2)
 
 top_rank = sortperm(Lm)
 new_top = top_xs[top_rank]
-new_top
+
+# %% ==================== Simulate ====================
 
 mkpath("results/sobol/sims")
 mkpath("results/sobol/sim_pols/")
+@everywhere include("preopt_core.jl")
+
+@everywhere function get_sim_pols(i, x, num)
+    f = "results/sobol/sim_pols/$num$i"
+    if isfile(f)
+        pols = deserialize(f)
+        if !(x2prm(x).σ_obs ≈ pols[1].m.σ_obs)
+            println("WRONG POLICIES SERIALIZED!!")
+            error("OH NO!")
+        end
+    else
+        n_item = Dict("two" => 2, "three" => 3)[num]
+        pols = get_policies(n_item, x2prm(x))
+        serialize("results/sobol/sim_pols/$num$i", pols)
+    end
+    return pols
+end
+
+
+
 
 sim_task = background("simulate") do
     pmap(enumerate(new_top)) do (i, x)
         both_sims = map(["two", "three"]) do num
-            ds = build_dataset(num, -1)
-            try
-                pols = deserialize("results/sobol/sim_pols/$num$i")
-            catch
-                pols = get_policies(ds.n_item, x2prm(x))
-                serialize("results/sobol/sim_pols/$num$i", pols)
-            end
+            trials = load_dataset(num)
+            pols = get_sim_pols(i, x, num)
+            μ_emp, σ = empirical_prior(trials)
+            β_μ = x[end]; μ = β_μ * μ_emp
+            test_trials = trials[1:2:end]  # WARNING: ASSUMING PREDICT ODD
             map(pols) do pol
-                simulate_test(pol, ds, x[end])
+                simulate_trials(pol, test_trials, μ, σ)
             end
         end
         serialize("results/sobol/sims/$i", both_sims)
         println("Wrote results/sobol/sims/$i")
     end
 end
+fetch(sim_task)
 
 
 
+# %% ====================  ====================
+run_name = "all_sobol"
+combined_sims = map(1:3) do i
+    map(deserialize("results/sobol/sims/$i")) do sims
+        reduce(vcat, sims)
+    end
+end |> invert;
+
+reduce(vcat, )
 
 # %% ====================  ====================
 
