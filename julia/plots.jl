@@ -122,7 +122,7 @@ res = best_result("both")
 # end;
 
 # %% ====================  ====================
-run_name = "all_sobol"
+run_name = "all_sobol2"
 @time both_sims = map(1:30) do i
     map(deserialize("results/sobol/sims/$i")) do sims
         reduce(vcat, sims)
@@ -155,10 +155,11 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
     if FAST
         sims = sims[1:2]
     end
-
-    for sim in sims
+    sims = reverse(sims)
+    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
+    for (c, sim) in zip(colors, sims)
         mx, my = feature(sim; kws...)
-        plot_model!(bins, mx, my, type, alpha=0.5)
+        plot_model!(bins, mx, my, type, alpha=0.2, color=c)
     end
     plot_human!(bins, hx, hy, type)
 
@@ -180,15 +181,18 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
     if FAST
         sims = sims[1:4]
     end
-
-    for sim in sims
-        plot_model(sim)
+    sims = reverse(sims)
+    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
+    for (c, sim) in zip(colors, sims)
+        plot_model(sim, color=c)
     end
     plot_human(trials)
 
     make_lines!(xline, yline, trials)
     f
 end
+
+
 
 # left_rv = n_item == 2 ? "Left rating - right rating" : "Left rating - mean other rating"
 # best_rv = n_item == 2 ? "Best rating - worst rating" : "Best rating - mean other rating"
@@ -242,11 +246,12 @@ end
 
 include("features.jl")
 include("plots_base.jl")
-NO_RIBBON = false
+NO_RIBBON = true
 SKIP_BOOT = true
 # %% ==================== Basic psychometrics ====================
 # run_name = "no_inner"
 mkpath("figs/$run_name")
+
 # both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
 plot_both(value_choice, :left_rv, "P(left chosen)";
     xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
@@ -270,7 +275,7 @@ plot_both(difference_nfix, :best_rv, "Number of fixations",
 
 # %% ==================== Fixation locations ====================
 
-plot_both(fixate_on_best, "Time since trial onset [ms]", "P(fixate best)",
+plot_both(fixate_on_worst, "Time since trial onset [ms]", "P(fixate best)",
     (xticks=(0.5:2:8.5, string.(0:500:2000)), xlims=(0,8.5)),
     binning=:integer, yline=:chance, align=:chance,
     cutoff=2000, n_bin=8)
@@ -281,7 +286,7 @@ plot_both(value_bias, :left_rv, "Proportion fixate left";
 plot_both("refixate_uncertain", "Fixation advantage\n of refixated item [ms]", "Density",
     yticks = false,
     plot_human=(trials)->kdeplot!(refixate_uncertain(trials), 100., xmin=-1000, xmax=1000, line=(:black, 2)),
-    plot_model=(sim)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(RED, 2, 0.5)),
+    plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(color, 2, 0.5)),
     xline=0
 )
 

@@ -1,7 +1,7 @@
 using Glob
 using Serialization
 using SplitApplyCombine
-using GaussianProcesses
+# using GaussianProcesses
 
 @everywhere include("preopt_core.jl")
 
@@ -12,6 +12,7 @@ using GaussianProcesses
 
 results = begin
     xs = map(glob("results/like_ucb/*")) do f
+    # xs = map(glob("results/sobol/like/*")) do f
         endswith(f, "x") && return missing
         try
             deserialize(f)
@@ -24,16 +25,21 @@ results = begin
     results = flatten(xs)
 end;
 
+
+
 xs, y = map(results) do (prm, losses)
     x = [space(type2dict(prm)); prm.β_μ]
     x, sum(losses)
 end |> invert
 X = combinedims(xs)
 rank = sortperm(y)
-top_xs = xs[rank[1:30]]
+top_xs = xs[rank[1:100]]
 
-# %% ==================== Re-evaluate top 30 ====================
 
+
+# %% ==================== Re-evaluate top 100 ====================
+@everywhere include("pseudo_base.jl")
+@everywhere include("preopt_core.jl")
 @everywhere function loss(x)
     datasets = [build_dataset("two", -1), build_dataset("three", -1)];
     map(datasets) do ds
@@ -42,16 +48,15 @@ top_xs = xs[rank[1:30]]
     end
 end
 
-# test_xs = repeat(top_xs, 30);
-# test_task = background("test"; save=true) do
-#     pmap(test_xs) do x
-#         loss(x)
-#     end
-# end
-# istaskdone(test_task)
-# test_results = fetch(test_task);
-
-test_results = deserialize("background_tasks/test")
+test_xs = repeat(top_xs, 10);
+test_task = background("test"; save=true) do
+    pmap(test_xs) do x
+        loss(x)
+    end
+end
+test_results = fetch(test_task);
+# %% ====================  ====================
+# test_results = deserialize("background_tasks/test")
 L = reshape(combinedims(test_results), 2, 30, 30)
 L = sum(L; dims=1) |> dropdims(1)
 Lm = mean(L; dims=2) |> dropdims(2)

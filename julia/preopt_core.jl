@@ -12,11 +12,10 @@ const MAX_STEPS = 200  # 20 seconds
 const SAMPLE_TIME = 100
 
 space = Box(
-    :sample_time => 100,
-    :α => (50, 200),
-    :σ_obs => (1, 5),
-    :sample_cost => (.001, .01),
-    :switch_cost => (.01, .05),
+    :α => (100, 300),
+    :σ_obs => (2, 3.5),
+    :sample_cost => (.001, .006),
+    :switch_cost => (.013, .025),
 )
 
 args = Dict(
@@ -51,12 +50,13 @@ function simulate_trials(policy::Policy, trials::Table, μ::Float64, σ::Float64
     end |> Table
 end
 
-# include("pseudo_base.jl")
-# include("pseudo_likelihood.jl")
+
+include("pseudo_base.jl")
+include("pseudo_likelihood.jl")
 
 
-# function get_loss(policies, ds, β_µ)
-#     prm = (β_μ=β_μ, β_σ=1., σ_rating=NaN)
-#     logp, ε, baseline = likelihood(ds, policies, prm; parallel=false);
-#     logp / baseline
-# end
+function get_loss(policies, ds, β_µ)
+    prm = (β_μ=β_μ, β_σ=1., σ_rating=NaN)
+    logp, ε, baseline = likelihood(ds, policies, prm; parallel=false);
+    logp / baseline
+end

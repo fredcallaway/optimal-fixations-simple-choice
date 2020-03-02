@@ -50,6 +50,11 @@ function train_test_split(trials, fold::String)
     (train=trials[train_idx], test=trials[test_idx])
 end
 
+function get_fold(trials, test_fold::String, fold::Symbol)
+    split_trials = train_test_split(trials, test_fold)
+    getfield(split_trials, fold)
+end
+
 empirical_prior(trials) = juxt(mean, std)(flatten(trials.value))
 
 

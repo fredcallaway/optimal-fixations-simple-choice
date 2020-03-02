@@ -1,26 +1,11 @@
 using Distributed
 using Optim
 
-include("meta_mdp.jl")
-include("bmps.jl")
-include("optimize_bmps.jl")
 include("human.jl")
 include("binning.jl")
 include("simulations.jl")
 include("features.jl")
-include("params.jl")
 include("metrics.jl")
-
-
-const SAMPLE_TIME = 100
-const MAX_STEPS = 200  # 20 seconds
-
-function sim_one(policy, prior, v)
-    μ, σ = prior
-    sim = simulate(policy, (v .- μ) ./ σ; max_steps=MAX_STEPS)
-    fixs, fix_times = parse_fixations(sim.samples, SAMPLE_TIME)
-    (choice=sim.choice, value=v, fixations=fixs, fix_times=fix_times)
-end
 
 function get_metrics(metrics, policies, prior, v, N, parallel)
     apply_metrics = juxt(metrics...)
@@ -28,13 +13,13 @@ function get_metrics(metrics, policies, prior, v, N, parallel)
     if parallel
         @distributed vcat for i in 1:N
             policy = policies[1 + i % length(policies)]
-            sim = sim_one(policy, prior, v)  #  .+ prior.σ_rating .* randn(length(v))
+            sim = simulate(policy, prior, v)  #  .+ prior.σ_rating .* randn(length(v))
             apply_metrics(sim)
         end
     else
         map(1:N) do i
             policy = policies[1 + i % length(policies)]
-            sim = sim_one(policy, prior, v)  #  .+ prior.σ_rating .* randn(length(v))
+            sim = simulate(policy, prior, v)  #  .+ prior.σ_rating .* randn(length(v))
             apply_metrics(sim)
         end
     end
@@ -95,7 +80,8 @@ end
 function likelihood(policies, β_μ; fit_ε, max_ε, n_sim_hist, hist_bins, test_fold, fold)
     all_trials = map(sort_value, load_dataset(policies[1].m.n_arm))
     metrics = make_metrics(all_trials)
-    trials = getfield(train_test_split(all_trials, test_fold), fold)
+    trials = get_fold(all_trials, test_fold, :test)
+    # trials = getfield(split_trials, fold)
     prior = make_prior(trials, β_μ)
     parallel = false
 

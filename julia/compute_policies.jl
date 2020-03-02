@@ -1,6 +1,4 @@
 include("fit_base.jl")
-include("meta_mdp.jl")
-include("bmps.jl")
 include("optimize_bmps.jl")
 include("ucb_bmps.jl")
 

@@ -1,13 +1,10 @@
 include("fit_base.jl")
-include("meta_mdp.jl")
-include("bmps.jl")
 include("pseudo_likelihood.jl")
-include("pseudo_base.jl")
+# include("pseudo_base.jl")
 
 function compute_likelihood(job::Int)
-    datasets = [build_dataset("two", -1), build_dataset("three", -1)]
     both_policies = deserialize("$BASE_DIR/policies/$job")
-    results = map(0.5:0.05:1) do β_μ
+    results = map(range(0,10, length=10)) do β_μ
         losses = map(1:2) do item_idx
             policies = both_policies[item_idx]
             logp, ε, baseline = likelihood(policies, β_μ; LIKELIHOOD_PARAMS..., fold=:train)
