@@ -1,6 +1,6 @@
 using Distributed
-addprocs(40)
-
+# addprocs(40)
+h
 include("plots_base.jl")
 include("pseudo_likelihood.jl")
 include("params.jl")
@@ -11,6 +11,7 @@ plot([1,2])
 
 
 # %% ====================  ====================
+
 function load_results(dataset, name="feb17")
     if name == "OLD"
         name = (dataset == "both") ? "no-inner" : "test"
@@ -30,12 +31,9 @@ function best_result(dataset)
     ress[argmin(results_table(ress).train_loss)]
 end
 
-both_trials = load_dataset.(["two", "three"])
-
-
 both_trials = map(["two", "three"]) do num
-    load_dataset(num)[1:2:end]
-end;
+    load_dataset(num)[1:2:end]  # out of sample prediction
+end
 # dir(best_result("both"))
 
 # %% ==================== Summarize fits ====================
@@ -121,13 +119,21 @@ res = best_result("both")
 #     get_sims(res, load_previous=false);
 # end;
 
+
 # %% ====================  ====================
-run_name = "all_sobol2"
-@time both_sims = map(1:30) do i
-    map(deserialize("results/sobol/sims/$i")) do sims
+run_name = "sobol4"
+fit_mode = "joint"
+# fit_mode = "sep"
+out_path = "figs/$run_name/$fit_mode"
+mkpath("$out_path")
+
+both_sims = map(1:30) do i
+    map(deserialize("results/$run_name/sim_$fit_mode/$i")) do sims
         reduce(vcat, sims)
     end
 end |> invert;
+
+length(both_sims[1][2])
 
 # %% ====================  ====================
 function make_lines!(xline, yline, trials)
@@ -159,13 +165,13 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
     colors = range(colorant"red", stop=colorant"blue",length=length(sims))
     for (c, sim) in zip(colors, sims)
         mx, my = feature(sim; kws...)
-        plot_model!(bins, mx, my, type, alpha=0.2, color=c)
+        plot_model!(bins, mx, my, type, alpha=0.2) # color=c
     end
     plot_human!(bins, hx, hy, type)
 
     make_lines!(xline, yline, trials)
     if save
-        savefig(f, "figs/$run_name/$name.pdf")
+        savefig(f, "$out_path/$name.pdf")
     end
     f
 end
@@ -184,7 +190,7 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
     sims = reverse(sims)
     colors = range(colorant"red", stop=colorant"blue",length=length(sims))
     for (c, sim) in zip(colors, sims)
-        plot_model(sim, color=c)
+        plot_model(sim) # color=c
     end
     plot_human(trials)
 
@@ -208,7 +214,7 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
     # if haskey(Dict(kws), :fix_select)
     #     name *= "_$(kws[:fix_select])"
     # end
-    # savefig(ff, "figs/$run_name/$name.pdf")
+    # savefig(ff, "$out_path/$name.pdf")
     # return ff
     if !yticks
         plot_kws = (plot_kws..., yticks=[])
@@ -238,7 +244,7 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
     if haskey(Dict(kws), :fix_select)
         name *= "_$(kws[:fix_select])"
     end
-    savefig(ff, "figs/$run_name/$name.pdf")
+    savefig(ff, "$out_path/$name.pdf")
     # return ff
     display(ff)
     return
@@ -246,12 +252,10 @@ end
 
 include("features.jl")
 include("plots_base.jl")
-NO_RIBBON = true
+NO_RIBBON = false
 SKIP_BOOT = true
 # %% ==================== Basic psychometrics ====================
 # run_name = "no_inner"
-mkpath("figs/$run_name")
-
 # both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
 plot_both(value_choice, :left_rv, "P(left chosen)";
     xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
@@ -275,7 +279,12 @@ plot_both(difference_nfix, :best_rv, "Number of fixations",
 
 # %% ==================== Fixation locations ====================
 
-plot_both(fixate_on_worst, "Time since trial onset [ms]", "P(fixate best)",
+plot_both(fixate_on_best, "Time since trial onset [ms]", "P(fixate best)",
+    (xticks=(0.5:2:8.5, string.(0:500:2000)), xlims=(0,8.5)),
+    binning=:integer, yline=:chance, align=:chance,
+    cutoff=2000, n_bin=8)
+
+plot_both(fixate_on_worst, "Time since trial onset [ms]", "P(fixate worst)",
     (xticks=(0.5:2:8.5, string.(0:500:2000)), xlims=(0,8.5)),
     binning=:integer, yline=:chance, align=:chance,
     cutoff=2000, n_bin=8)

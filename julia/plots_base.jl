@@ -8,10 +8,10 @@ nprocs() == 1 && addprocs()
 end
 using Serialization
 using StatsPlots
+pyplot(label="")
 plot([1,2])
 
 # %% ====================  ====================
-pyplot(label="")
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
 using Printf
