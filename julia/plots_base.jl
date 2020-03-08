@@ -1,15 +1,11 @@
-using Distributed
-nprocs() == 1 && addprocs()
-@everywhere begin
-    cd("/usr/people/flc2/juke/choice-eye-tracking/julia/")
-    include("model_base.jl")
-    include("dc.jl")
-    include("features.jl")
-end
+ENV["GKSwstype"] = "nul"
+
+include("features.jl")
 using Serialization
 using StatsPlots
-pyplot(label="")
-plot([1,2])
+gr(label="")
+plot([1,2]);
+
 
 # %% ====================  ====================
 Plots.scalefontsizes()
@@ -17,12 +13,12 @@ Plots.scalefontsizes(1.5)
 using Printf
 
 RED = colorant"#FF6167"
-
 NO_RIBBON = false
 FAST = false
 SKIP_BOOT = false
+DISPLAY = false
 const CI = 0.95
-const N_BOOT = 1000
+const N_BOOT = 10000
 using Bootstrap
 function ci_err(y)
     length(y) == 1 && return (0., 0.)
@@ -117,12 +113,12 @@ function plot_comparison(feature, trials, sim, bins=nothing, type=:line; kws...)
     # title!(@sprintf "Loss = %.3f" make_loss(feature, bins)(sim))
 end
 
-function fig(f, name)
-    _fig = f()
-    savefig("figs/$run_name/$name.pdf")
-    display(_fig)
-    _fig
-end
+# function fig(f, name)
+#     _fig = f()
+#     savefig("figs/$run_name/$name.pdf")
+#     display(_fig)
+#     _fig
+# end
 
 using KernelDensity
 
@@ -140,24 +136,113 @@ end
 
 using DataFrames
 
-function results_table(results; drop_constant=true)
-    tbl = map(results) do res
-        mle = load(res, :mle)
-        mle = (i=0, n_obs=0, mle...)
-        reopt = load(res, :reopt)[1]
+function make_lines!(xline, yline, trials)
+    if xline != nothing
+        vline!([xline], line=(:grey, 0.7))
+    end
+    if yline != nothing
+        if yline == :chance
+            # yline = 1 / n_item(trials[1])
+            yline = 1 / length(trials[1].value)
+        end
+        hline!([yline], line=(:grey, 0.7))
+    end
+end
 
-        # x = @Select(σ_obs, sample_cost, switch_cost, α, μ)(mle)
-        (mle...,
-         train_loss=mean(x[1] / x[3] for x in reopt.train_like),
-         test_loss=mean(x[1] / x[3] for x in reopt.test_like)
-         )
-    end |> DataFrame
-    delete!(tbl, :i)
-    delete!(tbl, :n_obs)
-    if size(tbl, 1) > 1 && drop_constant
-        for k in names(tbl)
-            length(unique(tbl[:, k])) == 1 && delete!(tbl, k)
+
+function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
+        binning=nothing, type=:line, xline=nothing, yline=nothing,
+        save=false, name=string(feature), kws...)
+    hx, hy = feature(trials; kws...)
+    bins = make_bins(binning, hx)
+    f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
+    # plot_human!(bins, hx, hy, type)
+
+    if FAST
+        sims = sims[1:2]
+    end
+    sims = reverse(sims)
+    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
+    for (c, sim) in zip(colors, sims)
+        mx, my = feature(sim; kws...)
+        plot_model!(bins, mx, my, type, alpha=0.2) # color=c
+    end
+    plot_human!(bins, hx, hy, type)
+
+    make_lines!(xline, yline, trials)
+    if save
+        savefig(f, "$out_path/$name.pdf")
+    end
+    f
+end
+
+function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
+        xline=nothing, yline=nothing,
+        plot_human::Function, plot_model::Function)
+
+    f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
+
+    # plot_human(trials)
+
+    if FAST
+        sims = sims[1:4]
+    end
+    sims = reverse(sims)
+    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
+    for (c, sim) in zip(colors, sims)
+        plot_model(sim) # color=c
+    end
+    plot_human(trials)
+
+    make_lines!(xline, yline, trials)
+    f
+end
+
+DISABLE_ALIGN = true
+function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
+    xlab1, xlab2 =
+        (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
+        (xlab == :best_rv) ? ("Best rating - worst rating", "Best rating - mean other rating") :
+        (xlab == :last_rv) ? ("Last fixated rating - other rating", "Last fixated rating - mean other") :
+        (xlab, xlab)
+
+    # ff = plot_one(feature, xlab, ylab, trials, sims, plot_kws; kws...)
+    # if haskey(Dict(kws), :fix_select)
+    #     name *= "_$(kws[:fix_select])"
+    # end
+    # savefig(ff, "$out_path/$name.pdf")
+    # return ff
+    if !yticks
+        plot_kws = (plot_kws..., yticks=[])
+        ylab *= "\n"
+    end
+
+    f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
+    f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
+
+    ylabel!(f2, yticks ? "  " : " \n ")
+    x1 = xlims(f1); x2 = xlims(f2)
+    y1 = ylims(f1); y2 = ylims(f2)
+    for (i, f) in enumerate([f1, f2])
+        if align != :y_only
+            xlims!(f, min(x1[1], x2[1]), max(x1[2], x2[2]))
+        end
+        if align == :default || DISABLE_ALIGN
+            ylims!(f, min(y1[1], y2[1]), max(y1[2], y2[2]))
+        elseif align == :chance
+            rng = max(maximum(abs.(y1 .- 1/2)), maximum(abs.(y2 .- 1/3)))
+            chance = [1/2, 1/3][i]
+            ylims!(f, chance - rng, chance + rng)
         end
     end
-    tbl
+    ff = plot(f1, f2, size=(900,400))
+
+    if haskey(Dict(kws), :fix_select)
+        name *= "_$(kws[:fix_select])"
+    end
+    savefig(ff, "$out_path/$name.pdf")
+    # return ff
+    DISPLAY && display(ff)
+    return
 end
+

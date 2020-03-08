@@ -1,129 +1,18 @@
-using Distributed
-# addprocs(40)
-h
 include("plots_base.jl")
-include("pseudo_likelihood.jl")
-include("params.jl")
-include("box.jl")
+include("human.jl")
 using Glob
 using StatsBase
 plot([1,2])
 
-
 # %% ====================  ====================
-
-function load_results(dataset, name="feb17")
-    if name == "OLD"
-        name = (dataset == "both") ? "no-inner" : "test"
-    end
-    all_res = filter(get_results(name)) do res
-        exists(res, :reopt) || return false
-        length(load(res, :xy).y) >= 400 || return false
-        args = load(res, :args)
-        args["dataset"] == dataset || return false
-        "n_inner" in keys(args) || return false
-        # length(load(res, :xy).y) == 550 || return false
-    end
-end
-
-function best_result(dataset)
-    ress = load_results(dataset)
-    ress[argmin(results_table(ress).train_loss)]
-end
 
 both_trials = map(["two", "three"]) do num
     load_dataset(num)[1:2:end]  # out of sample prediction
 end
-# dir(best_result("both"))
 
-# %% ==================== Summarize fits ====================
-res = load_results("both")[1]
-param_names = [free(load(res, :outer_space)); free(load(res, :inner_space))]
-
-function load_x(res)
-    args = load(res, :args)
-    mle = load(res, :mle)
-    os = load(res, :outer_space)
-    is = load(res, :inner_space)
-    t = type2dict(mle)
-    vcat(os(t), is(t))
-end
-
-mkpath("figs/fits/")
-function plot_fits(results, name; kws...)
-    f = plot(
-        xticks=(1:5, string.(param_names)),
-        ylabel="Normalized parameter value",
-        title=name)
-    for res in results
-        x = load_x(res)
-        # plot!(x.x, color=lab[x.fold], lw=2)
-        plot!(x, lw=2; ylim=(0,1), kws...)
-    end
-    savefig("figs/fits/$name.pdf")
-    display(f)
-end
-
-open("old_fits.txt", "w") do f
-    for dataset in ["two", "three", "both"]
-        all_res = load_results(dataset, "OLD")
-        println(f, "\n\n********* $dataset *********",)
-        plot_fits(all_res, dataset)
-        show(f, results_table(all_res), allcols=true, splitcols=false)
-    end
-end;
-
-# %% ==================== Separate fitting results ====================
-ress = best_result.(["two", "three"])
-run_name = "separate_fit_nov25"
-
-both_sims = map(1:2) do i
-    res = ress[i]
-    trials = both_trials[i]
-    ds = load(res, :datasets)[1]
-    prm = load(res, :mle)
-    policies = load(res, :reopt)[1].policies
-    asyncmap(policies; ntasks=2) do pol
-        @assert pol.α == prm.α
-        simulate_experiment(pol, trials; μ=prm.β_μ * ds.μ_emp, σ=prm.β_σ * ds.σ_emp,
-            sample_time=prm.sample_time, n_repeat=10)
-    end
-end
-
-# %% ==================== Joint fitting results ====================
-# run_name = "joint_fit_dec3"
-# run_name = "joint_feb17"
-run_name = "old_check"
-
-function get_sims(res; load_previous=true)
-    load_previous && exists(res, :both_sims) && return load(res, :both_sims)
-    reopt = load(res, :reopt);
-    prm = load(res, :mle)
-    datasets = load(res, :datasets);
-    both_sims = map(1:2) do i
-        trials = both_trials[i]
-        μ_emp, σ_emp = datasets[i].μ_emp, datasets[i].σ_emp
-        policies = reopt[i].policies
-        asyncmap(policies) do pol
-            simulate_experiment(pol, trials; μ=prm.β_μ * μ_emp, σ=prm.β_σ * σ_emp,
-                sample_time=prm.sample_time, n_repeat=10)
-        end
-    end
-    save(res, :both_sims, both_sims)
-    return both_sims
-end
-
-res = best_result("both")
-@time both_sims = get_sims(res);
-# multi_sims = map(load_recent_results("both")) do res
-#     get_sims(res, load_previous=false);
-# end;
-
-
-# %% ====================  ====================
 run_name = "sobol4"
-fit_mode = "joint"
-# fit_mode = "sep"
+# fit_mode = "joint"
+fit_mode = "sep_noprior"
 out_path = "figs/$run_name/$fit_mode"
 mkpath("$out_path")
 
@@ -133,125 +22,7 @@ both_sims = map(1:30) do i
     end
 end |> invert;
 
-length(both_sims[1][2])
 
-# %% ====================  ====================
-function make_lines!(xline, yline, trials)
-    if xline != nothing
-        vline!([xline], line=(:grey, 0.7))
-    end
-    if yline != nothing
-        if yline == :chance
-            # yline = 1 / n_item(trials[1])
-            yline = 1 / length(trials[1].value)
-        end
-        hline!([yline], line=(:grey, 0.7))
-    end
-end
-
-
-function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
-        binning=nothing, type=:line, xline=nothing, yline=nothing,
-        save=false, name=string(feature), kws...)
-    hx, hy = feature(trials; kws...)
-    bins = make_bins(binning, hx)
-    f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
-    # plot_human!(bins, hx, hy, type)
-
-    if FAST
-        sims = sims[1:2]
-    end
-    sims = reverse(sims)
-    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
-    for (c, sim) in zip(colors, sims)
-        mx, my = feature(sim; kws...)
-        plot_model!(bins, mx, my, type, alpha=0.2) # color=c
-    end
-    plot_human!(bins, hx, hy, type)
-
-    make_lines!(xline, yline, trials)
-    if save
-        savefig(f, "$out_path/$name.pdf")
-    end
-    f
-end
-
-function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
-        xline=nothing, yline=nothing,
-        plot_human::Function, plot_model::Function)
-
-    f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
-
-    # plot_human(trials)
-
-    if FAST
-        sims = sims[1:4]
-    end
-    sims = reverse(sims)
-    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
-    for (c, sim) in zip(colors, sims)
-        plot_model(sim) # color=c
-    end
-    plot_human(trials)
-
-    make_lines!(xline, yline, trials)
-    f
-end
-
-
-
-# left_rv = n_item == 2 ? "Left rating - right rating" : "Left rating - mean other rating"
-# best_rv = n_item == 2 ? "Best rating - worst rating" : "Best rating - mean other rating"
-DISABLE_ALIGN = true
-function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
-    xlab1, xlab2 =
-        (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
-        (xlab == :best_rv) ? ("Best rating - worst rating", "Best rating - mean other rating") :
-        (xlab == :last_rv) ? ("Last fixated rating - other rating", "Last fixated rating - mean other") :
-        (xlab, xlab)
-
-    # ff = plot_one(feature, xlab, ylab, trials, sims, plot_kws; kws...)
-    # if haskey(Dict(kws), :fix_select)
-    #     name *= "_$(kws[:fix_select])"
-    # end
-    # savefig(ff, "$out_path/$name.pdf")
-    # return ff
-    if !yticks
-        plot_kws = (plot_kws..., yticks=[])
-        ylab *= "\n"
-    end
-
-    f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
-    f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
-
-    ylabel!(f2, yticks ? "  " : " \n ")
-    x1 = xlims(f1); x2 = xlims(f2)
-    y1 = ylims(f1); y2 = ylims(f2)
-    for (i, f) in enumerate([f1, f2])
-        if align != :y_only
-            xlims!(f, min(x1[1], x2[1]), max(x1[2], x2[2]))
-        end
-        if align == :default || DISABLE_ALIGN
-            ylims!(f, min(y1[1], y2[1]), max(y1[2], y2[2]))
-        elseif align == :chance
-            rng = max(maximum(abs.(y1 .- 1/2)), maximum(abs.(y2 .- 1/3)))
-            chance = [1/2, 1/3][i]
-            ylims!(f, chance - rng, chance + rng)
-        end
-    end
-    ff = plot(f1, f2, size=(900,400))
-
-    if haskey(Dict(kws), :fix_select)
-        name *= "_$(kws[:fix_select])"
-    end
-    savefig(ff, "$out_path/$name.pdf")
-    # return ff
-    display(ff)
-    return
-end
-
-include("features.jl")
-include("plots_base.jl")
 NO_RIBBON = false
 SKIP_BOOT = true
 # %% ==================== Basic psychometrics ====================
