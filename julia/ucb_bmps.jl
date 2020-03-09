@@ -25,20 +25,11 @@ function initial_population(m, N; α=Inf, sobol=false)
     end
 end
 
-@everywhere function sample_rewards(policy, n_roll)
+function sample_rewards(policy, n_roll)
     map(1:n_roll) do i
         rollout(policy, max_steps=200).reward
     end
 end
-
-
-function sample_rewards_parallel(policy, n_roll)
-    # @distributed vcat for i in 1:n_roll
-    pmap(1:n_roll) do i
-        rollout(policy, max_steps=200).reward
-    end
-end
-
 
 function ucb(m::MetaMDP; α=Inf, β::Float64=3., N::Int=8000, n_top::Int=1,
              n_roll::Int=1000, n_init::Int=100, n_iter::Int=1000)
@@ -48,59 +39,31 @@ function ucb(m::MetaMDP; α=Inf, β::Float64=3., N::Int=8000, n_top::Int=1,
     upper = zeros(N)
     μ = zeros(N)
 
-    parallel = false # nprocs() > 1
-    # wp = CachingPool(workers())
-
     function pull(i; init=false)
-        if init
-            if parallel
-                w = take!(wp)
-                v = remotecall_fetch(sample_rewards, w, policies[i], n_init)
-                put!(wp, w)
-            else
-                v = sample_rewards(policies[i], n_init)
-            end
-        else
-            if parallel
-                v = sample_rewards_parallel(policies[i], n_roll)
-            else
-                v = sample_rewards(policies[i], n_roll)
-            end
-        end
-
-        # v = sample_rewards(policies[i], init ? n_init : n_roll)
+        rewards = sample_rewards(policies[i], init ? n_init : n_roll)
         s = scores[i]
-        fit!(s, v)
+        fit!(s, rewards)
         sem[i] = √(s.σ2 / s.n)
         upper[i] = s.μ + β * sem[i]
         μ[i] = s.μ
     end
 
-    mymap = nprocs() > 1 ? asyncmap : map
-    # pull every arm once with a smaller number of rollouts
-
-    # @sync @distributed for i in 1:N
-    # println("Initial sweep")
-    mymap(1:N) do i
+    # pull every arm once
+    map(1:N) do i
         pull(i; init=true)
     end
 
     @debug "Begin UCB"
-
     hist = (pulls=Int[], top=Int[])
     best = argmax(μ)
-    converged = false
     for t in 1:n_iter
+        yield()  # for Toucher
         top = partialsortperm(upper, 1:n_top; rev=true)
-        mymap(top) do i
+        map(top) do i
             pull(i)
             push!(hist.pulls, i)
             push!(hist.top, best)
         end
-
-        # top = partialsortperm(μ, 1:n_top; rev=true)
-        # i = top[1]
-        # sum(μ[i] .<= upper)
 
         b = argmax(μ)
         if best != b
@@ -109,21 +72,9 @@ function ucb(m::MetaMDP; α=Inf, β::Float64=3., N::Int=8000, n_top::Int=1,
         elseif t % 100 == 0
             @debug "($t)"
         end
-
-        # converged = (sum(μ[best] .<= upper) == 1) &&
-        #             (sum((μ[best] - β * sem[best]) .< μ) == 1)
-
-        # if converged
-        #     @info "Converged" t μ[best] θ=repr(policies[best].θ)
-        #     break
-        # end
-        # @printf "%d %.3f ± %.4f\n" i scores[i].μ sem[i]
-    # end
-    # if !converged @warn "UCB optimization did not converge."
-
     end
 
-    (policies=policies, μ=μ, sem=sem, hist=hist, converged=converged)
+    (policies=policies, μ=μ, sem=sem, hist=hist)
 end
 
 function optimize_bmps_ucb(m::MetaMDP; kws...)
