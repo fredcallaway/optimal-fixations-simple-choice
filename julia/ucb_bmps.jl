@@ -12,17 +12,14 @@ function rand_grid(g)
     X
 end
 
-function initial_population(m, N; α=Inf, sobol=false)
+function initial_population(m, N, α, p_switch)
+    # NOTE: we don't use sobol sampling here because it would artificially reduce the 
+    # randomness in the results.
     mc = max_cost(m)
-    if sobol
-        seq = SobolSeq(3)
-        return [BMPSPolicy(m, x2theta(mc, next!(seq)), α) for i in 1:N]
-    else
-        g = ceil(Int, N ^ (1/3))
-        @assert g ≈ N ^ (1/3)
-        X = rand_grid(g)
-        return [BMPSPolicy(m, x2theta(mc, X[i, :]), float(α)) for i in 1:N]
-    end
+    g = ceil(Int, N ^ (1/3))
+    @assert g ≈ N ^ (1/3)
+    X = rand_grid(g)
+    return [BMPSPolicy(m, x2theta(mc, X[i, :]), float(α), p_switch) for i in 1:N]
 end
 
 function sample_rewards(policy, n_roll)
@@ -32,8 +29,8 @@ function sample_rewards(policy, n_roll)
 end
 
 function ucb(m::MetaMDP; α=Inf, β::Float64=3., N::Int=8000, n_top::Int=1,
-             n_roll::Int=1000, n_init::Int=100, n_iter::Int=1000)
-    policies = initial_population(m, N; α=α)
+             n_roll::Int=1000, n_init::Int=100, n_iter::Int=1000, p_switch=missing)
+    policies = initial_population(m, N, α, p_switch)
     scores = [Variance() for _ in 1:N]  # tracks mean and variance
     sem = zeros(N)
     upper = zeros(N)

@@ -27,10 +27,21 @@ results = begin
 end;
 
 
-prms, l2, l3, lc = map(results) do (prm, losses)
-    prm, losses[1], losses[2], sum(losses)
-end |> invert;
 
+prms, l2, l3, lc = map(results) do (prm, losses)
+    # prm.β_μ < 0.9 && return missing
+    prm, losses[1], losses[2], sum(losses)
+end |> skipmissing |> collect |> invert;
+
+prior_sep = (sort(l2) .+ sort(l3))[1:10]
+prior_joint = sort(lc)[1:10]
+
+let
+    println(prior_sep)
+    println(noprior_sep)
+    println(prior_joint)
+    println(noprior_joint)
+end
 
 mkpath("$BASE_DIR/best_parameters/")
 for (fit_mode, loss) in zip(["two", "three", "joint"], [l2, l3, lc])
@@ -38,7 +49,10 @@ for (fit_mode, loss) in zip(["two", "three", "joint"], [l2, l3, lc])
     serialize("$BASE_DIR/best_parameters/$fit_mode", best)
 end
 
-
+# %% ====================  ====================
+map(prms) do prm
+    prm.switch_cost
+end |> minimum
 
 # %% ==================== Simulate ====================
 
@@ -47,7 +61,7 @@ end
         sims = map([2,3], prms) do n_item, prm
             trials = get_fold(load_dataset(n_item), LIKELIHOOD_PARAMS.test_fold, :test)
             policies = compute_policies(n_item, prm)
-            prior = make_prior(trials, prm.β_μ)
+            prior = make_prior(trials, 1.0)  # DON'T USE β_μ
             map(policies) do pol
                 yield()
                 simulate_trials(pol, prior, trials)
@@ -61,7 +75,7 @@ end
 end
 
 task_both = background("sim_joint") do
-    path = "$BASE_DIR/sim_joint"
+    path = "$BASE_DIR/sim_joint_noprior"
     mkpath(path)
     top_joint = prms[partialsortperm(lc, 1:30)]
     pmap(1:30) do i
@@ -71,7 +85,7 @@ end
 # fetch(task_both)
 
 task_sep = background("sim_sep") do
-    path = "$BASE_DIR/sim_sep"
+    path = "$BASE_DIR/sim_sep_noprior"
     mkpath(path)
     top_2 = prms[partialsortperm(l2, 1:30)]
     top_3 = prms[partialsortperm(l3, 1:30)]

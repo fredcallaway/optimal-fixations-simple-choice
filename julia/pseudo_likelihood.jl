@@ -57,15 +57,11 @@ end
     return metrics
 end
 
-function make_prior(trials, β_μ)
-    μ_emp, σ_emp = empirical_prior(trials)
-    (μ_emp * β_μ, σ_emp)
-end
-
 function raw_likelihood(trials, metrics, policies, prior, n_sim_hist)
     parallel = false
     vs = unique(trials.value);
     histograms = map(vs) do v
+        yield()  # for Toucher
         v => make_histogram(metrics, policies, prior, v, n_sim_hist, parallel)
     end |> Dict
 

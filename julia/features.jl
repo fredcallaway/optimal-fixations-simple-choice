@@ -328,23 +328,6 @@ function first_fixation_duration(trials)
 end
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# %% ====================  ====================
-
-# %% ====================  ====================
-
 function refixate_tft(trials)
     x = Float64[]; y = Float64[]; n = n_item_(trials[1])
     for t in trials

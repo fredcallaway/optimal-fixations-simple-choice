@@ -35,6 +35,9 @@ X = combinedims(xs)
 rank = sortperm(y)
 top_xs = xs[rank[1:100]]
 
+top_xs = xs[rank[1:30]]
+serialize("tmp/top30", top_xs)
+
 
 
 # %% ==================== Re-evaluate top 100 ====================

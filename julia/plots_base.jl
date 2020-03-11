@@ -3,7 +3,7 @@ ENV["GKSwstype"] = "nul"
 include("features.jl")
 using Serialization
 using StatsPlots
-gr(label="")
+pyplot(label="")
 plot([1,2]);
 
 
@@ -245,4 +245,3 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
     DISPLAY && display(ff)
     return
 end
-

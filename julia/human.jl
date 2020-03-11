@@ -57,4 +57,8 @@ end
 
 empirical_prior(trials) = juxt(mean, std)(flatten(trials.value))
 
+function make_prior(trials, β_μ)
+    μ_emp, σ_emp = empirical_prior(trials)
+    (μ_emp * β_μ, σ_emp)
+end
 

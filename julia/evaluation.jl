@@ -3,8 +3,11 @@
     include("compute_policies.jl")
     include("human.jl")
     include("simulations.jl")
+    include("pseudo_likelihood.jl")
 
     function get_top_prm(job::Int, n_item::Int)
+        # return deserialize("$BASE_DIR/retest/top30")[job]
+
         if FIT_MODE == "joint"
              return deserialize("$BASE_DIR/best_parameters/joint-$FIT_PRIOR")[job]
         elseif FIT_MODE == "separate"
@@ -27,13 +30,28 @@
             prm = get_top_prm(job, n_item)
             trials = get_fold(load_dataset(n_item), LIKELIHOOD_PARAMS.test_fold, :test)
             prior = make_prior(trials, prm.β_μ)
-            map(policies) do pol # =========================== FIME!!!
+            map(policies) do pol
                 simulate_trials(pol, prior, trials)
             end
         end
     end
-end
 
+    function compute_test_likelihood(job::Int)
+        both_policies = deserialize("$BASE_DIR/simulation_policies/$FIT_MODE-$FIT_PRIOR/$job")
+        map([2,3], both_policies) do n_item, policies
+            prm = get_top_prm(job, n_item)
+            likelihood(policies, prm.β_μ; LIKELIHOOD_PARAMS..., fold=:test)
+        end
+    end
+
+    function compute_train_likelihood(job::Int)
+        both_policies = deserialize("$BASE_DIR/simulation_policies/$FIT_MODE-$FIT_PRIOR/$job")
+        map([2,3], both_policies) do n_item, policies
+            prm = get_top_prm(job, n_item)
+            likelihood(policies, prm.β_μ; LIKELIHOOD_PARAMS..., fold=:train)
+        end
+    end
+end
 
 if basename(PROGRAM_FILE) == basename(@__FILE__)
     FIT_MODE = ARGS[1]
@@ -44,5 +62,13 @@ if basename(PROGRAM_FILE) == basename(@__FILE__)
     pmap(1:30) do job
         do_job(recompute_policies, "simulation_policies/$FIT_MODE-$FIT_PRIOR", job)
         do_job(compute_simulations, "simulations/$FIT_MODE-$FIT_PRIOR", job)
+        do_job(compute_test_likelihood, "test_likelihood/$FIT_MODE-$FIT_PRIOR", job)
     end
 end
+
+#=
+julia -p 30 evaluation.jl joint true &
+julia -p 30 evaluation.jl joint false &
+julia -p 30 evaluation.jl separate true &
+julia -p 30 evaluation.jl separate false &
+=#

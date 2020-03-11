@@ -1,1 +1,1 @@
-Glob Distributions Memoize Parameters SplitApplyCombine StaticArrays TypedTables StatsBase Sobol BayesianOptimization GaussianProcesses DataStructures Optim QuadGK ArgParse StatsFuns
+Glob Distributions Memoize Parameters SplitApplyCombine StaticArrays TypedTables StatsBase Sobol BayesianOptimization GaussianProcesses DataStructures Optim QuadGK ArgParse StatsFuns Bootstrap Kernel Density

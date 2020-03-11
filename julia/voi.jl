@@ -2,11 +2,10 @@ using Memoize
 using Distributions
 using Random
 using QuadGK
-
 using StatsFuns: normcdf, normpdf
-Φ = normcdf
+
+Φ = normcdf  # isn't unicode just so much fun!
 ϕ = normpdf
-# %% ==================== Utilities ====================
 
 @memoize mem_zeros(dims...) = zeros(dims...)
 

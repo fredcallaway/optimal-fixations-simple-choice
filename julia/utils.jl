@@ -5,8 +5,9 @@ function describe_vec(x::Vector)
     @printf("%.3f ± %.3f  [%.3f, %.3f]\n", juxt(mean, std, minimum, maximum)(x)...)
 end
 
-Base.show(io::IO, f::Float64) = @printf(io, "%1.3f", f)
-
+function Base.show(io::IO, x::Union{Float64,Float32})
+     Base.Grisu._show(io, round(x, sigdigits=4), Base.Grisu.SHORTEST, 0, get(io, :typeinfo, Any) !== typeof(x), false)
+end
 
 Base.map(f, d::AbstractDict) = [f(k, v) for (k, v) in d]
 valmap(f, d::AbstractDict) = Dict(k => f(v) for (k, v) in d)
@@ -27,6 +28,10 @@ end
 
 Base.dropdims(idx::Int...) = X -> dropdims(X, dims=idx)
 Base.reshape(idx::Union{Int,Colon}...) = x -> reshape(x, idx...)
+
+function mutate(x::T; kws...) where T
+    return T([get(kws, fn, getfield(x, fn)) for fn in fieldnames(T)]...)
+end
 
 # type2dict(x::T) where T = Dict(fn=>getfield(x, fn) for fn in fieldnames(T))
 

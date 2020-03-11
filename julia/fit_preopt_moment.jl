@@ -35,11 +35,91 @@ x2prm(top[5])
 
 
 # %% ====================  ====================
+@everywhere begin
+    include("simulations.jl")
+end
+
+prms, loss = map(results) do (prm, losses)
+    prm, sum(losses)
+end |> invert
+rank = sortperm(loss)
+
+# %% ====================  ====================
+
+@everywhere begin
+    UCB_PARAMS = (
+        n_iter=500,
+        n_init=100,
+        n_roll=100,
+        n_top=80
+    )
+
+    function compute_policies(n_item::Int, prm::NamedTuple)
+        m = MetaMDP(n_item, prm.σ_obs, prm.sample_cost, prm.switch_cost)
+        policies, μ, sem = ucb(m; α=prm.α, UCB_PARAMS...)
+        best = partialsortperm(-μ, 1:UCB_PARAMS.n_top)
+        return policies[best]
+    end
+
+
+    function make_prior(trials, β_μ)
+        μ_emp, σ_emp = empirical_prior(trials)
+        (μ_emp * β_μ, σ_emp)
+    end
+end
+
+top = prms[rank[1:30]]
+pmap(enumerate(top)) do (i, prm)
+    both_sims = map([2,3]) do n_item
+        policies = compute_policies(n_item, prm)
+        trials = get_fold(load_dataset(n_item), "odd", :test)
+        prior = make_prior(trials, prm.β_μ)
+        map(policies) do pol
+            simulate_trials(pol, prior, trials)
+        end
+    end
+    serialize("results/moments/sims/$i", both_sims)
+    println("Wrote results/moments/sims/$i")
+end
+
+
+# %% ====================  ====================
+
+
 
 
 mkpath("results/moments/sim_pols/")
 mkpath("results/moments/sims/")
-include("utils.jl")
+    both_sims = map([2,3]) do n_item
+        trials = get_fold(load_dataset(n_item), "odd", :test)
+        policies = compute_policies(n_item, prm)
+        prior = make_prior(trials, prm.β_μ)
+        map(policies) do pol
+            simulate_trials(pol, prior, trials)
+        end
+    end
+
+
+
+sim_task = background("simulate") do
+    pmap(enumerate(new_top)) do (i, x)
+        both_sims = map(["two", "three"]) do num
+            trials = load_dataset(num)
+            pols = get_sim_pols(i, x, num)
+            μ_emp, σ = empirical_prior(trials)
+            β_μ = x[end]; μ = β_μ * μ_emp
+            test_trials = trials[1:2:end]  # WARNING: ASSUMING PREDICT ODD
+            map(pols) do pol
+                simulate_trials(pol, test_trials, μ, σ)
+            end
+        end
+        serialize("results/sobol/sims/$i", both_sims)
+        println("Wrote results/sobol/sims/$i")
+    end
+end
+fetch(sim_task)
+
+
 sim_task = background("simulate") do
     pmap(enumerate(top)) do (i, x)
         both_sims = map(["two", "three"]) do num

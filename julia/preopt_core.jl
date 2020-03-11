@@ -13,8 +13,8 @@ const SAMPLE_TIME = 100
 
 space = Box(
     :α => (100, 300),
-    :σ_obs => (2, 3.5),
-    :sample_cost => (.001, .006),
+    :σ_obs => (1, 5),
+    :sample_cost => (.001, .01),
     :switch_cost => (.013, .025),
 )
 

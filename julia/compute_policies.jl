@@ -1,11 +1,13 @@
 include("fit_base.jl")
-include("optimize_bmps.jl")
 include("ucb_bmps.jl")
 
 
-function compute_policies(n_item::Int, prm::NamedTuple)
+function compute_policies(n_item::Int, prm::NamedTuple; kws...)
+    if hasproperty(prm, :p_switch)
+        kws = (kws..., p_switch=prm.p_switch)
+    end
     m = MetaMDP(n_item, prm.σ_obs, prm.sample_cost, prm.switch_cost)
-    policies, μ, sem = ucb(m; α=prm.α, UCB_PARAMS...)
+    policies, μ, sem = ucb(m; α=prm.α, UCB_PARAMS..., kws...)
     best = partialsortperm(-μ, 1:UCB_PARAMS.n_top)
     return policies[best]
 end

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=likelihood
 #SBATCH --output=out/%A_%a
-#SBATCH --array=1-3
+#SBATCH --array=1-1000
 #SBATCH --time=240
 #SBATCH --mem-per-cpu=500
 #SBATCH --cpus-per-task=1

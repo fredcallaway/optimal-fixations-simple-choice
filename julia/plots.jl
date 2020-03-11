@@ -11,13 +11,13 @@ both_trials = map(["two", "three"]) do num
 end
 
 run_name = "sobol4"
-# fit_mode = "joint"
-fit_mode = "sep_noprior"
-out_path = "figs/$run_name/$fit_mode"
+fit_mode = "separate"
+fit_prior = "true"
+out_path = "figs/$run_name/$fit_mode-$fit_prior"
 mkpath("$out_path")
 
 both_sims = map(1:30) do i
-    map(deserialize("results/$run_name/sim_$fit_mode/$i")) do sims
+    map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
         reduce(vcat, sims)
     end
 end |> invert;
@@ -125,25 +125,3 @@ plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected 
 
 plot_both(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
     )
-
-
-
-# %% ====================  ====================
-
-function foo(trials; trial_select=(t)->true)
-    x = Float64[]; y = Bool[];
-    for t in trials
-        trial_select(t) || continue
-        push!(x, relative_left(total_fix_times(t; fix_select=nonfinal)))
-        push!(y, t.choice == 1)
-    end
-    x, y
-end
-
-plot_both(foo, "Final time advantage left [ms]", "P(left chosen)",
-; xline=0, yline=:chance,
-# trial_select=(t)->t.value[1] == 3
-)
-
-# %% ====================  ====================
-FAST = true
