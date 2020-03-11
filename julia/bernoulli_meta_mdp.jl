@@ -15,6 +15,8 @@ using Printf
 using SplitApplyCombine
 # using StaticArrays
 using Memoize
+using QuadGK
+
 
 @isdefined(⊥) || const ⊥ = 0
 
@@ -107,23 +109,26 @@ function voi_action(m::MetaMDP, b::Belief, c)
     expected_max_constant(Beta(h, t), competing_val) - term_reward(b)
 end
 
-function vpi(m::MetaMDP, b::Belief; n_sample=100000)
+function vpi(m::MetaMDP, b::Belief)
     dists = Tuple(Beta(a...) for a in sort(b.counts))
-    vpi(dists, n_sample) - term_reward(b)
+    expected_max(dists) - term_reward(b)
 end
 
-@memoize mem_zeros(dims...) = zeros(dims...)
-
-@memoize function vpi(dists::Tuple{Vararg{Beta}}, n_sample)
-    x = rand.(dists, n_sample);
-    mean(max.(x[1], x[2], x[3]))
+@memoize function expected_max(dists::Tuple{Vararg{Beta}})
+    mcdf(x) = mapreduce(*, dists) do d
+        cdf(d, x)
+    end
+    quadgk(x->1-mcdf(x), 0, 1, atol=1e-8)[1]
 end
 
 @memoize function expected_max_constant(d, k)
-    x = 0:0.001:1
-    px = pdf.(d, x) ./ length(x)
-    sum(px .* max.(x, k))
+    choose_new = quadgk(k, 1, atol=1e-8) do x
+        pdf(d, x) * x
+    end |> first
+    choose_k = cdf(d, k) * k
+    choose_new + choose_k
 end
+
 
 function features(m::MetaMDP, b::Belief)
     vpi_ = vpi(m, b)
@@ -200,6 +205,7 @@ struct BMPSPolicy <: Policy
     θ::Vector{Float64}
 end
 (pol::BMPSPolicy)(b::Belief) = act(pol, b)
+BMPSPolicy(m, θ, α) = BMPSPolicy(m, θ)  # WARNING: ignoring temperature
 
 function voc(pol, b::Belief)
     m = pol.m
@@ -240,3 +246,43 @@ function rollout(policy; b=nothing, max_steps=1000, callback=(b, c)->nothing)
 end
 
 rollout(callback::Function, policy; kws...) = rollout(policy; kws..., callback=callback)
+
+# ---------- Optimization helpers ---------- #
+
+"Identifies the cost parameter that makes a hard-maximizing policy never take any computations."
+function max_cost(m::MetaMDP)
+    θ = [1., 0, 0, 1]
+    b = Belief(m)
+    # s = State(m)
+    # b = Belief(s)
+    function computes()
+        pol = BMPSPolicy(m, θ)
+        all(pol(b) != ⊥ for i in 1:30)
+    end
+
+    while computes()
+        θ[1] *= 2
+    end
+
+    while !computes()
+        θ[1] /= 2
+        if θ[1] < 2^-10
+            error("Computation is too expensive")
+        end
+    end
+
+    step_size = θ[1] / 10
+    while computes()
+        θ[1] += step_size
+    end
+    θ[1]
+end
+
+"Transforms a value from the 3D unit hybercube to weights for BMPS"
+function x2theta(mc, x)
+    # This is a trick to go from two Uniform(0,1) samples to 
+    # a unifomrm sample in the 3D simplex.
+    voi_weights = diff([0; sort(collect(x[2:3])); 1])
+    [x[1] * mc; voi_weights]
+end
+
