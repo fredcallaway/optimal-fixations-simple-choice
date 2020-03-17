@@ -81,20 +81,24 @@ function fixate_on_(trials, which; sample_time=10, cutoff=2000, n_bin=5, nonfina
     y = Float64[]
     for t in trials
         unique_values(t) || continue
-        if nonfinal
-            sum(t.fix_times[1:end-1]) < cutoff && continue
-        else
-            sum(t.fix_times) < cutoff && continue
-        end
+        # if nonfinal
+        #     sum(t.fix_times[1:end-1]) < cutoff && continue
+        # else
+        #     sum(t.fix_times) < cutoff && continue
+        # end
         fix = discretize_fixations(t; sample_time=sample_time)
-        # fix = fix[1:n_sample]
-        fix_best = fix[1:n_sample] .== which(t.value)
+        n = min(length(fix), n_sample)
+        n -= n % spb  # don't include partial bins
 
-        push!(x, (1:n_bin)...)
-        push!(y, mean.(Iterators.partition(fix_best, spb))...)
+        fix_best = fix[1:n] .== which(t.value)
+        bmeans = mean.(Iterators.partition(fix_best, spb))
+
+        push!(x, eachindex(bmeans)...)
+        push!(y, bmeans...)
     end
     x, y
 end
+
 
 fixate_on_best(trials; kws...) = fixate_on_(trials, argmax; kws...)
 fixate_on_worst(trials; kws...) = fixate_on_(trials, argmin; kws...)
@@ -110,8 +114,36 @@ function value_bias(trials; fix_select=allfix)
     x, y
 end
 
-function refixate_uncertain(trials; compare_to_prev=true)
+# function refixate_uncertain(trials; compare_to_prev=true)
+#     n = n_item_(trials[1])
+#     options = Set(1:n)
+#     x = Float64[]
+#     for t in trials
+#         cft = zeros(n)
+#         total = 0
+#         for i in eachindex(t.fixations)
+#             fix = t.fixations[i]
+#             fix_time = t.fix_times[i]
+#             if i > 2
+#                 prev = t.fixations[i-1]
+#                 if n == 3 && compare_to_prev
+#                     others = [i for i in options if i != fix]
+#                     push!(x, cft[fix] - mean(cft[others]))
+#                 else
+#                     alt = n == 2 ? prev : pop!(setdiff(options, [prev, fix]))
+#                     push!(x, cft[fix] - cft[alt])
+#                 end
+#             end
+#             cft[fix] += fix_time
+#             total += fix_time
+#         end
+#     end
+#     return x
+# end
+
+function refixate_uncertain(trials; refixate_only=false, ignore_current=false)
     n = n_item_(trials[1])
+    @assert !(ignore_current && n == 2)
     options = Set(1:n)
     x = Float64[]
     for t in trials
@@ -120,14 +152,16 @@ function refixate_uncertain(trials; compare_to_prev=true)
         for i in eachindex(t.fixations)
             fix = t.fixations[i]
             fix_time = t.fix_times[i]
-            if i > 2
+            if i > (ignore_current ? 2 : 1)
                 prev = t.fixations[i-1]
-                if n == 3 && compare_to_prev
-                    others = [i for i in options if i != fix]
-                    push!(x, cft[fix] - mean(cft[others]))
-                else
-                    alt = n == 2 ? prev : pop!(setdiff(options, [prev, fix]))
-                    push!(x, cft[fix] - cft[alt])
+                if !(refixate_only && cft[fix] == 0)
+                    if ignore_current
+                        other = pop!(setdiff(options, [prev, fix]))
+                        push!(x, cft[fix] - cft[other])
+                    else
+                        others = [i for i in options if i != fix]
+                        push!(x, cft[fix] - mean(cft[others]))
+                    end
                 end
             end
             cft[fix] += fix_time
@@ -135,6 +169,32 @@ function refixate_uncertain(trials; compare_to_prev=true)
         end
     end
     return x
+end
+
+
+function fixate_by_uncertain(trials)
+    n = n_item_(trials[1])
+    @assert n != 2
+    options = Set(1:n)
+    x = Float64[]; y = Int[]
+    for t in trials
+        cft = zeros(n)
+        total = 0
+        for i in eachindex(t.fixations)
+            fix = t.fixations[i]
+            fix_time = t.fix_times[i]
+            if i > 1
+                prev = t.fixations[i-1]
+                a, b = shuffle([i for i in options if i != prev])
+                d = cft[a] - cft[b]
+                push!(x, abs(d))
+                push!(y, fix == (d >= 0 ? a : b))
+            end
+            cft[fix] += fix_time
+            total += fix_time
+        end
+    end
+    return x, y
 end
 
 function binned_fixation_times(trials)
@@ -222,7 +282,7 @@ function fix4_value(trials)
     x, y
 end
 
-function fix4_uncertain(trials)
+function old_fix4_uncertain(trials)
     x = Float64[]; y = Float64[]; n = 3
     for t in trials
         if length(t.fixations) > n && sort(t.fixations[1:n]) == 1:n && unique_values(t)

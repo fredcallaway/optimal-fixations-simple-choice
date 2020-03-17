@@ -3,6 +3,10 @@ using SplitApplyCombine
 using Serialization
 
 include("fit_base.jl")
+if length(ARGS) > 0
+    BASE_DIR = "results/" * ARGS[1]
+end
+
 # BASE_DIR = "results/$(ARGS[1])"
 
 function mean_std_str(k, xs, sigdigits=3)
@@ -54,5 +58,6 @@ function identify_mle()
             end
         end
     end
+    println("Wrote $BASE_DIR/best_parameters/mle.txt")
 end
 identify_mle()

@@ -8,8 +8,9 @@ include("toucher.jl")
 
 
 # include("runs/sobol4.jl")
-include("runs/lesion.jl")
+# include("runs/lesion.jl")
 # include("runs/no_switch_cost.jl")
+include("runs/attention_noise.jl")
 
 mkpath(BASE_DIR)
 
@@ -31,19 +32,29 @@ end
 
 
 
-function do_job(f::Function, name::String, job::Int)
+function do_job(f::Function, name::String, job::Int; force=false)
     out = "$BASE_DIR/$name"
     mkpath(out)
     dest = "$out/$job"
     if isfile(dest)
-        println("$dest already exists")
-        return
+        print("$dest already exists, ")
+        if force
+            println("overwriting")
+        else
+            println("skipping")
+            return
+        end
     end
     
     t = Toucher(dest * "x")
     if isactive(t; tolerance=600)
-        println("$dest is currently in progress")
-        return
+        print("$dest is currently in progress, ")
+        if force
+            println("overwriting")
+        else
+            println("skipping")
+            return
+        end
     end
     run!(t)
     

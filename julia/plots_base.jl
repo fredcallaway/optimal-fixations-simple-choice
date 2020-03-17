@@ -3,14 +3,16 @@ ENV["GKSwstype"] = "nul"
 include("features.jl")
 using Serialization
 using StatsPlots
+using Printf
+using Bootstrap
+using KernelDensity
+using DataFrames
+
 pyplot(label="")
 plot([1,2]);
-
-
 # %% ====================  ====================
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
-using Printf
 
 RED = colorant"#FF6167"
 NO_RIBBON = false
@@ -19,7 +21,6 @@ SKIP_BOOT = false
 DISPLAY = false
 const CI = 0.95
 const N_BOOT = 10000
-using Bootstrap
 function ci_err(y)
     length(y) == 1 && return (0., 0.)
     NO_RIBBON && return (0., 0.)
@@ -56,7 +57,7 @@ function plot_human!(bins, x, y, type=:line; kws...)
 end
 
 
-function plot_human!(feature::Function, bins=nothing, type=:line; kws...)
+function plot_human!(feature::Function, trials, bins=nothing, type=:line; kws...)
     hx, hy = feature(trials)
     bins = make_bins(bins, hx)
     plot_human!(bins, hx, hy, type; kws...)
@@ -78,7 +79,7 @@ function plot_model!(x::Vector{Float64}, y, err, type; color=RED, kws...)
     if type == :line
         plot!(x, y,
               ribbon=err,
-              fillalpha=0.05,
+              fillalpha=(FAST ? 0.8 : 0.05),
               color=color,
               linewidth=1,
               label="";
@@ -120,7 +121,6 @@ end
 #     _fig
 # end
 
-using KernelDensity
 
 function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
     plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
@@ -134,7 +134,6 @@ function kdeplot!(x, bw::Float64; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95)
     kdeplot!(kde(x, bandwidth=bw), xmin, xmax; kws...)
 end
 
-using DataFrames
 
 function make_lines!(xline, yline, trials)
     if xline != nothing
@@ -177,7 +176,7 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
 end
 
 function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
-        xline=nothing, yline=nothing,
+        xline=nothing, yline=nothing, save=false,
         plot_human::Function, plot_model::Function)
 
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
@@ -195,8 +194,22 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
     plot_human(trials)
 
     make_lines!(xline, yline, trials)
+    if save
+        savefig(f, "$out_path/$name.pdf")
+    end
     f
 end
+
+function plot_three(feature, xlab, ylab, plot_kws=(); kws...)
+    plot_kws = (plot_kws..., size=(430,400))
+    plot_one(feature, xlab, ylab, both_trials[2], both_sims[2], plot_kws; save=true, kws...)
+end
+
+function plot_three(name::String, xlab, ylab, plot_kws=(); kws...)
+    plot_kws = (plot_kws..., size=(430,400))
+    plot_one(name, xlab, ylab, both_trials[2], both_sims[2], plot_kws; save=true, kws...)
+end
+
 
 DISABLE_ALIGN = true
 function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
