@@ -28,8 +28,9 @@
         both_policies = deserialize("$BASE_DIR/simulation_policies/$FIT_MODE-$FIT_PRIOR/$job")
         map([2,3], both_policies) do n_item, policies
             prm = get_top_prm(job, n_item)
-            trials = get_fold(load_dataset(n_item), LIKELIHOOD_PARAMS.test_fold, :test)
-            prior = make_prior(trials, prm.β_μ)
+            all_trials = load_dataset(policies[1].m.n_arm)
+            prior = make_prior(all_trials, prm.β_μ)
+            trials = get_fold(all_trials, LIKELIHOOD_PARAMS.test_fold, :test)
             map(policies) do pol
                 simulate_trials(pol, prior, trials)
             end

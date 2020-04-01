@@ -1,6 +1,4 @@
-ENV["GKSwstype"] = "nul"
-
-include("features.jl")
+include("plots_features.jl")
 using Serialization
 using StatsPlots
 using Printf
@@ -17,7 +15,7 @@ Plots.scalefontsizes(1.5)
 RED = colorant"#FF6167"
 NO_RIBBON = false
 FAST = false
-SKIP_BOOT = false
+SKIP_BOOT = true
 DISPLAY = false
 const CI = 0.95
 const N_BOOT = 10000

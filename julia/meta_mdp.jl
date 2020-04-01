@@ -19,7 +19,7 @@ abstract type Policy end
 "Ground truth state"
 struct State
     value::Vector{Float64}  # values of each item in the choice set
-    σ_obs::Float64          # metaMDP parameter, stored here for convenience
+    σ_obs::Float64          # MetaMDP parameter, stored here for convenience
 end
 State(m::MetaMDP, value) = State(value, m.σ_obs)
 State(m::MetaMDP) = State(m, randn(m.n_arm))

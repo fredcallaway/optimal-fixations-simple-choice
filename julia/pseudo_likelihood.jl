@@ -4,7 +4,7 @@ using Optim
 include("human.jl")
 include("binning.jl")
 include("simulations.jl")
-include("features.jl")
+include("plots_features.jl")
 include("metrics.jl")
 
 function get_metrics(metrics, policies, prior, v, N, parallel)
@@ -75,11 +75,9 @@ end
 
 function likelihood(policies, β_μ; fit_ε, max_ε, n_sim_hist, hist_bins, test_fold, fold)
     all_trials = map(sort_value, load_dataset(policies[1].m.n_arm))
+    prior = make_prior(all_trials, β_μ)
     metrics = make_metrics(all_trials)
-    trials = get_fold(all_trials, test_fold, :test)
-    # trials = getfield(split_trials, fold)
-    prior = make_prior(trials, β_μ)
-    parallel = false
+    trials = get_fold(all_trials, test_fold, fold)
 
     histogram_size = Tuple(length(m.bins) for m in metrics)
     p_rand = 1 / prod(histogram_size)

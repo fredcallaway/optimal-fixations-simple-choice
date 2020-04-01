@@ -1,3 +1,5 @@
+# Preprocesses CSV files into fast-loading julia serialized objects
+# generates data/two_items.jls and data/three_items.jls
 import CSV
 using TypedTables
 using SplitApplyCombine
@@ -20,7 +22,7 @@ function process_data(reducer, csv, name)
     trials
 end
 
-process_data("../krajbich_PNAS_2011/data.csv", "three_items") do t
+process_data("../data/krajbich_PNAS_2011/data.csv", "three_items") do t
     t = Table(t)
     r = t[1]
     (choice = argmax([r.choice1, r.choice2, r.choice3]),
@@ -32,7 +34,7 @@ process_data("../krajbich_PNAS_2011/data.csv", "three_items") do t
      fix_times = t.eventduration)
 end
 
-process_data("../krajbich_NatNeu_2010/Data/fixations_final.csv", "two_items") do t
+process_data("../data/krajbich_NatNeu_2010/data.csv", "two_items") do t
     t = Table(t)
     r = t[1]
     (choice = Int(r.choice == 0 ? 2 : 1),

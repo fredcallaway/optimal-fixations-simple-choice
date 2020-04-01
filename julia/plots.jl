@@ -14,7 +14,7 @@ run_name = "sobol4"
 fit_mode = "joint"
 fit_prior = "true"
 out_path = "figs/$run_name/$fit_mode-$fit_prior"
-mkpath("$out_path")
+mkpath(out_path)
 
 both_sims = map(1:30) do i
     map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
@@ -25,6 +25,17 @@ end |> invert;
 NO_RIBBON = false
 SKIP_BOOT = true
 FAST = false
+
+# %% ====================  ====================
+out_path = "figs/optimization/"
+mkpath(out_path)
+
+both_sims = map(1:30) do i
+    map(deserialize("results/investigate_optimization/simulations/$i")) do sims
+        reduce(vcat, sims)
+    end
+end |> invert;
+
 # %% ==================== Basic psychometrics ====================
 # run_name = "no_inner"
 # both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
@@ -34,23 +45,9 @@ plot_both(value_choice, :left_rv, "P(left chosen)";
 plot_both(difference_time, :best_rv, "Total fixation time [ms]",
     binning=:integer)
 
-
-function plot_rt!(trials, correct=nothing; kws...)
-    if correct != nothing
-        trials = filter(trials) do t
-            (t.value[t.choice] == maximum(t.value)) == correct
-        end
-    end
-    kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000; kws...)
-end
-
 plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
-    plot_human=(trials)->plot_rt!(trials, false; line=(:black, 2)),
-    plot_model=(sim; color=RED)->plot_rt!(sim, false; line=(color, 2, 0.5))
-)
-plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
-    plot_human=(trials)->plot_rt!(trials, true; line=(:black, 2)),
-    plot_model=(sim; color=RED)->plot_rt!(sim, true; line=(color, 2, 0.5))
+    plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
+    plot_model=(sim; color=RED)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, 0.5))
 )
 
 # %% ==================== Number of fixations ====================
@@ -130,7 +127,6 @@ plot_three(fix3_value,
 
 
 # %% ==================== Choice biases ====================
-
 plot_both(last_fix_bias, :last_rv, "P(last fixated item chosen)",
     binning=:integer, xline=0, yline=:chance)
 
@@ -139,13 +135,14 @@ plot_both(fixation_bias, "Final time advantage left [ms]", "P(left chosen)",
     # trial_select=(t)->t.value[1] == 3
     )
 
-
 plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected P(left chosen)",
-    ; xline=0, yline=0)
-
+    xline=0, yline=0)
 
 plot_both(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
-    )
+    yline= :chance )
+
+plot_both(first_fixation_duration_corrected, "First fixation duration [ms]", "corrected P(first fixated chosen)",
+    yline=0 )
 
 
 #    =================================================

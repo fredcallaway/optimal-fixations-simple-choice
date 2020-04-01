@@ -7,8 +7,6 @@ if length(ARGS) > 0
     BASE_DIR = "results/" * ARGS[1]
 end
 
-# BASE_DIR = "results/$(ARGS[1])"
-
 function mean_std_str(k, xs, sigdigits=3)
     m, s = juxt(mean, std)(xs)
     s = @sprintf( "%-12s", k) *
@@ -41,8 +39,7 @@ function identify_mle()
         for fit_prior in (true, false)
             prms, l2, l3, lc = map(results) do (prm, losses)
                 if !fit_prior
-                    prm.β_μ < 0.9 && return missing
-                    prm = (prm..., β_μ = 1)
+                    prm.β_μ < 1. && return missing
                 end
                 prm, losses[1], losses[2], sum(losses)
             end |> skipmissing |> collect |> invert;

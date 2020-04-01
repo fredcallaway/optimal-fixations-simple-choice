@@ -12,7 +12,7 @@ function compute_likelihood(job::Int)
     results = map(β_μs) do β_μ
         losses = map(all_policies) do policies
             logp, ε, baseline = likelihood(policies, β_μ; LIKELIHOOD_PARAMS..., fold=:train)
-            logp / baseline
+            -logp
         end
         prm = (prm..., β_μ=β_μ)
         prm, losses
