@@ -1,6 +1,0 @@
-include("results.jl")
-res = get_result(ARGS[1])
-args = load(res, :args)
-include("fit_pseudo_base.jl")
-mle = load(res, :mle)
-reoptimize(mle)
