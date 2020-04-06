@@ -85,13 +85,13 @@ function plot_model!(bins, x, y, type=:line; kws...)
     plot_model!(x, y, err, type; kws...)
 end
 
-function plot_model!(x::Vector{Float64}, y, err, type; color=RED, fillalpha=(FAST ? 0.8 : 0.01), kws...)
+function plot_model!(x::Vector{Float64}, y, err, type; color=RED, fillalpha=0.8, kws...)
     if type == :line
         plot!(x, y,
               ribbon=err,
               fillalpha=fillalpha,
               color=color,
-              linewidth=1,
+              linewidth=2,
               label="";
               kws...)
     elseif type == :discrete
@@ -99,7 +99,7 @@ function plot_model!(x::Vector{Float64}, y, err, type; color=RED, fillalpha=(FAS
               yerr=err,
               grid=:none,
               color=color,
-              linewidth=1,
+              linewidth=2,
               marker=(7, :diamond, color, stroke(0)),
               label="";
               kws...)
@@ -160,28 +160,26 @@ end
 
 
 function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
-        binning=nothing, type=:line, xline=nothing, yline=nothing,
+    binning=nothing, type=:line, xline=nothing, yline=nothing,
         save=false, name=string(feature), kws...)
     hx, hy = feature(trials; kws...)
     bins = make_bins(binning, hx)
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
     # plot_human!(bins, hx, hy, type)
-
-    if FAST
-        sims = sims[1:2]
-    end
+    #
+    # if FAST
+    #     sims = sims[1:2]
+    # end
 
     # sims = reverse(sims)
     # colors = range(colorant"red", stop=colorant"blue",length=length(sims))
     # for (c, sim) in zip(colors, sims)
 
     # all_mx, all_my = map(zip(colors, sims)) do (c, sim)
-    all_mx, all_my = map(sims) do sim
+    for sim in sims
         mx, my = feature(sim; kws...)
-        plot_model!(bins, mx, my, type, alpha=0.8, fillalpha=0.2) # color=c
-        mx, my
-    end |> invert
-    plot_model!(bins, flatten(all_mx), flatten(all_my), type, alpha=1, fillalpha=0, linewidth=2, color=DARK_RED)
+        plot_model!(bins, mx, my, type) # color=c
+    end
     plot_human!(bins, hx, hy, type)
 
     make_lines!(xline, yline, trials)
@@ -199,15 +197,10 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
 
     # plot_human(trials)
 
-    if FAST
-        sims = sims[1:4]
+    for sim in sims
+        plot_model(sim) # color=c
     end
-    sims = reverse(sims)
-    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
-    for (c, sim) in zip(colors, sims)
-        plot_model(sim, alpha=1, fillalpha=0, linewidth=2, color=DARK_RED) # color=c
-    end
-    plot_model(reduce(vcat, sims), )
+    # plot_model()
     plot_human(trials)
 
     make_lines!(xline, yline, trials)

@@ -12,9 +12,8 @@ end
 
 run_name = "final"
 fit_mode = "joint"
-fit_prior = "false"
+fit_prior = "true"
 out_path = "figs/$run_name/$fit_mode-$fit_prior"
-mkpath(out_path)
 
 both_sims = map(1:4) do i
     map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
@@ -27,11 +26,16 @@ SKIP_BOOT = true
 FAST = false
 
 both_sims = deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/1");
-
-
-
+both_sims = map(both_sims) do sims
+    [reduce(vcat, sims)]
+end;
 length(both_sims)
 length(both_sims[1])
+
+# %% ====================  ====================
+ff2, r = deserialize("tmp/foo")
+scatter(ff2, r)
+
 
 # %% ==================== Basic psychometrics ====================
 # run_name = "no_inner"
@@ -45,7 +49,7 @@ plot_both(difference_time, :best_rv, "Total fixation time [ms]",
 
 plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
     plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
-    plot_model=(sim; color=RED, kws...)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, 0.5), kws...)
+    plot_model=(sim; color=RED, kws...)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2), kws...)
 )
 
 # %% ==================== Number of fixations ====================
@@ -76,7 +80,7 @@ plot_both(value_bias, :left_rv, "Proportion fixate left";
 plot_both("refixate_uncertain", "Fixation advantage\n of refixated item [ms]", "Density",
     yticks = false,
     plot_human=(trials)->kdeplot!(refixate_uncertain(trials), 100., xmin=-1000, xmax=1000, line=(:black, 2)),
-    plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(color, 2, 0.5)),
+    plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(color, 2)),
     xline=0
 )
 
@@ -97,13 +101,6 @@ plot_both(value_duration, "First fixated item rating",  "First fixation duration
     binning=:integer, fix_select=firstfix)
 
 
-
-# %% ====================  ====================
-x, y = value_duration(load_dataset(3), fix_select=firstfix)
-R"""
-m = lm($y ~ $x)
-summary(m)
-"""
 # %% ==================== Last fixations ====================
 
 # plot_both(value_duration, "Item value",  "Fixation duration [ms]",
@@ -149,10 +146,10 @@ plot_both(first_fixation_duration_corrected, "First fixation duration [ms]", "co
 # %% ==================== SCRATCH ====================
 #    =================================================
 
-plot_threea("refixate_uncertain_alt", "Alternative fixation advantage\nof refixated item [ms]", "Density",
+plot_three("refixate_uncertain_alt", "Alternative fixation advantage\nof refixated item [ms]", "Density",
     (yticks = [],),
     plot_human=(trials)->kdeplot!(refixate_uncertain(trials, ignore_current=true), 100., xmin=-1000, xmax=1000, line=(:black, 2)),
-    plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim, ignore_current=true), 100., xmin=-1000, xmax=1000, line=(color, 2, 0.5)),
+    plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim, ignore_current=true), 100., xmin=-1000, xmax=1000, line=(color, 2)),
     xline=0
 )
 
