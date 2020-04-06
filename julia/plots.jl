@@ -10,13 +10,13 @@ both_trials = map(["two", "three"]) do num
     load_dataset(num)[1:2:end]  # out of sample prediction
 end
 
-run_name = "sobol4"
+run_name = "final"
 fit_mode = "joint"
-fit_prior = "true"
+fit_prior = "false"
 out_path = "figs/$run_name/$fit_mode-$fit_prior"
 mkpath(out_path)
 
-both_sims = map(1:30) do i
+both_sims = map(1:4) do i
     map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
         reduce(vcat, sims)
     end
@@ -26,19 +26,17 @@ NO_RIBBON = false
 SKIP_BOOT = true
 FAST = false
 
-# %% ====================  ====================
-out_path = "figs/optimization/"
-mkpath(out_path)
+both_sims = deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/1");
 
-both_sims = map(1:30) do i
-    map(deserialize("results/investigate_optimization/simulations/$i")) do sims
-        reduce(vcat, sims)
-    end
-end |> invert;
+
+
+length(both_sims)
+length(both_sims[1])
 
 # %% ==================== Basic psychometrics ====================
 # run_name = "no_inner"
 # both_sims = [ [ms[i] for ms in multi_sims] for i in 1:2 ];
+
 plot_both(value_choice, :left_rv, "P(left chosen)";
     xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
 
@@ -47,7 +45,7 @@ plot_both(difference_time, :best_rv, "Total fixation time [ms]",
 
 plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
     plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
-    plot_model=(sim; color=RED)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, 0.5))
+    plot_model=(sim; color=RED, kws...)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, 0.5), kws...)
 )
 
 # %% ==================== Number of fixations ====================
@@ -97,6 +95,8 @@ plot_both(chosen_fix_time, "", "Average fixation duration [ms]",
 
 plot_both(value_duration, "First fixated item rating",  "First fixation duration [ms]",
     binning=:integer, fix_select=firstfix)
+
+
 
 # %% ====================  ====================
 x, y = value_duration(load_dataset(3), fix_select=firstfix)
