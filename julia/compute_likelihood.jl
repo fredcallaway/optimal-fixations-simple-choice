@@ -2,11 +2,16 @@ include("fit_base.jl")
 include("pseudo_likelihood.jl")
 
 function compute_likelihood(job::Int)
-    all_policies = deserialize("$BASE_DIR/policies/$job")
-    # sanity check
     prm = get_prm(job)
-    pol = all_policies[1][1];
-    @assert pol.α == prm.α && pol.m.σ_obs == prm.σ_obs
+    if :p_stop in keys(SPACE.dims)
+        # unoptimized random policy
+        all_policies = [[Rando(MetaMDP(n, prm), prm.p_switch, prm.p_stop)] for n in 2:3]
+    else
+        all_policies = deserialize("$BASE_DIR/policies/$job")
+        # check that parameters are correct
+        pol = all_policies[1][1];
+        @assert pol.α == prm.α && pol.m.σ_obs == prm.σ_obs
+    end
 
     β_μs = FIT_PRIOR ? range(0, 1, length=GRID_SIZE) : [1.0]
     results = map(β_μs) do β_μ
@@ -18,6 +23,7 @@ function compute_likelihood(job::Int)
         prm, losses
     end
 end
+
 
 if basename(PROGRAM_FILE) == basename(@__FILE__)
     job = parse(Int, ARGS[1])

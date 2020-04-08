@@ -12,28 +12,16 @@ plot([1,2]);
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
 
-using Pkg
-Pkg.add("Colors")
-using Colors
 RED = colorant"#FF6167"
-RED = colorant"#ff8084"
-DARK_RED = colorant"#FF333a"
-
 NO_RIBBON = false
 FAST = false
 SKIP_BOOT = true
-USE_SEM = true
 DISPLAY = false
 const CI = 0.95
 const N_BOOT = 10000
-
 function ci_err(y)
     length(y) == 1 && return (0., 0.)
     NO_RIBBON && return (0., 0.)
-    if USE_SEM
-        semy = sem(y)
-        return semy, semy
-    end
     (FAST || SKIP_BOOT) && return (sem(y) * 2, sem(y) * 2)
     isempty(y) && return (NaN, NaN)
     bs = bootstrap(mean, y, BasicSampling(N_BOOT))
@@ -85,13 +73,13 @@ function plot_model!(bins, x, y, type=:line; kws...)
     plot_model!(x, y, err, type; kws...)
 end
 
-function plot_model!(x::Vector{Float64}, y, err, type; color=RED, fillalpha=0.8, kws...)
+function plot_model!(x::Vector{Float64}, y, err, type; color=RED, kws...)
     if type == :line
         plot!(x, y,
               ribbon=err,
-              fillalpha=fillalpha,
+              fillalpha=(FAST ? 0.8 : 0.05),
               color=color,
-              linewidth=2,
+              linewidth=1,
               label="";
               kws...)
     elseif type == :discrete
@@ -99,7 +87,7 @@ function plot_model!(x::Vector{Float64}, y, err, type; color=RED, fillalpha=0.8,
               yerr=err,
               grid=:none,
               color=color,
-              linewidth=2,
+              linewidth=1,
               marker=(7, :diamond, color, stroke(0)),
               label="";
               kws...)
@@ -158,33 +146,34 @@ function make_lines!(xline, yline, trials)
     end
 end
 
+function savefiglog(f, path)
+    savefig(f, path)
+    println("Wrote ", path)
+end
+
 
 function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
-    binning=nothing, type=:line, xline=nothing, yline=nothing,
+        binning=nothing, type=:line, xline=nothing, yline=nothing,
         save=false, name=string(feature), kws...)
     hx, hy = feature(trials; kws...)
     bins = make_bins(binning, hx)
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
     # plot_human!(bins, hx, hy, type)
-    #
-    # if FAST
-    #     sims = sims[1:2]
-    # end
 
-    # sims = reverse(sims)
-    # colors = range(colorant"red", stop=colorant"blue",length=length(sims))
-    # for (c, sim) in zip(colors, sims)
-
-    # all_mx, all_my = map(zip(colors, sims)) do (c, sim)
-    for sim in sims
+    if FAST
+        sims = sims[1:2]
+    end
+    sims = reverse(sims)
+    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
+    for (c, sim) in zip(colors, sims)
         mx, my = feature(sim; kws...)
-        plot_model!(bins, mx, my, type) # color=c
+        plot_model!(bins, mx, my, type, alpha=0.2) # color=c
     end
     plot_human!(bins, hx, hy, type)
 
     make_lines!(xline, yline, trials)
     if save
-        savefig(f, "$out_path/$name.pdf")
+        savefiglog(f, "$out_path/$name.pdf")
     end
     f
 end
@@ -197,15 +186,19 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
 
     # plot_human(trials)
 
-    for sim in sims
+    if FAST
+        sims = sims[1:4]
+    end
+    sims = reverse(sims)
+    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
+    for (c, sim) in zip(colors, sims)
         plot_model(sim) # color=c
     end
-    # plot_model()
     plot_human(trials)
 
     make_lines!(xline, yline, trials)
     if save
-        savefig(f, "$out_path/$name.pdf")
+        savefiglog(f, "$out_path/$name.pdf")
     end
     f
 end

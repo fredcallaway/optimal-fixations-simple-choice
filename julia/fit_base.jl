@@ -7,10 +7,11 @@ include("bmps.jl")
 include("toucher.jl")
 
 
-# include("runs/sobol4.jl")
-# include("runs/lesion.jl")
-# include("runs/no_switch_cost.jl")
-include("runs/attention_noise.jl")
+# include("runs/sobol18.jl")
+# include("runs/lesion19.jl")
+# include("runs/final.jl")
+include("runs/lesion_attention.jl")
+# include("runs/rando.jl")
 
 mkpath(BASE_DIR)
 
@@ -30,7 +31,7 @@ function get_prm(job)
     x |> SPACE |> namedtuple
 end
 
-
+MetaMDP(n_item::Int, prm::NamedTuple) = MetaMDP(n_item, prm.σ_obs, prm.sample_cost, prm.switch_cost)
 
 function do_job(f::Function, name::String, job::Int; force=false)
     out = "$BASE_DIR/$name"

@@ -2,8 +2,6 @@
 .ipynb_checkpoints/
 __pycache__
 .done
-julia/run.sbatch
-julia/runs
 analysis/data
 .tmp/
 julia/scratch.jl

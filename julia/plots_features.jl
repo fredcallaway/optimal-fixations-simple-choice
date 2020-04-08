@@ -1,7 +1,9 @@
 include("binning.jl")
 using StatsBase
 const CUTOFF = 2000
-
+using Optim
+using Memoize
+using Random: shuffle
 # %% ==================== Utilities ====================
 
 function make_bins(bins, hx)
@@ -114,33 +116,6 @@ function value_bias(trials; fix_select=allfix)
     x, y
 end
 
-# function refixate_uncertain(trials; compare_to_prev=true)
-#     n = n_item_(trials[1])
-#     options = Set(1:n)
-#     x = Float64[]
-#     for t in trials
-#         cft = zeros(n)
-#         total = 0
-#         for i in eachindex(t.fixations)
-#             fix = t.fixations[i]
-#             fix_time = t.fix_times[i]
-#             if i > 2
-#                 prev = t.fixations[i-1]
-#                 if n == 3 && compare_to_prev
-#                     others = [i for i in options if i != fix]
-#                     push!(x, cft[fix] - mean(cft[others]))
-#                 else
-#                     alt = n == 2 ? prev : pop!(setdiff(options, [prev, fix]))
-#                     push!(x, cft[fix] - cft[alt])
-#                 end
-#             end
-#             cft[fix] += fix_time
-#             total += fix_time
-#         end
-#     end
-#     return x
-# end
-
 function refixate_uncertain(trials; refixate_only=false, ignore_current=false)
     n = n_item_(trials[1])
     @assert !(ignore_current && n == 2)
@@ -174,7 +149,7 @@ end
 
 function fixate_by_uncertain(trials)
     n = n_item_(trials[1])
-    @assert n != 2
+    @assert n == 3
     options = Set(1:n)
     x = Float64[]; y = Int[]
     for t in trials
@@ -185,7 +160,7 @@ function fixate_by_uncertain(trials)
             fix_time = t.fix_times[i]
             if i > 1
                 prev = t.fixations[i-1]
-                a, b = shuffle([i for i in options if i != prev])
+                a, b = [i for i in options if i != prev]
                 d = cft[a] - cft[b]
                 push!(x, abs(d))
                 push!(y, fix == (d >= 0 ? a : b))
@@ -488,8 +463,7 @@ function value_bias_split(trials; chosen=false)
 end
 
 
-using Optim
-using Memoize
+
 @memoize function fit_softmax(trials)
     res = optimize(0, 5) do α
         mapreduce(+, trials.value, trials.choice) do v, c

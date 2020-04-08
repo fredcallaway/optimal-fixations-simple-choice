@@ -5,6 +5,9 @@
     include("simulations.jl")
     include("pseudo_likelihood.jl")
 
+    RETEST_UCB_PARAMS = UCB_PARAMS
+    RETEST_LIKELIHOOD_PARAMS = LIKELIHOOD_PARAMS
+
     function get_top_prm(job::Int, n_item::Int)
         # return deserialize("$BASE_DIR/retest/top30")[job]
 
@@ -20,17 +23,17 @@
     function recompute_policies(job::Int)
         map([2,3]) do n_item
             prm = get_top_prm(job, n_item)
-            compute_policies(n_item, prm)
+            compute_policies(n_item, prm; RETEST_UCB_PARAMS...)
         end
     end
 
     function compute_simulations(job::Int)
-        both_policies = deserialize("$BASE_DIR/simulation_policies/$FIT_MODE-$FIT_PRIOR/$job")
+        both_policies = deserialize("$BASE_DIR/test_policies/$FIT_MODE-$FIT_PRIOR/$job")
         map([2,3], both_policies) do n_item, policies
             prm = get_top_prm(job, n_item)
             all_trials = load_dataset(policies[1].m.n_arm)
             prior = make_prior(all_trials, prm.β_μ)
-            trials = get_fold(all_trials, LIKELIHOOD_PARAMS.test_fold, :test)
+            trials = get_fold(all_trials, RETEST_LIKELIHOOD_PARAMS.test_fold, :test)
             map(policies) do pol
                 simulate_trials(pol, prior, trials)
             end
@@ -38,18 +41,10 @@
     end
 
     function compute_test_likelihood(job::Int)
-        both_policies = deserialize("$BASE_DIR/simulation_policies/$FIT_MODE-$FIT_PRIOR/$job")
+        both_policies = deserialize("$BASE_DIR/test_policies/$FIT_MODE-$FIT_PRIOR/$job")
         map([2,3], both_policies) do n_item, policies
             prm = get_top_prm(job, n_item)
-            likelihood(policies, prm.β_μ; LIKELIHOOD_PARAMS..., fold=:test)
-        end
-    end
-
-    function compute_train_likelihood(job::Int)
-        both_policies = deserialize("$BASE_DIR/simulation_policies/$FIT_MODE-$FIT_PRIOR/$job")
-        map([2,3], both_policies) do n_item, policies
-            prm = get_top_prm(job, n_item)
-            likelihood(policies, prm.β_μ; LIKELIHOOD_PARAMS..., fold=:train)
+            likelihood(policies, prm.β_μ; RETEST_LIKELIHOOD_PARAMS..., fold=:test)
         end
     end
 end
@@ -60,10 +55,15 @@ if basename(PROGRAM_FILE) == basename(@__FILE__)
     @everywhere FIT_MODE = $FIT_MODE
     @everywhere FIT_PRIOR = $FIT_PRIOR
 
-    pmap(1:30) do job
-        do_job(recompute_policies, "simulation_policies/$FIT_MODE-$FIT_PRIOR", job)
-        do_job(compute_simulations, "simulations/$FIT_MODE-$FIT_PRIOR", job)
-        do_job(compute_test_likelihood, "test_likelihood/$FIT_MODE-$FIT_PRIOR", job)
+    N = length(deserialize("$BASE_DIR/best_parameters/$FIT_MODE-$FIT_PRIOR"))
+    println("$N policies")
+    asyncmap(1:N) do job
+        @fetch do_job(recompute_policies, "test_policies/$FIT_MODE-$FIT_PRIOR", job)
+        @sync begin
+            @spawn do_job(compute_simulations, "simulations/$FIT_MODE-$FIT_PRIOR", job)
+            println("foobar")
+            @spawn do_job(compute_test_likelihood, "test_likelihood/$FIT_MODE-$FIT_PRIOR", job)
+        end
     end
 end
 
