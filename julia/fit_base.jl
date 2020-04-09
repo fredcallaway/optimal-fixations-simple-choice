@@ -10,8 +10,8 @@ include("toucher.jl")
 # include("runs/sobol18.jl")
 # include("runs/lesion19.jl")
 # include("runs/final.jl")
-include("runs/lesion_attention.jl")
-# include("runs/rando.jl")
+# include("runs/lesion_attention.jl")
+include("runs/rando.jl")
 
 mkpath(BASE_DIR)
 

@@ -5,9 +5,6 @@
     include("simulations.jl")
     include("pseudo_likelihood.jl")
 
-    RETEST_UCB_PARAMS = UCB_PARAMS
-    RETEST_LIKELIHOOD_PARAMS = LIKELIHOOD_PARAMS
-
     function get_top_prm(job::Int, n_item::Int)
         # return deserialize("$BASE_DIR/retest/top30")[job]
 
@@ -23,7 +20,7 @@
     function recompute_policies(job::Int)
         map([2,3]) do n_item
             prm = get_top_prm(job, n_item)
-            compute_policies(n_item, prm; RETEST_UCB_PARAMS...)
+            compute_policies(n_item, prm; UCB_PARAMS...)
         end
     end
 
@@ -33,7 +30,7 @@
             prm = get_top_prm(job, n_item)
             all_trials = load_dataset(policies[1].m.n_arm)
             prior = make_prior(all_trials, prm.β_μ)
-            trials = get_fold(all_trials, RETEST_LIKELIHOOD_PARAMS.test_fold, :test)
+            trials = get_fold(all_trials, LIKELIHOOD_PARAMS.test_fold, :test)
             map(policies) do pol
                 simulate_trials(pol, prior, trials)
             end
@@ -44,7 +41,7 @@
         both_policies = deserialize("$BASE_DIR/test_policies/$FIT_MODE-$FIT_PRIOR/$job")
         map([2,3], both_policies) do n_item, policies
             prm = get_top_prm(job, n_item)
-            likelihood(policies, prm.β_μ; RETEST_LIKELIHOOD_PARAMS..., fold=:test)
+            likelihood(policies, prm.β_μ; LIKELIHOOD_PARAMS..., fold=:test)
         end
     end
 end

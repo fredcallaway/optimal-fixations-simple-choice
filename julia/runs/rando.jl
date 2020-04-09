@@ -12,6 +12,10 @@ SPACE = Box(
 
 )
 
+UCB_PARAMS = (
+    n_top=80,
+)
+
 LIKELIHOOD_PARAMS = (
     fit_ε = true,
     max_ε = 0.5,

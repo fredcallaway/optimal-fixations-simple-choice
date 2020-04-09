@@ -54,7 +54,7 @@ end
 # %% ==================== Features ====================
 
 
-function value_choice(trials)
+@memoize function value_choice(trials)
     x = Float64[]; y = Bool[];
     for t in trials
         push!(x, relative_left(t.value))

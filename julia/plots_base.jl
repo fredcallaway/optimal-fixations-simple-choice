@@ -1,28 +1,54 @@
 include("plots_features.jl")
+include("human.jl")
 using Serialization
 using StatsPlots
 using Printf
 using Bootstrap
 using KernelDensity
 using DataFrames
+using Glob
+using StatsBase
 
 pyplot(label="")
 plot([1,2]);
-# %% ====================  ====================
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
 
 RED = colorant"#FF6167"
 NO_RIBBON = false
 FAST = false
-SKIP_BOOT = true
+SKIP_BOOT = false
 DISPLAY = false
-const CI = 0.95
-const N_BOOT = 10000
+CI = 0.95
+N_BOOT = 10000
+
+both_trials = map(["two", "three"]) do num
+    load_dataset(num)[1:2:end]  # out of sample prediction
+end
+
+fit_mode = "joint"
+fit_prior = "false"
+out_path = "figs/$run_name/$fit_mode-$fit_prior"
+mkpath(out_path)
+
+both_sims = map(1:30) do i
+    map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
+        reduce(vcat, sims)
+    end
+end |> invert;
+
+OVERWRITE = false
+NO_RIBBON = false
+SKIP_BOOT = false
+FAST = false
+ALPHA = 0.5
+FILL_ALPHA = 0.05
+
+# %% ====================  ====================
 function ci_err(y)
     length(y) == 1 && return (0., 0.)
     NO_RIBBON && return (0., 0.)
-    (FAST || SKIP_BOOT) && return (sem(y) * 2, sem(y) * 2)
+    (FAST || SKIP_BOOT) && return (sem(y), sem(y))
     isempty(y) && return (NaN, NaN)
     bs = bootstrap(mean, y, BasicSampling(N_BOOT))
     c = confint(bs, BCaConfInt(CI))[1]
@@ -77,16 +103,21 @@ function plot_model!(x::Vector{Float64}, y, err, type; color=RED, kws...)
     if type == :line
         plot!(x, y,
               ribbon=err,
-              fillalpha=(FAST ? 0.8 : 0.05),
+              alpha=ALPHA,
+              fillalpha=FILL_ALPHA,
               color=color,
               linewidth=1,
               label="";
               kws...)
     elseif type == :discrete
+        if all(err[1] .≈ 0)
+            err = nothing
+        end
         plot!(x, y,
               yerr=err,
               grid=:none,
               color=color,
+              alpha=ALPHA,
               linewidth=1,
               marker=(7, :diamond, color, stroke(0)),
               label="";
@@ -155,6 +186,9 @@ end
 function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
         binning=nothing, type=:line, xline=nothing, yline=nothing,
         save=false, name=string(feature), kws...)
+
+    !OVERWRITE && isfile("$out_path/$name.pdf") && return
+
     hx, hy = feature(trials; kws...)
     bins = make_bins(binning, hx)
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
@@ -167,7 +201,7 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
     colors = range(colorant"red", stop=colorant"blue",length=length(sims))
     for (c, sim) in zip(colors, sims)
         mx, my = feature(sim; kws...)
-        plot_model!(bins, mx, my, type, alpha=0.2) # color=c
+        plot_model!(bins, mx, my, type) # color=c
     end
     plot_human!(bins, hx, hy, type)
 
@@ -181,6 +215,8 @@ end
 function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
         xline=nothing, yline=nothing, save=false,
         plot_human::Function, plot_model::Function)
+
+    !OVERWRITE && isfile("$out_path/$name.pdf") && return
 
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
 
@@ -204,11 +240,13 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
 end
 
 function plot_three(feature, xlab, ylab, plot_kws=(); kws...)
+    println("Plotting $feature")
     plot_kws = (plot_kws..., size=(430,400))
     plot_one(feature, xlab, ylab, both_trials[2], both_sims[2], plot_kws; save=true, kws...)
 end
 
 function plot_three(name::String, xlab, ylab, plot_kws=(); kws...)
+    println("Plotting $name")
     plot_kws = (plot_kws..., size=(430,400))
     plot_one(name, xlab, ylab, both_trials[2], both_sims[2], plot_kws; save=true, kws...)
 end
@@ -216,6 +254,9 @@ end
 
 DISABLE_ALIGN = true
 function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
+    !OVERWRITE && isfile("$out_path/$name.pdf") && return
+    println("Plotting $name")
+
     xlab1, xlab2 =
         (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
         (xlab == :best_rv) ? ("Best rating - worst rating", "Best rating - mean other rating") :
@@ -256,7 +297,7 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
     if haskey(Dict(kws), :fix_select)
         name *= "_$(kws[:fix_select])"
     end
-    savefig(ff, "$out_path/$name.pdf")
+    savefiglog(ff, "$out_path/$name.pdf")
     # return ff
     DISPLAY && display(ff)
     return
