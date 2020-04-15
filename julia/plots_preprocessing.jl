@@ -29,7 +29,7 @@ function precompute(feature::Function, sims; bin_spec=:integer, three_only=false
             vals = bin_by(bins, mx, my)
             err = ci_err.(vals)
             n_item = length(both_trials[i][1].value)
-            n_item => (x=mids(bins), y=mean.(vals), err=err)
+            n_item => (x=mids(bins), y=mean.(vals), err=err, n=length.(vals))
         catch e
             println("ERROR on feature $feature, $e")
             serialize("tmp/bad_pre", (mx=mx, my=my, bins=bins))

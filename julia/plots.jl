@@ -8,21 +8,17 @@ else
     run_name = "final"
 end
 
-println(run_name)
-
-@everywhere begin
-    run_name = $run_name
-    include("plots_base.jl")
-end
+include("plots_base.jl")
 length(both_sims[1])
 length(both_sims[1][1])
 plot([1,2])
 
 # %% ==================== Basic psychometrics ====================
-
+include("plots_base.jl")
+SKIP_BOOT = true
 plot_both(value_choice, :left_rv, "P(left chosen)";
     xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
-
+# %% ====================  ====================
 plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
     plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
     plot_model=(sim; color=RED)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, ALPHA)) )

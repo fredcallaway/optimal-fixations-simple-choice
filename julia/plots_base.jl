@@ -13,13 +13,6 @@ pyplot(label="")
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
 
-RED = colorant"#FF6167"
-NO_RIBBON = false
-FAST = false
-SKIP_BOOT = false
-CI = 0.95
-N_BOOT = 10000
-
 both_trials = map(["two", "three"]) do num
     get_fold(load_dataset(num), "odd", :test)
 end
@@ -37,6 +30,10 @@ if !@isdefined(both_sims)
     end |> invert;
 end
 
+RED = colorant"#ff6167"
+DARK_RED = colorant"#b00007"
+CI = 0.95
+N_BOOT = 10000
 OVERWRITE = false
 NO_RIBBON = false
 SKIP_BOOT = false
@@ -89,32 +86,42 @@ function plot_human!(feature::Function, trials, bins=nothing, type=:line; kws...
 end
 
 
-function plot_model_precomputed!(feature, feature_kws, type, n_item, i)
-    feats = deserialize("results/$run_name/plot_features/$fit_mode-$fit_prior/$i")
-    x, y, err = Dict(feats[(feature=feature, feature_kws...)])[n_item]
-    plot_model!(x, y, invert(err), type)
+function plot_model_precomputed!(feature, feature_kws, type, n_item, n_sim)
+    xs, ys, ns = map(1:n_sim) do i
+        feats = deserialize("results/$run_name/plot_features/$fit_mode-$fit_prior/$i")
+        x, y, err = Dict(feats[(feature=feature, feature_kws...)])[n_item]
+        n = ones(length(y))
+        plot_model!(x, y, invert(err), type)
+        x, y .* n, n
+    end |> invert
+    x = xs[1]
+    y = sum(ys) ./ sum(ns)
+    plot_model!(x, y, nothing, type; total=true)
 end
 
-function plot_model!(bins, x, y, type=:line; kws...)
-    vals = bin_by(bins, x, y)
-    err = invert(ci_err.(vals))
-    x = mids(bins)
-    y = mean.(vals)
-    too_few = length.(vals) .< 30
-    if !all(length.(vals) .== 1)
-        x[too_few] .= NaN; y[too_few] .= NaN
-    end
-    plot_model!(x, y, err, type; kws...)
-end
+# function plot_model!(bins, x, y, type=:line; kws...)
+#     vals = bin_by(bins, x, y)
+#     err = invert(ci_err.(vals))
+#     x = mids(bins)
+#     y = mean.(vals)
+#     too_few = length.(vals) .< 30
+#     if !all(length.(vals) .== 1)
+#         x[too_few] .= NaN; y[too_few] .= NaN
+#     end
+#     plot_model!(x, y, err, type; kws...)
+# end
 
-function plot_model!(x::Vector{Float64}, y, err, type; color=RED, kws...)
+function plot_model!(x::Vector{Float64}, y, err, type; total=false, kws...)
+    alpha = total ? 1 : ALPHA
+    color = total ? DARK_RED : RED
+    linewidth = total ? 2 : 1
     if type == :line
         plot!(x, y,
               ribbon=err,
-              alpha=ALPHA,
+              alpha=alpha,
               fillalpha=FILL_ALPHA,
               color=color,
-              linewidth=1,
+              linewidth=linewidth,
               label="";
               kws...)
     elseif type == :discrete
@@ -125,8 +132,8 @@ function plot_model!(x::Vector{Float64}, y, err, type; color=RED, kws...)
               yerr=err,
               grid=:none,
               color=color,
-              alpha=ALPHA,
-              linewidth=1,
+              alpha=alpha,
+              linewidth=linewidth,
               marker=(7, :diamond, color, stroke(0)),
               label="";
               kws...)
@@ -141,15 +148,15 @@ function cross!(x, y)
     hline!([y], line=(:grey, 0.7), label="")
 end
 
-function plot_comparison(feature, trials, sim, bins=nothing, type=:line; kws...)
-    plot()
-    hx, hy = feature(trials; kws...)
-    mx, my = feature(sim; kws...)
-    bins = make_bins(bins, hx)
-    plot_human!(bins, hx, hy, type)
-    plot_model!(bins, mx, my, type)
-    # title!(@sprintf "Loss = %.3f" make_loss(feature, bins)(sim))
-end
+# function plot_comparison(feature, trials, sim, bins=nothing, type=:line; kws...)
+#     plot()
+#     hx, hy = feature(trials; kws...)
+#     mx, my = feature(sim; kws...)
+#     bins = make_bins(bins, hx)
+#     plot_human!(bins, hx, hy, type)
+#     plot_model!(bins, mx, my, type)
+#     # title!(@sprintf "Loss = %.3f" make_loss(feature, bins)(sim))
+# end
 
 function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
     plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
@@ -190,9 +197,7 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
 
     if precomputed
         n_item = length(sims[1][1].value)
-        for i in eachindex(sims)
-            plot_model_precomputed!(feature, kws, type, n_item, i)
-        end
+        plot_model_precomputed!(feature, kws, type, n_item, length(sims))
     else
         for sim in sims
             mx, my = feature(sim; kws...)
