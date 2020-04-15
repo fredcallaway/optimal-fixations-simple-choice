@@ -1,9 +1,14 @@
 using Distributed
-if isempty(ARGS) || startswith(ARGS[1], "/run/user")
-    run_name = "final"
-else
+
+if basename(PROGRAM_FILE) == basename(@__FILE__)
+    INTERACTIVE = false
     run_name = ARGS[1]
+else
+    INTERACTIVE = true
+    run_name = "final"
 end
+
+println(run_name)
 
 @everywhere begin
     run_name = $run_name
@@ -11,96 +16,90 @@ end
 end
 length(both_sims[1])
 length(both_sims[1][1])
-FAST = true
+plot([1,2])
+
 # %% ==================== Basic psychometrics ====================
 
-@sync begin
+plot_both(value_choice, :left_rv, "P(left chosen)";
+    xline=0, yline=:chance, binning=Binning(-4.5:1:4.5))
 
-@spawn @time plot_both(value_choice, :left_rv, "P(left chosen)";
-    xline=0, yline=:chance, binning=Binning(-4.5:1:4.5));
-
-@spawn @time plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
+plot_both("rt_kde", "Total fixation time [ms]", "Density"; yticks=false,
     plot_human=(trials)->kdeplot!(sum.(trials.fix_times), 300., xmin=0, xmax=6000, line=(:black, 2)),
     plot_model=(sim; color=RED)->kdeplot!(sum.(sim.fix_times), 300., xmin=0, xmax=6000, line=(color, 2, ALPHA)) )
 
-@spawn @time plot_both(difference_time, :best_rv, "Total fixation time [ms]",
+plot_both(difference_time, :best_rv, "Total fixation time [ms]",
     binning=:integer)
 
 # %% ==================== Baisc fixation properties ====================
-@spawn @time plot_both(nfix_hist, "Number of fixations", "Proportion of trials",
+
+plot_both(nfix_hist, "Number of fixations", "Proportion of trials",
     (xticks=[1,5,10], ),
     binning=:integer, type=:discrete)
 
-@spawn @time plot_both(difference_nfix, :best_rv, "Number of fixations",
+plot_both(difference_nfix, :best_rv, "Number of fixations",
     binning=:integer)  # FIXME binning is weird
 
-@spawn @time plot_both(binned_fixation_times, "Fixation type", "Fixation duration [ms]",
-    (xticks=(1:4, ["first", "second", "middle", "last"]),),
-    binning=:integer, type=:discrete)
-
+plot_both(binned_fixation_times, "Fixation number", "Fixation duration [ms]",
+    (xticks=(1:7, ["1", "2", "3", "4", "5", ">5", "last"]),),
+    binning=:integer)
 
 # %% ==================== Uncertainty-directed attention ====================
 
-@spawn @time plot_both("refixate_uncertain", "Fixation advantage\n of fixated item [ms]", "Density",
+plot_both("refixate_uncertain", "Fixation advantage\n of fixated item [ms]", "Density",
     yticks = false,
     plot_human=(trials)->kdeplot!(refixate_uncertain(trials), 100., xmin=-1000, xmax=1000, line=(:black, 2)),
     plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim), 100., xmin=-1000, xmax=1000, line=(color, 2, ALPHA)),
     xline=0
 )
 
-@spawn @time plot_three("refixate_uncertain_alt", "Alternative fixation advantage\nof refixated item [ms]", "Density",
+plot_three("refixate_uncertain_alt", "Alternative fixation advantage\nof fixated item [ms]", "Density",
     (yticks = [],),
     plot_human=(trials)->kdeplot!(refixate_uncertain(trials, ignore_current=true), 100., xmin=-1000, xmax=1000, line=(:black, 2)),
     plot_model=(sim; color=RED)->kdeplot!(refixate_uncertain(sim, ignore_current=true), 100., xmin=-1000, xmax=1000, line=(color, 2, ALPHA)),
     xline=0
 )
 
-@spawn @time plot_three(fixate_by_uncertain, "Alternative fixation advantage\nof more-fixated item", "P(fixate more-fixated item)", yline=1/2,
+plot_three(fixate_by_uncertain, "Alternative fixation advantage\nof more-fixated item", "P(fixate more-fixated item)", yline=1/2,
     binning=Binning(-50:100:850))
-
 
 # %% ==================== Value-directed attention ====================
 
-@spawn @time plot_both(value_bias, :left_rv, "Proportion fixate left";
-    xline=0, yline=:chance)
+plot_both(value_bias, :left_rv, "Proportion fixate left";
+    binning=:integer, xline=0, yline=:chance)
 
-@spawn @time plot_both(value_duration, "First fixated item rating",  "First fixation duration [ms]",
+plot_both(value_duration, "First fixated item rating",  "First fixation duration [ms]",
     binning=:integer, fix_select=firstfix)
 
-
-@spawn @time plot_both(fixate_on_worst, "Time since trial onset [ms]", "P(fixate worst)",
+plot_both(fixate_on_worst, "Cumulative fixation time [ms]", "P(fixate worst)",
     (xticks=(0.5:5:20.5, string.(0:500:2000)), xlims=(0,20.5)),
     binning=:integer, yline=:chance, align=:chance,
     cutoff=2000, n_bin=20)
 
-
-@spawn @time plot_three(fix4_value, "Rating of first minus\nsecond fixated item",
+plot_three(fix4_value, "Rating of first minus\nsecond fixated item",
     "P(4th fixation is refixation\nto first fixated item)",
     binning=:integer,
     (xticks=-6:2:6,), xline=0)
 
-@spawn @time plot_three(fix3_value,
+plot_three(fix3_value,
     binning=:integer,
     "Rating of first fixated item",
     "P(3rd fixation is refixation\nto first fixated item)")
 
 
 # %% ==================== Choice biases ====================
-@spawn @time plot_both(last_fix_bias, :last_rv, "P(last fixated item chosen)",
+plot_both(last_fix_bias, :last_rv, "P(last fixated item chosen)",
     binning=:integer, xline=0, yline=:chance)
 
-@spawn @time plot_both(fixation_bias, "Final time advantage left [ms]", "P(left chosen)",
+plot_both(fixation_bias, "Final time advantage left [ms]", "P(left chosen)",
     ; xline=0, yline=:chance,
     # trial_select=(t)->t.value[1] == 3
     )
 #
-# @spawn @time plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected P(left chosen)",
+# plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected P(left chosen)",
 #     xline=0, yline=0)
 
-@spawn @time plot_both(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
+plot_both(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
     yline= :chance )
 
-@spawn @time plot_both(first_fixation_duration_corrected, "First fixation duration [ms]", "corrected P(first fixated chosen)",
+plot_both(first_fixation_duration_corrected, "First fixation duration [ms]", "corrected P(first fixated chosen)",
     yline=0 )
-
-end  # @sync

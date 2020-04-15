@@ -10,7 +10,6 @@ using Glob
 using StatsBase
 
 pyplot(label="")
-plot([1,2]);
 Plots.scalefontsizes()
 Plots.scalefontsizes(1.5)
 
@@ -18,12 +17,11 @@ RED = colorant"#FF6167"
 NO_RIBBON = false
 FAST = false
 SKIP_BOOT = false
-DISPLAY = false
 CI = 0.95
 N_BOOT = 10000
 
 both_trials = map(["two", "three"]) do num
-    load_dataset(num)[1:2:end]  # out of sample prediction
+    get_fold(load_dataset(num), "odd", :test)
 end
 
 fit_mode = "joint"
@@ -31,24 +29,27 @@ fit_prior = "false"
 out_path = "figs/$run_name/$fit_mode-$fit_prior"
 mkpath(out_path)
 
-both_sims = map(1:30) do i
-    map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
-        reduce(vcat, sims)
-    end
-end |> invert;
+if !@isdefined(both_sims)
+    both_sims = map(1:30) do i
+        map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
+            reduce(vcat, sims)
+        end
+    end |> invert;
+end
 
 OVERWRITE = false
 NO_RIBBON = false
 SKIP_BOOT = false
+DISABLE_ALIGN = true
 FAST = false
-ALPHA = 0.5
-FILL_ALPHA = 0.05
+ALPHA = 0.7
+FILL_ALPHA = 0.3
 
 # %% ====================  ====================
 function ci_err(y)
     length(y) == 1 && return (0., 0.)
     NO_RIBBON && return (0., 0.)
-    (FAST || SKIP_BOOT) && return (sem(y), sem(y))
+    (FAST || SKIP_BOOT) && return (2sem(y), 2sem(y))
     isempty(y) && return (NaN, NaN)
     bs = bootstrap(mean, y, BasicSampling(N_BOOT))
     c = confint(bs, BCaConfInt(CI))[1]
@@ -85,6 +86,13 @@ function plot_human!(feature::Function, trials, bins=nothing, type=:line; kws...
     hx, hy = feature(trials)
     bins = make_bins(bins, hx)
     plot_human!(bins, hx, hy, type; kws...)
+end
+
+
+function plot_model_precomputed!(feature, feature_kws, type, n_item, i)
+    feats = deserialize("results/$run_name/plot_features/$fit_mode-$fit_prior/$i")
+    x, y, err = Dict(feats[(feature=feature, feature_kws...)])[n_item]
+    plot_model!(x, y, invert(err), type)
 end
 
 function plot_model!(bins, x, y, type=:line; kws...)
@@ -143,14 +151,6 @@ function plot_comparison(feature, trials, sim, bins=nothing, type=:line; kws...)
     # title!(@sprintf "Loss = %.3f" make_loss(feature, bins)(sim))
 end
 
-# function fig(f, name)
-#     _fig = f()
-#     savefig("figs/$run_name/$name.pdf")
-#     display(_fig)
-#     _fig
-# end
-
-
 function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
     plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
 end
@@ -177,37 +177,34 @@ function make_lines!(xline, yline, trials)
     end
 end
 
-function savefiglog(f, path)
-    savefig(f, path)
-    println("Wrote ", path)
-end
-
 
 function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
         binning=nothing, type=:line, xline=nothing, yline=nothing,
-        save=false, name=string(feature), kws...)
-
-    !OVERWRITE && isfile("$out_path/$name.pdf") && return
+        save=false, name=string(feature), precomputed=true, kws...)
+    # !OVERWRITE && isfile("$out_path/$name.pdf") && return
 
     hx, hy = feature(trials; kws...)
     bins = make_bins(binning, hx)
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
     # plot_human!(bins, hx, hy, type)
 
-    if FAST
-        sims = sims[1:2]
-    end
-    sims = reverse(sims)
-    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
-    for (c, sim) in zip(colors, sims)
-        mx, my = feature(sim; kws...)
-        plot_model!(bins, mx, my, type) # color=c
+    if precomputed
+        n_item = length(sims[1][1].value)
+        for i in eachindex(sims)
+            plot_model_precomputed!(feature, kws, type, n_item, i)
+        end
+    else
+        for sim in sims
+            mx, my = feature(sim; kws...)
+            plot_model!(bins, mx, my, type)
+        end
     end
     plot_human!(bins, hx, hy, type)
 
     make_lines!(xline, yline, trials)
     if save
-        savefiglog(f, "$out_path/$name.pdf")
+        savefig(f, "$out_path/$name.pdf")
+        !INTERACTIVE && println("Wrote $out_path/$name.pdf")
     end
     f
 end
@@ -216,7 +213,7 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
         xline=nothing, yline=nothing, save=false,
         plot_human::Function, plot_model::Function)
 
-    !OVERWRITE && isfile("$out_path/$name.pdf") && return
+    # !OVERWRITE && isfile("$out_path/$name.pdf") && return
 
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
 
@@ -234,7 +231,8 @@ function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
 
     make_lines!(xline, yline, trials)
     if save
-        savefiglog(f, "$out_path/$name.pdf")
+        savefig(f, "$out_path/$name.pdf")
+        !INTERACTIVE && println("Wrote $out_path/$name.pdf")
     end
     f
 end
@@ -252,9 +250,8 @@ function plot_three(name::String, xlab, ylab, plot_kws=(); kws...)
 end
 
 
-DISABLE_ALIGN = true
 function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
-    !OVERWRITE && isfile("$out_path/$name.pdf") && return
+    # !OVERWRITE && isfile("$out_path/$name.pdf") && return
     println("Plotting $name")
 
     xlab1, xlab2 =
@@ -263,12 +260,6 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
         (xlab == :last_rv) ? ("Last fixated rating - other rating", "Last fixated rating - mean other") :
         (xlab, xlab)
 
-    # ff = plot_one(feature, xlab, ylab, trials, sims, plot_kws; kws...)
-    # if haskey(Dict(kws), :fix_select)
-    #     name *= "_$(kws[:fix_select])"
-    # end
-    # savefig(ff, "$out_path/$name.pdf")
-    # return ff
     if !yticks
         plot_kws = (plot_kws..., yticks=[])
         ylab *= "\n"
@@ -297,8 +288,8 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
     if haskey(Dict(kws), :fix_select)
         name *= "_$(kws[:fix_select])"
     end
-    savefiglog(ff, "$out_path/$name.pdf")
+    savefig(ff, "$out_path/$name.pdf")
+    !INTERACTIVE && println("Wrote  $out_path/$name.pdf")
     # return ff
-    DISPLAY && display(ff)
-    return
+    return ff
 end
