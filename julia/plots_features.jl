@@ -4,6 +4,7 @@ const CUTOFF = 2000
 using Optim
 using Memoize
 using Random: shuffle
+using Bootstrap
 # %% ==================== Utilities ====================
 
 function make_bins(bins, hx)
@@ -172,21 +173,24 @@ function fixate_by_uncertain(trials)
     return x, y
 end
 
-function binned_fixation_times(trials)
+function binned_fixation_times(trials; middle=6)
     x = Tuple{Int, Float64}[]
     for t in trials
         f = t.fix_times
         length(f) == 0 && continue
-        push!(x, (1, f[1]))
-        length(f) > 1 && push!(x, (2, f[2]))
-        for i in 3:length(f)-1
-            push!(x, (3, f[i]))
+        for i in 1:(middle-1)
+            length(f) > i && push!(x, (i, f[i]))
+
         end
-        push!(x, (4, f[end]))
-        # length(f) > 1 && push!(x, (6, f[end-1]))
+        # middle
+        for i in middle:length(f)-1
+            push!(x, (middle, f[i]))
+        end
+        push!(x, (middle+1, f[end]))
     end
     invert(x)
 end
+
 
 function full_fixation_times(trials; fix_select=allfix)
     x = Int[]

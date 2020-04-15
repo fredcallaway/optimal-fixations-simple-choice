@@ -2,16 +2,19 @@ using StatsPlots
 using SplitApplyCombine
 using Serialization
 include("utils.jl")
-gr(label="")
+# gr(label="")
 
+using LaTeXStrings
 
+split(L"$\alpha$ noise cost switch")[1]
 
 # %% ====================  ====================
-G = deserialize("results/grid17/grid");
+G = deserialize("results/grid13/grid");
 raw_params = map(first, G.dims)
-@assert raw_params == Symbol[:β_μ, :α, :σ_obs, :sample_cost, :switch_cost]
+@assert raw_params == Symbol[:α, :σ_obs, :sample_cost, :switch_cost]
 ndim = length(raw_params)
-params = reshape(split("prior alpha noise cost switch"), 1, :)
+# [L"\alpha" L"\sigma_x" L"\gamma_\text{sample}" L"\gamma_\text{switch}"]
+params = reshape(split("alpha noise cost switch"), 1, :)
 # %% ====================  ====================
 function best(X::Array, dims...; ymax=Inf)
     drop = [i for i in 1:ndim if i ∉ dims]
@@ -44,7 +47,7 @@ function plot_grid(X; ymax=Inf)
             else
                 heatmap(best(X, i, j; ymax=ymax),
                     xlabel=params[j],
-                    ylabel=params[i], 
+                    ylabel=params[i],
                     xticks=get_ticks(j),
                     yticks=get_ticks(i),
                     colorbar=false, clim=Tuple(lims))
@@ -55,7 +58,7 @@ function plot_grid(X; ymax=Inf)
     plot(P..., size=(1000, 1000))
 end
 
-plot_grid(G.L2)
+plot_grid(G.L2 + G.L3)
 
 # %% ====================  ====================
 out = "/Users/fred/papers/attention-optimal-sampling/figs"

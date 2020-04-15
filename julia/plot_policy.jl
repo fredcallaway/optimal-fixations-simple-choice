@@ -10,7 +10,7 @@ pyplot(label="")
     include("bmps.jl")
     include("binning.jl")
 end
-policies = deserialize("results/sobol4/simulation_policies/joint-true/1");
+policies = deserialize("results/final/test_policies/joint-false/1");
 pol2 = policies[1][1]
 pol3 = policies[2][1]
 
@@ -35,7 +35,7 @@ end
 
 @everywhere function modify(μ, x)
     if length(μ) == 2
-        μ = copy(μ)
+        μ = sort(μ; rev=true)
         μ[1] = μ[2] + 2x
         return μ
     end
@@ -51,7 +51,9 @@ end
     μ
 end
 
-for b in vcat(sample_bs(pol3, 100), sample_bs(pol2, 100))
+# %% ====================  ====================
+
+for b in sample_bs(pol3, 100)
     x = randn()
     μ = modify(b.μ, x)
     try
@@ -65,6 +67,49 @@ end
 λs = 1:0.01:5
 # %% ====================  ====================
 
+display("")
+n_roll = 1000
+pol = pol3
+bs = map(sample_bs(pol, n_roll)) do b
+    b.focused = -1
+    b
+end
+function foo(bs, x, λ)
+    length(bs) \ mapreduce(+, bs) do b
+        b = deepcopy(b)
+        b.μ = modify(b.μ, x)
+        b.λ[1] = λ
+        v = [voc(pol, b); 0.]
+        softmax(pol.α .* v)[1]
+    end
+end
+@time foo(bs, rand(μs), rand(λs));
+@time foo(bs, rand(μs), rand(λs));
+@time foo(bs, rand(μs), rand(λs));
+@time foo(bs, rand(μs), rand(λs));
+
+.7 * length(μs) * length(λs) / 60 / 60
+# %% ====================  ====================
+nprocs()
+
+function make_X(pol, n_roll=500)
+    bs = map(sample_bs(pol, n_roll)) do b
+        b.focused = -1
+        b
+    end
+    map(Iterators.product(μs, λs)) do (x, λ)
+        length(bs) \ mapreduce(+, bs) do b
+            b = deepcopy(b)
+            b.μ = modify(b.μ, x)
+            b.λ[1] = λ
+            v = [voc(pol, b); 0.]
+            softmax(pol.α .* v)[1]
+        end
+    end |> transpose |> collect
+end
+
+# %% ====================  ====================
+
 function make_X(pol, n_roll=500)
     bs = map(sample_bs(pol, n_roll)) do b
         b.focused = -1
@@ -76,17 +121,19 @@ function make_X(pol, n_roll=500)
             b.μ = modify(b.μ, x)
             b.λ[1] = λ
             v = [voc(pol, b); 0.]
-            softmax(1e4 .* v)[1]
+            softmax(pol.α .* v)[1]
         end
     end |> transpose |> collect
 end
 
 using NPZ
-mkpath("results/hard_policy_npy")
-npzwrite("results/hard_policy_npy/2", make_X(pol2))
-npzwrite("results/hard_policy_npy/3", make_X(pol3))
-npzwrite("results/hard_policy_npy/μs", collect(μs))
-npzwrite("results/hard_policy_npy/λs", collect(λs))
+mkpath("results/final_policy_npy")
+npzwrite("results/final_policy_npy/2", make_X(pol2))
+npzwrite("results/final_policy_npy/3", make_X(pol3))
+npzwrite("results/final_policy_npy/μs", collect(μs))
+npzwrite("results/final_policy_npy/λs", collect(λs))
+
+
 
 # %% ====================  ====================
 h1 = heatmap(X, xticks=ticklabels(μs), yticks=ticklabels(λs),
