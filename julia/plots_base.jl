@@ -1,34 +1,38 @@
-include("plots_features.jl")
-include("human.jl")
-using Serialization
-using StatsPlots
-using Printf
-using Bootstrap
-using KernelDensity
-using DataFrames
-using Glob
-using StatsBase
-
-pyplot(label="")
-Plots.scalefontsizes()
-Plots.scalefontsizes(1.5)
-
-both_trials = map(["two", "three"]) do num
-    get_fold(load_dataset(num), "odd", :test)
-end
+using Memoize
 
 fit_mode = "joint"
 fit_prior = "false"
 out_path = "figs/$run_name/$fit_mode-$fit_prior"
 mkpath(out_path)
 
-if !@isdefined(both_sims)
-    both_sims = map(1:30) do i
-        map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
-            reduce(vcat, sims)
-        end
-    end |> invert;
+if !@isdefined(plot_human!)  # don't reload every time
+    include("plots_features.jl")
+    include("human.jl")
+    using Serialization
+    using StatsPlots
+    using Printf
+    using Bootstrap
+    using KernelDensity
+    using DataFrames
+    using Glob
+    using StatsBase
+    pyplot(label="")
+    Plots.scalefontsizes()
+    Plots.scalefontsizes(1.5)
+
+    both_trials = map(["two", "three"]) do num
+        get_fold(load_dataset(num), "odd", :test)
+    end
+
+    @memoize function get_sims(run_name=run_name)
+        map(1:30) do i
+            map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
+                reduce(vcat, sims)
+            end
+        end |> invert
+    end
 end
+
 
 RED = colorant"#ff6167"
 DARK_RED = colorant"#b00007"
@@ -78,7 +82,6 @@ function plot_human!(bins, x, y, type=:line; kws...)
   end
 end
 
-
 function plot_human!(feature::Function, trials, bins=nothing, type=:line; kws...)
     hx, hy = feature(trials)
     bins = make_bins(bins, hx)
@@ -86,34 +89,13 @@ function plot_human!(feature::Function, trials, bins=nothing, type=:line; kws...
 end
 
 
-function plot_model_precomputed!(feature, feature_kws, type, n_item, n_sim)
-    xs, ys, ns = map(1:n_sim) do i
-        feats = deserialize("results/$run_name/plot_features/$fit_mode-$fit_prior/$i")
-        x, y, err = Dict(feats[(feature=feature, feature_kws...)])[n_item]
-        n = ones(length(y))
-        plot_model!(x, y, invert(err), type)
-        x, y .* n, n
-    end |> invert
-    x = xs[1]
-    y = sum(ys) ./ sum(ns)
-    plot_model!(x, y, nothing, type; total=true)
-end
-
-# function plot_model!(bins, x, y, type=:line; kws...)
-#     vals = bin_by(bins, x, y)
-#     err = invert(ci_err.(vals))
-#     x = mids(bins)
-#     y = mean.(vals)
-#     too_few = length.(vals) .< 30
-#     if !all(length.(vals) .== 1)
-#         x[too_few] .= NaN; y[too_few] .= NaN
-#     end
-#     plot_model!(x, y, err, type; kws...)
-# end
-
-function plot_model!(x::Vector{Float64}, y, err, type; total=false, kws...)
+function plot_model!(x::Vector{Float64}, y, err, type; total=false, run_name, kws...)
     alpha = total ? 1 : ALPHA
-    color = total ? DARK_RED : RED
+    if run_name == "final"
+        color = total ? DARK_RED : RED
+    else
+        color = total ? colorant"#003085" : colorant"#699efa"
+    end
     linewidth = total ? 2 : 1
     if type == :line
         plot!(x, y,
@@ -141,6 +123,32 @@ function plot_model!(x::Vector{Float64}, y, err, type; total=false, kws...)
         error("Bad plot type : $type")
     end
 end
+
+function plot_model!(bins, x, y, type=:line; kws...)
+    vals = bin_by(bins, x, y)
+    err = invert(ci_err.(vals))
+    x = mids(bins)
+    y = mean.(vals)
+    too_few = length.(vals) .< 30
+    if !all(length.(vals) .== 1)
+        x[too_few] .= NaN; y[too_few] .= NaN
+    end
+    plot_model!(x, y, err, type; kws...)
+end
+
+function plot_model_precomputed!(run_name, feature, feature_kws, type, n_item, n_sim)
+    xs, ys, ns = map(1:n_sim) do i
+        feats = deserialize("results/$run_name/plot_features/$fit_mode-$fit_prior/$i")
+        x, y, err = Dict(feats[(feature=feature, feature_kws...)])[n_item]
+        n = ones(length(y))
+        plot_model!(x, y, invert(err), type, run_name=run_name)
+        x, y .* n, n
+    end |> invert
+    x = xs[1]
+    y = sum(ys) ./ sum(ns)
+    plot_model!(x, y, nothing, type; total=true, run_name=run_name)
+end
+
 
 
 function cross!(x, y)
@@ -197,7 +205,8 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
 
     if precomputed
         n_item = length(sims[1][1].value)
-        plot_model_precomputed!(feature, kws, type, n_item, length(sims))
+        plot_model_precomputed!("final", feature, kws, type, n_item, length(sims))
+        plot_model_precomputed!("lesion_attention", feature, kws, type, n_item, length(sims))
     else
         for sim in sims
             mx, my = feature(sim; kws...)
