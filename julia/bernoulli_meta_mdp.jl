@@ -205,7 +205,9 @@ struct BMPSPolicy <: Policy
     θ::Vector{Float64}
 end
 (pol::BMPSPolicy)(b::Belief) = act(pol, b)
-BMPSPolicy(m, θ, α) = BMPSPolicy(m, θ)  # WARNING: ignoring temperature
+
+# This is just to have a consistent signature with the main code
+BMPSPolicy(m, θ, α, p_switch) = BMPSPolicy(m, θ)
 
 function voc(pol, b::Belief)
     m = pol.m

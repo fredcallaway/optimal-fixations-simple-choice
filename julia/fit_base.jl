@@ -6,19 +6,16 @@ include("meta_mdp.jl")
 include("bmps.jl")
 include("toucher.jl")
 
-
-# include("runs/sobol18.jl")
-# include("runs/lesion19.jl")
-# include("runs/lesion_attention.jl")
-
-# include("runs/final.jl")
-# include("runs/grid13.jl")
 # include("runs/main14.jl")
-include("runs/no-alpha.jl")
+include("runs/lesion19.jl")
+# include("runs/rando17.jl")
 
 mkpath(BASE_DIR)
 
 function get_prm(job)
+    # if @isdefined(JOB_ORDER)
+    job = JOB_ORDER[job]
+    # end
     x = if SEARCH_STRATEGY == :sobol
         seq = SobolSeq(n_free(SPACE))
         skip(seq, job-1; exact=true)

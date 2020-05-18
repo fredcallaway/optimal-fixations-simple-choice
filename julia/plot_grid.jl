@@ -1,4 +1,5 @@
 using StatsPlots
+using Plots.Measures
 using SplitApplyCombine
 using Serialization
 include("utils.jl")
@@ -6,15 +7,13 @@ include("utils.jl")
 
 using LaTeXStrings
 
-split(L"$\alpha$ noise cost switch")[1]
-
 # %% ====================  ====================
 G = deserialize("results/grid13/grid");
 raw_params = map(first, G.dims)
 @assert raw_params == Symbol[:α, :σ_obs, :sample_cost, :switch_cost]
 ndim = length(raw_params)
-# [L"\alpha" L"\sigma_x" L"\gamma_\text{sample}" L"\gamma_\text{switch}"]
-params = reshape(split("alpha noise cost switch"), 1, :)
+# params = reshape(split("alpha noise cost switch"), 1, :)
+params =  [L"\beta", L"\sigma_x", L"\gamma_\mathrm{sample}", L"\gamma_\mathrm{switch}"]
 # %% ====================  ====================
 function best(X::Array, dims...; ymax=Inf)
     drop = [i for i in 1:ndim if i ∉ dims]
@@ -27,7 +26,7 @@ end
 function get_ticks(i)
     idx = 1:7
     vals = round.(G.dims[i][2]; sigdigits=2)
-    idx[1:2:end], vals[1:2:end]
+    idx[1:3:end], vals[1:3:end]
 end
 
 function plot_grid(X; ymax=Inf)
@@ -50,21 +49,21 @@ function plot_grid(X; ymax=Inf)
                     ylabel=params[i],
                     xticks=get_ticks(j),
                     yticks=get_ticks(i),
-                    colorbar=false, clim=Tuple(lims))
+                    colorbar=false, clim=Tuple(lims),  aspect_ratio = 1)
             end
         end
     end |> flatten
 
-    plot(P..., size=(1000, 1000))
+    plot(P..., size=(1100, 1000), right_margin=4mm)
 end
 
-plot_grid(G.L2 + G.L3)
-
 # %% ====================  ====================
-out = "/Users/fred/papers/attention-optimal-sampling/figs"
+# out = "/Users/fred/papers/attention-optimal-sampling/figs"
+out = "figs/grid"
 mkpath(out)
-savefig("$out/grid-two.pdf")
+plot_grid(G.L2)
+savefig("$out/two.png")
 plot_grid(G.L3)
-savefig("$out/grid-three.pdf")
+savefig("$out/three.png")
 plot_grid(G.L2 + G.L3)
-savefig("$out/grid-both.pdf")
+savefig("$out/both.png")

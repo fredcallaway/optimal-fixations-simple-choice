@@ -52,6 +52,8 @@
             reduce(vcat, ss)
         end
         Dict(
+            precompute(first_fixation_duration_corrected, sims; bin_spec=7),
+            precompute(fixation_bias_corrected, sims; bin_spec=7),
             precompute(value_choice, sims; bin_spec=Binning(-4.5:1:4.5)),
             precompute(difference_time, sims),
             precompute(nfix_hist, sims),
@@ -66,17 +68,13 @@
             precompute(last_fix_bias, sims),
             precompute(fixation_bias, sims; bin_spec=7),
             precompute(first_fixation_duration, sims; bin_spec=7),
-            precompute(first_fixation_duration_corrected, sims; bin_spec=7),
         )
     end
 end
 
 if basename(PROGRAM_FILE) == basename(@__FILE__)
-    run_name = ARGS[1]
-    FIT_MODE = ARGS[2]
-    FIT_PRIOR = eval(Meta.parse(ARGS[3]))
-    @everywhere run_name = $run_name
-    @everywhere include("runs/$run_name.jl")
+    FIT_MODE = ARGS[1]
+    FIT_PRIOR = eval(Meta.parse(ARGS[2]))
     @everywhere FIT_MODE = $FIT_MODE
     @everywhere FIT_PRIOR = $FIT_PRIOR
 

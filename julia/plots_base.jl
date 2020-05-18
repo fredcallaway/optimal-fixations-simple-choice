@@ -2,8 +2,6 @@ using Memoize
 
 fit_mode = "joint"
 fit_prior = "false"
-out_path = "figs/$run_name/$fit_mode-$fit_prior"
-mkpath(out_path)
 
 if !@isdefined(plot_human!)  # don't reload every time
     include("plots_features.jl")
@@ -24,35 +22,59 @@ if !@isdefined(plot_human!)  # don't reload every time
         get_fold(load_dataset(num), "odd", :test)
     end
 
-    @memoize function get_sims(run_name=run_name)
-        map(1:30) do i
-            map(deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")) do sims
-                reduce(vcat, sims)
-            end
-        end |> invert
+    @memoize function load_sims(run_name, i)
+        deserialize("results/$run_name/simulations/$fit_mode-$fit_prior/$i")
+    end
+
+    @memoize function get_sim(run_name, n_item, i)
+        pol_sims = load_sims(run_name, i)[n_item-1]
+        reduce(vcat, pol_sims)
+    end
+
+    @memoize function get_full_sim(run_name, n_item)
+        mapreduce(vcat, 1:30) do i
+            get_sim(run_name, n_item, i)
+        end
+    end
+
+    @memoize function load_features(run_name, i)
+        deserialize("results/$run_name/plot_features/$fit_mode-$fit_prior/$i")
+    end
+
+    function get_feature(run_name, n_item, i, feature, feature_kws)
+        feats = load_features(run_name, i)
+        x, y, err, n = Dict(feats[(feature=feature, feature_kws...)])[n_item]
     end
 end
 
+PALETTE = Dict(
+    ("main14", true) => colorant"#b00007",
+    ("main14", false) => colorant"#ff6167",
+    ("lesion19", true) => colorant"#003085",
+    ("lesion19", false) => colorant"#699efa",
+    ("rando17", true) => colorant"#1ba87e",
+    ("rando17", false) => colorant"#5fcfad",
+    # ("rando17", true) => colorant"#208020",
+    # ("rando17", false) => colorant"#6bd16b",
+)
+ALPHA = 0.7
+FILL_ALPHA = 0.3
+# ALPHA = 0.3
+# FILL_ALPHA = 0.1
 
-RED = colorant"#ff6167"
-DARK_RED = colorant"#b00007"
 CI = 0.95
 N_BOOT = 10000
-OVERWRITE = false
-NO_RIBBON = false
 SKIP_BOOT = false
 DISABLE_ALIGN = true
 FAST = false
-ALPHA = 0.7
-FILL_ALPHA = 0.3
 
 # %% ====================  ====================
 function ci_err(y)
     length(y) == 1 && return (0., 0.)
-    NO_RIBBON && return (0., 0.)
     (FAST || SKIP_BOOT) && return (2sem(y), 2sem(y))
     isempty(y) && return (NaN, NaN)
-    bs = bootstrap(mean, y, BasicSampling(N_BOOT))
+    method = length(y) <= 10 ? ExactSampling() : BasicSampling(N_BOOT)
+    bs = bootstrap(mean, y, method)
     c = confint(bs, BCaConfInt(CI))[1]
     abs.(c[2:3] .- c[1])
 end
@@ -83,19 +105,15 @@ function plot_human!(bins, x, y, type=:line; kws...)
 end
 
 function plot_human!(feature::Function, trials, bins=nothing, type=:line; kws...)
-    hx, hy = feature(trials)
+    hx, hy = feature(trials; kws...)
     bins = make_bins(bins, hx)
-    plot_human!(bins, hx, hy, type; kws...)
+    plot_human!(bins, hx, hy, type)
 end
 
 
-function plot_model!(x::Vector{Float64}, y, err, type; total=false, run_name, kws...)
+function plot_model!(x::Vector{Float64}, y, err, type; run_name, total=false, kws...)
     alpha = total ? 1 : ALPHA
-    if run_name == "final"
-        color = total ? DARK_RED : RED
-    else
-        color = total ? colorant"#003085" : colorant"#699efa"
-    end
+    color = PALETTE[run_name, total]
     linewidth = total ? 2 : 1
     if type == :line
         plot!(x, y,
@@ -107,7 +125,7 @@ function plot_model!(x::Vector{Float64}, y, err, type; total=false, run_name, kw
               label="";
               kws...)
     elseif type == :discrete
-        if all(err[1] .≈ 0)
+        if err != nothing && all(err[1] .≈ 0)
             err = nothing
         end
         plot!(x, y,
@@ -136,20 +154,18 @@ function plot_model!(bins, x, y, type=:line; kws...)
     plot_model!(x, y, err, type; kws...)
 end
 
-function plot_model_precomputed!(run_name, feature, feature_kws, type, n_item, n_sim)
-    xs, ys, ns = map(1:n_sim) do i
-        feats = deserialize("results/$run_name/plot_features/$fit_mode-$fit_prior/$i")
-        x, y, err = Dict(feats[(feature=feature, feature_kws...)])[n_item]
-        n = ones(length(y))
-        plot_model!(x, y, invert(err), type, run_name=run_name)
-        x, y .* n, n
-    end |> invert
-    x = xs[1]
-    y = sum(ys) ./ sum(ns)
-    plot_model!(x, y, nothing, type; total=true, run_name=run_name)
+function plot_model_precomputed!(feature, feature_kws, type, n_item, n_sim)
+    for run_name in RUN_NAMES
+        xs, ys, ns = map(1:n_sim) do i
+            x, y, err, n = get_feature(run_name, n_item, i, feature, feature_kws)
+            plot_model!(x, y, invert(err), type; run_name=run_name)
+            x, y .* n, n
+        end |> invert
+        x = xs[1]
+        y = sum(ys) ./ sum(ns)
+        plot_model!(x, y, nothing, type; run_name=run_name, total=true)
+    end
 end
-
-
 
 function cross!(x, y)
     vline!([x], line=(:grey, 0.7), label="")
@@ -192,28 +208,34 @@ function make_lines!(xline, yline, trials)
     end
 end
 
+function make_plot_kws(run_name, total)
+    (alpha = total ? 1 : ALPHA,
+     color = PALETTE[run_name, total],
+     linewidth = total ? 2 : 1)
+end
 
-function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
-        binning=nothing, type=:line, xline=nothing, yline=nothing,
-        save=false, name=string(feature), precomputed=true, kws...)
-    # !OVERWRITE && isfile("$out_path/$name.pdf") && return
+function plot_one(feature::Function, n_item::Int, xlab, ylab, plot_kws=();
+        binning=nothing, type=:line, xline=nothing, yline=nothing, n_sim=30,
+        save=false, name=string(feature), manual=false, kws...)
 
-    hx, hy = feature(trials; kws...)
-    bins = make_bins(binning, hx)
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
-    # plot_human!(bins, hx, hy, type)
+    trials = both_trials[n_item-1]
 
-    if precomputed
-        n_item = length(sims[1][1].value)
-        plot_model_precomputed!("final", feature, kws, type, n_item, length(sims))
-        plot_model_precomputed!("lesion_attention", feature, kws, type, n_item, length(sims))
-    else
-        for sim in sims
-            mx, my = feature(sim; kws...)
-            plot_model!(bins, mx, my, type)
+    if manual
+        plotter = feature  # more accurate name
+        for run_name in RUN_NAMES
+            for i in 1:n_sim
+                plotter(get_sim(run_name, n_item, i); make_plot_kws(run_name, false)...)
+            end
+            plotter(get_full_sim(run_name, n_item); make_plot_kws(run_name, true)...)
         end
+        plotter(both_trials[n_item-1]; linewidth=2, color=:black, alpha=1)
+    else
+        plot_model_precomputed!(feature, kws, type, n_item, n_sim)
+        hx, hy = feature(trials; kws...)
+        bins = make_bins(binning, hx)
+        plot_human!(bins, hx, hy, type)
     end
-    plot_human!(bins, hx, hy, type)
 
     make_lines!(xline, yline, trials)
     if save
@@ -223,51 +245,12 @@ function plot_one(feature, xlab, ylab, trials, sims, plot_kws=();
     f
 end
 
-function plot_one(name::String, xlab, ylab, trials, sims, plot_kws;
-        xline=nothing, yline=nothing, save=false,
-        plot_human::Function, plot_model::Function)
-
-    # !OVERWRITE && isfile("$out_path/$name.pdf") && return
-
-    f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
-
-    # plot_human(trials)
-
-    if FAST
-        sims = sims[1:4]
-    end
-    sims = reverse(sims)
-    colors = range(colorant"red", stop=colorant"blue",length=length(sims))
-    for (c, sim) in zip(colors, sims)
-        plot_model(sim) # color=c
-    end
-    plot_human(trials)
-
-    make_lines!(xline, yline, trials)
-    if save
-        savefig(f, "$out_path/$name.pdf")
-        !INTERACTIVE && println("Wrote $out_path/$name.pdf")
-    end
-    f
-end
-
-function plot_three(feature, xlab, ylab, plot_kws=(); kws...)
-    println("Plotting $feature")
+function plot_three(feature, xlab, ylab, plot_kws=(); manual=false, kws...)
     plot_kws = (plot_kws..., size=(430,400))
-    plot_one(feature, xlab, ylab, both_trials[2], both_sims[2], plot_kws; save=true, kws...)
+    plot_one(feature, 3, xlab, ylab, plot_kws; save=true, manual=manual, kws...)
 end
-
-function plot_three(name::String, xlab, ylab, plot_kws=(); kws...)
-    println("Plotting $name")
-    plot_kws = (plot_kws..., size=(430,400))
-    plot_one(name, xlab, ylab, both_trials[2], both_sims[2], plot_kws; save=true, kws...)
-end
-
 
 function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default, name=string(feature), kws...)
-    # !OVERWRITE && isfile("$out_path/$name.pdf") && return
-    println("Plotting $name")
-
     xlab1, xlab2 =
         (xlab == :left_rv) ? ("Left rating - right rating", "Left rating - mean other rating") :
         (xlab == :best_rv) ? ("Best rating - worst rating", "Best rating - mean other rating") :
@@ -279,8 +262,8 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
         ylab *= "\n"
     end
 
-    f1 = plot_one(feature, xlab1, ylab, both_trials[1], both_sims[1], plot_kws; kws...)
-    f2 = plot_one(feature, xlab2, ylab, both_trials[2], both_sims[2], plot_kws; kws...)
+    f1 = plot_one(feature, 2, xlab1, ylab, plot_kws; kws...)
+    f2 = plot_one(feature, 3, xlab2, ylab, plot_kws; kws...)
 
     ylabel!(f2, yticks ? "  " : " \n ")
     x1 = xlims(f1); x2 = xlims(f2)
@@ -297,7 +280,7 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
             ylims!(f, chance - rng, chance + rng)
         end
     end
-    ff = plot(f1, f2, size=(900,400))
+    ff = plot(f1, f2, size=(900,400), margin=3mm)
 
     if haskey(Dict(kws), :fix_select)
         name *= "_$(kws[:fix_select])"

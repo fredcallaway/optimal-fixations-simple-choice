@@ -10,7 +10,7 @@ pyplot(label="")
     include("bmps.jl")
     include("binning.jl")
 end
-policies = deserialize("results/final/test_policies/joint-false/1");
+policies = deserialize("results/main14/test_policies/joint-false/1");
 pol2 = policies[1][1]
 pol3 = policies[2][1]
 

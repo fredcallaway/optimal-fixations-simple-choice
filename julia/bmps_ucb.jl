@@ -1,4 +1,4 @@
-using OnlineStats
+using OnlineStats: Variance, fit!
 
 function rand_grid(g)
     dim = 3

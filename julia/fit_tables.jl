@@ -2,6 +2,7 @@ include("utils.jl")
 using SplitApplyCombine
 using Serialization
 using Statistics
+using DataStructures: OrderedDict
 
 sprintf(fmt::String,args...) = @eval @sprintf($fmt,$(args...))
 fmtfloat(x, d) = sprintf("%.$(d)f", x)
@@ -13,14 +14,13 @@ end
 
 # %% ====================  ====================
 
-runs = split("final lesion_attention rando")
-pnames = Symbol.(split("model σ_obs sample_cost switch_cost α p_switch p_stop test_like"))
+pnames = Symbol.(split("σ_obs sample_cost switch_cost α p_switch p_stop test_like"))
 digs = [2, 4, 3, 0, 3, 3, 0]
 
-models = Dict(
-    "final" => "Full Model",
-    "lesion_attention" => "Random Fixations",
-    "rando" => "Random Fixations and Stopping"
+models = OrderedDict(
+    "main14" => "Full Model",
+    "lesion19" => "Random Fixations",
+    # "rando17" => "Random Fixations and Stopping",
 )
 
 function load_result(r)
@@ -39,7 +39,7 @@ open("results/comp/table.tex", "w") do f
         print(x)
         write(f, x)
     end
-    for r in runs
+    for r in keys(models)
         w(models[r])
         w(" & ")
         P = load_result(r)

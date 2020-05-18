@@ -1,14 +1,7 @@
-BASE_DIR = "results/final"
+BASE_DIR = "results/main14"
 SEARCH_STRATEGY = :sobol
 GRID_SIZE = -1
 FIT_PRIOR = false
-
-# SPACE = Box(
-#     :α => (100, 350),
-#     :σ_obs => (1, 5),
-#     :sample_cost => (.001, .01),
-#     :switch_cost => (.003, .03),
-# )
 
 SPACE = Box(
     :α => (100, 500),
@@ -31,3 +24,5 @@ LIKELIHOOD_PARAMS = (
     test_fold = "odd",
     hist_bins = 5
 )
+
+JOB_ORDER = deserialize("job_order")

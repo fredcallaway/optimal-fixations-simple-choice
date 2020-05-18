@@ -45,11 +45,13 @@ function identify_mle()
             end |> skipmissing |> collect |> invert;
 
             for (num, loss) in zip(["two", "three", "joint"], [l2, l3, lc])
-                best = prms[partialsortperm(loss, 1:30)]
+                idx = partialsortperm(loss, 1:30)
+                best = prms[idx]
                 fp = "$BASE_DIR/best_parameters/$num-$fit_prior"
                 serialize(fp, best)
                 println("Wrote ", fp)
                 println(mle_file, "----- dataset = $num  fit_prior = $fit_prior -----\n")
+                println(mle_file, join(idx, " "))
                 write_fits(mle_file, best, partialsort(loss, 1:30))
                 print(mle_file, "\n\n")
             end
