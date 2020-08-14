@@ -9,7 +9,7 @@
 
 ## Fitting steps
 
-I don't imagine anyone else will want to invest the compute resources to actually replicate this, but here are instructions to do so for the sake of completeness. Note that these instructions allow for fitting the prior mean; however, we do not report these results because we found that the pseudo-likelihood we defined did not identify this parameter, making the results highly unstable.
+I don't imagine anyone else will want to invest the compute resources to actually replicate this, but here are instructions to do so for the sake of completeness. Note that the code allows for fitting the prior mean, but we don't do so for the main results because doing so yields inconclusive results.
 
 - Define parameters such as the search space and output directory in `fit_base.jl`. I use files in `runs/` to organize parameters for different runs.
 - Find the near-optimal policies for each candidate parameter setting: run `julia compute_policies.jl i` for i in 1 to N. Each job takes an average of 30 minutes.
