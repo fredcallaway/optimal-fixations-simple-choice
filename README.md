@@ -11,7 +11,7 @@
 
 I don't imagine anyone else will want to invest the compute resources to actually replicate this, but here are instructions to do so for the sake of completeness. Note that the code allows for fitting the prior mean, but we don't do so for the main results because doing so yields inconclusive results.
 
-- Define parameters such as the search space and output directory in `fit_base.jl`. I use files in `runs/` to organize parameters for different runs.
+- Define parameters such as the search space and output directory in `fit_base.jl`. I use files in `runs/` to organize parameters for different runs. main14.jl was used for the results in the paper.
 - Find the near-optimal policies for each candidate parameter setting: run `julia compute_policies.jl i` for i in 1 to N. Each job takes an average of 30 minutes.
 - Compute the likelihood for each candidate parameter setting: run `julia compute_likelihood.jl i` for i in 1 to N. Each job takes an average of 64 minutes. Each job depends only on the results of the same index from the compute_policies step.
 - Identify the top-performing parmaeters based on the results from the previous step: Run `julia identify_mle.jl`. Four sets are identified in which the prior is either fit or not fit and the fitting is done jointly or separately on each dataset.
