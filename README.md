@@ -1,3 +1,4 @@
+Code and data for a (hopefully) soon-to-be-published [paper](https://psyarxiv.com/57v6k).
 
 ## Important files
 
