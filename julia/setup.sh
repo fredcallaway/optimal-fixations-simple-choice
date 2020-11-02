@@ -9,4 +9,4 @@ if ! [ -x "$(command -v mpstat)" ]; then
     sudo apt install -y sysstat
 fi
 ./julia install_deps.jl
-bash setup_efs.sh
+# bash setup_efs.sh

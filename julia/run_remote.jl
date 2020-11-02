@@ -1,25 +1,32 @@
 using SplitApplyCombine
 
 ips = split("""
-3.84.13.98
-54.163.166.197
-52.90.75.243
-54.157.7.54
-34.227.161.30
-107.22.132.251
-54.172.14.3
-3.83.2.207
-54.210.114.122
-35.175.141.74
-54.165.182.110
-52.91.94.217
-54.210.231.194
-3.92.188.248
+34.201.114.169
+54.224.247.117
+54.227.230.229
+107.23.252.204
+3.92.205.124
+3.86.202.221
+18.233.98.231
+35.171.25.54
+54.205.96.107
+3.93.234.120
+34.207.69.160
+18.234.186.140
+3.83.166.157
+52.55.157.63
+3.88.174.141
+54.161.105.142
+34.207.166.14
+54.152.65.91
+34.238.233.150
+54.172.174.96
 """)
 
 n_machine = length(ips)
-max_job = 2500
-RUN = "lesion19"
+first_job = 1000
+last_job = 10000
+RUN = "revision"
 
 ssh_cmd(ip) = `ssh -i fred-ec2-key ubuntu@$ip`
 
@@ -44,7 +51,7 @@ end
 function clear_results()
     asyncmap(ips) do ip
         ssh = ssh_cmd(ip)
-        run(`$ssh 'rm -r results/lesion19'`)
+        run(`$ssh 'rm -r results/$RUN'`)
     end
 end
 
@@ -58,7 +65,7 @@ function start(i; verbose=true)
     rrun = verbose ? run : run_quiet
     ip = ips[i]
     # job = 1000*(i-1)+1:1000*i |> string
-    job = i:n_machine:max_job |> string
+    job = first_job+i:n_machine:last_job |> string
 
     ssh = ssh_cmd(ip)
 
@@ -68,16 +75,24 @@ function start(i; verbose=true)
     pp("push files")
     rrun(`$ssh "mkdir -p results"`)
     rrun(`rsync -rae "ssh -i fred-ec2-key" --exclude figs --exclude results --exclude scratch --exclude out ./ ubuntu@$ip:~/`)
-    rrun(`$ssh 'rm -rf results/lesion19'`)
 
-    # rrun(`rsync -rae "ssh -i fred-ec2-key" results/$RUN/ ubuntu@$ip:~/results/$RUN/`)
+    try
+        rrun(`rsync -rae "ssh -i fred-ec2-key" results/$RUN/ ubuntu@$ip:~/results/$RUN/`)
+    catch
+        println("Tryng rsync again...")
+        try
+            rrun(`rsync -rae "ssh -i fred-ec2-key" results/$RUN/ ubuntu@$ip:~/results/$RUN/`)
+        catch end
+    end
+
     # rrun(`$ssh "sudo apt install -y sysstat"`)
 
-    # pp("install julia and precompile packages")
-    # rrun(`$ssh 'bash setup.sh'`)
+    pp("install julia and precompile packages")
+    rrun(`$ssh 'bash setup.sh'`)
 
     pp("run job")
-    rrun(`$ssh screen -d -m "./julia -p auto run_multi.jl both $job "`)
+    # rrun(`$ssh screen -d -m "./julia -p auto run_multi.jl both $job "`)
+    rrun(`$ssh screen -d -m "./julia -p auto run_multi_like.jl $job "`)
     println("started machine $ip")
 end
 
@@ -91,9 +106,9 @@ function push_results()
     end
 end
 
-function fetch_results()
+function fetch_results(task="")
     procs = map(ips) do ip
-        run(`rsync -rae "ssh -i fred-ec2-key" ubuntu@$ip:~/results/$RUN/ results/$RUN/`; wait=false)
+        run(`rsync -rae "ssh -i fred-ec2-key" ubuntu@$ip:~/results/$RUN/$path results/$RUN/$path`; wait=false)
     end
     failed = findall(.!map(success, procs))
     if !isempty(failed)
@@ -160,13 +175,24 @@ function start_shutdown_watch()
     end
 end
 
+function total_done()
+    map(1:7) do i
+        local_done("likelihood/$i") |> length
+    end |> sum
+end
 
-
+function not_done()
+    [(i, job) for i in 1:7, job in 1:10000 if !isfile("results/$RUN/likelihood/$i/$job")]
+end
 
 
 
 if false
 
+asyncmap(ips) do ip
+    ssh = ssh_cmd(ip)
+    run(`$ssh "pkill julia"`)
+end
 
 while true
     fetch_results()
@@ -183,10 +209,6 @@ asyncmap(eachindex(ips)) do i
         println("Could not start $(ips[i])")
     end
 end
-
-
-
-
 
 end
 

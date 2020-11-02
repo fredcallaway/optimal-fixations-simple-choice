@@ -23,15 +23,17 @@ models = OrderedDict(
     # "rando17" => "Random Fixations and Stopping",
 )
 
-function load_result(r)
-    prms = deserialize("results/$r/best_parameters/joint-false")
-    test_like = map(eachindex(prms)) do i
-        x = deserialize("results/$r/test_likelihood/joint-false/$i")
-        x[1][1] + x[2][1]
-    end
-    (invert(prms)..., test_like=test_like)
-end
+function load_result(r, fit_prior=false)                                                                                      
+    prms = deserialize("results/$r/best_parameters/joint-$fit_prior")                                                         
+    test_like = map(eachindex(prms)) do i                                                                                     
+        x = deserialize("results/$r/test_likelihood/joint-$fit_prior/$i")                                                     
+        x[1][1] + x[2][1]                                                                                                     
+    end                                                                                                                       
+    (invert(prms)..., test_like=test_like)                                                                                    
+end        
 
+
+mean_std_str(res.β_μ, 2)
 # %% ====================  ====================
 mkpath("results/comp")
 open("results/comp/table.tex", "w") do f

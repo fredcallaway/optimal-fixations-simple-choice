@@ -19,14 +19,17 @@ function sort_value(t)
     )
 end
 
-@memoize load_dataset(num::String) = open(deserialize, "data/$(num)_items.jls")
-load_dataset(n::Int) = load_dataset(["", "two", "three"][n])
-function load_dataset(num, subject::Int)
-    subject == -1 && return load_dataset(num)
-    filter(load_dataset(num)) do t
-        t.subject == subject
+@memoize function load_dataset(num::String, fold=:full)
+    full = open(deserialize, "data/$(num)_items.jls")
+    if fold == :train
+        filter!(x->iseven(x.trial), full)
+    elseif fold == :test
+        filter!(x->isodd(x.trial), full)
+    else
+        full
     end
 end
+load_dataset(n::Int, fold=:full) = load_dataset(["", "two", "three"][n], fold)
 
 function discretize_fixations(t; sample_time=100)
     mapmany(t.fixations, t.fix_times) do item, ft

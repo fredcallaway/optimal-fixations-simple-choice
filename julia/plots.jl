@@ -1,29 +1,17 @@
-if basename(PROGRAM_FILE) == basename(@__FILE__)
-    INTERACTIVE = false
-    run_name = ARGS[1]
-else
-    INTERACTIVE = true
-    run_name = "final"
-end
+INTERACTIVE = basename(PROGRAM_FILE) == ""
+
 include("plots_base.jl")
 
-RUN_NAMES = ["main14"]
-out_path = "figs/main14"
-
-RUN_NAMES = ["main14", "rando17"]
-out_path = "figs/compare_rando"
-
-RUN_NAMES = ["main14", "lesion19"]
-out_path = "figs/compare_lesion"
-#
-# RUN_NAMES = ["main14", "lesion17", "rando17"]
-# out_path = "figs/compare_all"
-# mkpath(out_path)
+PARAMS = [
+    # (run_name="revision", dataset="joint", prior="zero", color=(colorant"#699efa", colorant"#003085"), alpha=0.1, n_sim=30),
+    (run_name="revision", dataset="joint", prior="fit", color=(colorant"#ff6167", colorant"#b00007"), alpha=1, n_sim=30),
+    (run_name="addm", color=(colorant"#4DCE3F", colorant"#3B9B31"), alpha=1, n_sim=1),
+]
+out_path = "figs/revision/addm2"
 
 rm(out_path, recursive=true, force=true)
 mkpath(out_path)
 
-RUN_NAMES
 
 # %% ==================== Basic psychometrics ====================
 
@@ -39,7 +27,7 @@ plot_both(difference_time, :best_rv, "Total fixation time [ms]",
     binning=:integer)
 
 
-# %% ==================== Baisc fixation properties ====================
+# %% ==================== Basic fixation properties ====================
 
 plot_both(nfix_hist, "Number of fixations", "Proportion of trials",
     (xticks=[1,5,10], ),
@@ -55,11 +43,10 @@ plot_both(binned_fixation_times, "Fixation number", "Fixation duration [ms]",
 savefig(ans, "$out_path/$binned_fixation_times.pdf")
 
 
-
 # %% ==================== Uncertainty-directed attention ====================
 
 function plot_uncertain(trials; kws...)
-    kdeplot!(refixate_uncertain(trials), 100., xmin=-1000, xmax=1000,; kws...)
+    kdeplot!(refixate_uncertain(trials), 100., xmin=-1000, xmax=1000; kws...)
 end
 
 plot_both(plot_uncertain, "Fixation advantage\n of fixated item [ms]", "Density",
@@ -118,3 +105,50 @@ plot_both(fixation_bias_corrected, "Final time advantage left [ms]", "corrected 
 
 plot_both(first_fixation_duration_corrected, "First fixation duration [ms]", "corrected P(first fixated chosen)",
     yline=0 )
+
+
+# %% ==================== Individuals ====================
+
+function plot_individuals(feature, xlab, ylab, plot_kws=(); n_col=5, kws...) 
+    foreach([2, 3]) do n_item
+        xlab = fmt_xlab(xlab, n_item)
+        subjects = both_trials[n_item - 1].subject |> unique
+        plots = map(subjects) do subj
+            plot_one(feature, n_item, xlab, ylab, plot_kws; subject=subj, kws...)
+        end
+        
+        n_row = cld(length(plots), n_col)
+        empty_plot = plot(axis=false, grid=false)
+        pp = reshape(deepcopy([plots; fill(empty_plot, n_row * n_col - length(plots))]), n_row, n_col)
+
+        for p in pp[:, 2:end]
+            plot!(p, yformatter=_->"", ylabel="")
+        end
+        for p in pp[1:end-1, :]
+            plot!(p, xformatter=_->"", xlabel="")
+        end
+        for i in 1:n_row
+            i != cld(n_row,2) && plot!(pp[i, 1], ylabel="")
+        end
+        for i in 1:n_col
+            i != cld(n_col,2) && plot!(pp[end, i], xlabel="")
+        end
+        plot(permutedims(pp)..., layout=(n_row,n_col), size=(n_col*100, n_row * 100))
+        name = string(feature)
+        savefig("figs/indiv/$name-$n_item.pdf")
+    end
+end
+
+# %% --------
+plot_individuals(value_bias, :left_rv, "Proportion fixate left",
+    (ylim=(-0.05, 1.05),);
+    xline=0, yline=:chance, binning=Binning(-5:2:5), plot_model=false,)
+# %% --------
+plot_individuals(value_choice, :left_rv, "P(left chosen)",
+    (ylim=(-0.05, 1.05),);
+    xline=0, yline=:chance, binning=Binning(-5:2:5), plot_model=false)
+# %% --------
+plot_individuals(binned_fixation_times, "Fixation number", "Fixation duration [ms]",
+    (ylim=(0, 1300), xticks=(1:7, ["1", "2", "3", "4", "5", ">5", "F"]),),
+    binning=:integer, plot_model=false)
+
