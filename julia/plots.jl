@@ -5,9 +5,9 @@ include("plots_base.jl")
 PARAMS = [
     # (run_name="revision", dataset="joint", prior="zero", color=(colorant"#699efa", colorant"#003085"), alpha=0.1, n_sim=30),
     (run_name="revision", dataset="joint", prior="fit", color=(colorant"#ff6167", colorant"#b00007"), alpha=1, n_sim=30),
-    (run_name="addm", color=(colorant"#4DCE3F", colorant"#3B9B31"), alpha=1, n_sim=1),
+    # (run_name="addm", color=(colorant"#4DCE3F", colorant"#3B9B31"), alpha=1, n_sim=1),
 ]
-out_path = "figs/revision/addm2"
+out_path = "figs/revision/individual"
 
 rm(out_path, recursive=true, force=true)
 mkpath(out_path)
@@ -108,11 +108,21 @@ plot_both(first_fixation_duration_corrected, "First fixation duration [ms]", "co
 
 
 # %% ==================== Individuals ====================
+include("plots_base.jl")
+plot_one(value_bias, 2, "x", "y"; subject=13)
 
+# get_feature(PARAMS[1], 2, 1, 10, value_choice, kws)
+
+# %% --------
 function plot_individuals(feature, xlab, ylab, plot_kws=(); n_col=5, kws...) 
     foreach([2, 3]) do n_item
         xlab = fmt_xlab(xlab, n_item)
         subjects = both_trials[n_item - 1].subject |> unique
+
+        S = both_trials[n_item - 1].subject
+        sc = countmap(S)
+        subjects = filter(s->sc[s] >= 40, S)
+
         plots = map(subjects) do subj
             plot_one(feature, n_item, xlab, ylab, plot_kws; subject=subj, kws...)
         end
@@ -135,20 +145,30 @@ function plot_individuals(feature, xlab, ylab, plot_kws=(); n_col=5, kws...)
         end
         plot(permutedims(pp)..., layout=(n_row,n_col), size=(n_col*100, n_row * 100))
         name = string(feature)
-        savefig("figs/indiv/$name-$n_item.pdf")
+        savefig("$out_path/$name-$n_item.pdf")
     end
 end
 
 # %% --------
 plot_individuals(value_bias, :left_rv, "Proportion fixate left",
     (ylim=(-0.05, 1.05),);
-    xline=0, yline=:chance, binning=Binning(-5:2:5), plot_model=false,)
+    xline=0, yline=:chance, binning=Binning(-5:2:5))
+
 # %% --------
+
 plot_individuals(value_choice, :left_rv, "P(left chosen)",
     (ylim=(-0.05, 1.05),);
-    xline=0, yline=:chance, binning=Binning(-5:2:5), plot_model=false)
+    xline=0, yline=:chance, binning=Binning(-5:2:5))
+
 # %% --------
 plot_individuals(binned_fixation_times, "Fixation number", "Fixation duration [ms]",
     (ylim=(0, 1300), xticks=(1:7, ["1", "2", "3", "4", "5", ">5", "F"]),),
-    binning=:integer, plot_model=false)
+    binning=:integer)
+
+# %% --------
+
+plot_individuals(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
+    yline= :chance )
+
+    # trial_select=(t)->t.value[1] == 3
 

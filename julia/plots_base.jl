@@ -25,15 +25,21 @@ using Memoize
         deserialize("results/$(pp.run_name)/simulations/$(pp.dataset)-$(pp.prior)/$i")
     end
 
-    @memoize function get_sim(pp, n_item, i)
+    # @memoize get_ind_sim(run_name) = deserialize("results/$run_name/individual/processed/simulations")
+    # @memoize get_ind_features(run_name) = deserialize("results/$run_name/individual/processed/plot_features")
+
+    @memoize function get_sim(pp, n_item, i, subject)
+        if subject != -1
+            get_ind_sim(pp.run_name)[n_item, subject][i]
+        end
         pp.run_name == "addm" && return deserialize("results/addm/sims")[n_item - 1]
         pol_sims = load_sims(pp, i)[n_item-1]
         reduce(vcat, pol_sims)
     end
 
-    @memoize function get_full_sim(pp, n_item)
+    @memoize function get_full_sim(pp, n_item, subject)
         mapreduce(vcat, pp.n_sim) do i
-            get_sim(pp, n_item, i)
+            get_sim(pp, n_item, i, subject)
         end
     end
 
@@ -45,9 +51,14 @@ using Memoize
         end
     end
 
-    function get_feature(pp, n_item, i, feature, feature_kws)
-        feats = load_features(pp, i)
-        x, y, err, n = Dict(feats[(feature=feature, feature_kws...)])[n_item]
+    function get_feature(pp, n_item, i, subject, feature, feature_kws)
+        if subject == -1
+            feats = load_features(pp, i)
+            x, y, err, n = Dict(feats[(feature=feature, feature_kws...)])[n_item]
+        else
+            pf = get_ind_features(pp.run_name)
+            pf[n_item, subject][i][(feature=feature, feature_kws...)]
+        end
     end
 # end
 
@@ -149,17 +160,18 @@ function plot_model!(bins, x, y, type=:line; kws...)
     err = invert(ci_err.(vals))
     x = mids(bins)
     y = mean.(vals)
-    too_few = length.(vals) .< 30
-    if !all(length.(vals) .== 1)
-        x[too_few] .= NaN; y[too_few] .= NaN
-    end
+    # TODO
+    # too_few = length.(vals) .< 30
+    # if !all(length.(vals) .== 1)
+    #     x[too_few] .= NaN; y[too_few] .= NaN
+    # end
     plot_model!(x, y, err, type; kws...)
 end
 
-function plot_model_precomputed!(feature, feature_kws, type, n_item)
+function plot_model_precomputed!(feature, feature_kws, type, n_item, subject)
     for pp in PARAMS
         xs, ys, ns = map(1:pp.n_sim) do i
-            x, y, err, n = get_feature(pp, n_item, i, feature, feature_kws)
+            x, y, err, n = get_feature(pp, n_item, i, subject, feature, feature_kws)
             plot_model!(x, y, invert(err), type, pp)
             x, y .* n, n
         end |> invert
@@ -234,16 +246,16 @@ function plot_one(feature::Function, n_item::Int, xlab, ylab, plot_kws=();
         for pp in PARAMS
             if plot_model
                 for i in 1:pp.n_sim
-                    plotter(get_sim(pp, n_item, i); make_plot_kws(pp, false)...)
+                    plotter(get_sim(pp, n_item, i, subject); make_plot_kws(pp, false)...)
                 end
                 if pp.n_sim > 1
-                    plotter(get_full_sim(pp, n_item); make_plot_kws(pp, true)...)
+                    plotter(get_full_sim(pp, n_item, subject); make_plot_kws(pp, true)...)
                 end
             end
         end
         plotter(both_trials[n_item-1]; linewidth=2, color=:black, alpha=1)
     else
-        plot_model && plot_model_precomputed!(feature, kws, type, n_item)
+        plot_model && plot_model_precomputed!(feature, kws, type, n_item, subject)
         hx, hy = feature(trials; kws...)
         bins = make_bins(binning, hx)
         plot_human!(bins, hx, hy, type)

@@ -41,4 +41,34 @@ all_top = map(collect(values(like))) do ll
 end |> combinedims
 serialize("$path/all_top", all_top)
 
+# %% --------
+map(eachcol(all_top)) do prms
+    map(mean, invert(prms))
+end
+
+
+# %% ==================== Aggregate plot features and simulations ====================
+
+
+let
+    sims = Dict(k => Table[] for k in keys(like))
+    for (i, (n_item, subject)) in enumerate(K)
+        push!(sims[(n_item, subject)], reduce(vcat, deserialize("$path/simulations/$i")))
+    end
+    serialize("$path/processed/simulations", sims)
+end
+
+
+let
+    feats = Dict(k => Dict[] for k in keys(like))
+    for (i, (n_item, subject)) in enumerate(K)
+        push!(feats[(n_item, subject)], deserialize("$path/plot_features/$i"))
+    end
+    serialize("$path/processed/plot_features", feats)
+end
+
+# %% --------
+deserialize("$path/simulations/1000") |> values |> first
+deserialize("$path/simulations/1001") |> values |> first
+
 

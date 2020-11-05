@@ -10,6 +10,7 @@ top30 = pd.read_csv('results/revision/recovery/results/top30.csv')
 top1_50 = pd.read_csv('results/revision/recovery/results/top1-50.csv')
 top30_50 = pd.read_csv('results/revision/recovery/results/top30-50.csv')
 keys = true.columns
+# %% --------
 
 # %% --------
 
@@ -62,17 +63,23 @@ def plot_cor(true, fit):
         plt.yticks([lo, hi], [lo, hi])
         plt.xlabel(f'{tex[k]}')
         plt.ylabel(f'{texhat[k]}')
+
+        # plt.axvline([true[k].mean()], alpha=0.8, ls=':')
+        # plt.axhline([fit[k].mean()], alpha=0.8, ls=':')
+
         ax.set_aspect('equal', 'box')
         r = pearsonr(true[k], fit[k])[0]
         plt.annotate(f'$r = {r:.3f}$', (0.1, 0.9), xycoords='axes fraction', bbox=dict(facecolor='white', alpha=0.8))
     axes.flat[-1].axis('off')
 
 
-plot_cor(true, top1); show('top1', pdf=True)
 plot_cor(true, top30); show('top30', pdf=True)
 
-plot_cor(true, top1_50); show('top1_50', pdf=True)
+# %% --------
 plot_cor(true, top30_50); show('top30_50', pdf=True)
+
+plot_cor(true, top1); show('top1', pdf=True)
+plot_cor(true, top1_50); show('top1_50', pdf=True)
 
 # %% --------
 sns.regplot(alt_true['β_μ'], alt_mle['β_μ'], 
@@ -82,9 +89,9 @@ show()
 # %% --------
 def compute_bias(true, fit):
     rng = pd.Series([lims[k][1] - lims[k][0] for k in keys], index=keys)
-    return (fit.mean() - true.mean())# / rng
+    return (fit.mean() - true.mean()) / rng
 
-compute_bias(alt_true, alt_mle)
+compute_bias(true, top30)
 
 # %% --------
 # keep = alt_true.β_μ == 1

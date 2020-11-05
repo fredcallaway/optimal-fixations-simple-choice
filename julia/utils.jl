@@ -41,6 +41,8 @@ end
 Base.dropdims(idx::Int...) = X -> dropdims(X, dims=idx)
 Base.reshape(idx::Union{Int,Colon}...) = x -> reshape(x, idx...)
 
+Serialization.serialize(path::String) = x->serialize(path, x)
+
 function mutate(x::T; kws...) where T
     return T([get(kws, fn, getfield(x, fn)) for fn in fieldnames(T)]...)
 end

@@ -21,6 +21,7 @@ function compute_recovery_likelihood(job::Int, n_trial)
             sims[1:n_trial]
         end
     end
+    print(length.(both_sims))
     get_likelihood(both_sims)[2]
 end
 

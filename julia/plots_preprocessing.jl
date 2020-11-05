@@ -15,10 +15,6 @@ function ci_err(y)
     abs.(c[2:3] .- c[1])
 end
 
-both_trials = map([2, 3]) do n_item
-    load_dataset(n_item, :test)
-end
-
 function compute_feature_both(feature::Function, both_trials; bin_spec=:integer, three_only=false, feature_kws...)
     idx = three_only ? [2] : [1, 2]
     key = (feature=feature, feature_kws...)
@@ -28,8 +24,18 @@ function compute_feature_both(feature::Function, both_trials; bin_spec=:integer,
     end |> Dict
 end
 
+function compute_feature_one(feature, trials; bin_spec=:integer, three_only=false, feature_kws...)
+    key = (feature=feature, feature_kws...)
+    if (length(trials[1].value) == 2) && three_only
+        return key => missing
+    end
+    key => compute_feature(feature, trials; bin_spec=bin_spec, feature_kws...)
+
+end
+
 function compute_feature(feature::Function, trials; bin_spec=:integer, feature_kws...)
     mx, my = feature(trials; feature_kws...)
+    @assert false
     hx, hy = feature(trials; feature_kws...)
     bins = make_bins(bin_spec, hx)
     vals = bin_by(bins, mx, my)
@@ -38,23 +44,23 @@ function compute_feature(feature::Function, trials; bin_spec=:integer, feature_k
 end
 
 function compute_plot_features(trials)
-    f = trials isa Table ? compute_feature_both : compute_feature
+    f = trials isa Table ? compute_feature_one : compute_feature_both
         Dict(
-            f(first_fixation_duration_corrected, both_trials; bin_spec=7),
-            f(fixation_bias_corrected, both_trials; bin_spec=7),
-            f(value_choice, both_trials; bin_spec=Binning(-4.5:1:4.5)),
-            f(difference_time, both_trials),
-            f(nfix_hist, both_trials),
-            f(difference_nfix, both_trials),
-            f(binned_fixation_times, both_trials),
-            f(fixate_by_uncertain, both_trials; bin_spec=Binning(-50:100:850), three_only=true),
-            f(value_bias, both_trials),
-            f(value_duration, both_trials; fix_select=firstfix),
-            f(fixate_on_worst, both_trials; cutoff=2000, n_bin=20),
-            f(fix4_value, both_trials; three_only=true),
-            f(fix3_value, both_trials; three_only=true),
-            f(last_fix_bias, both_trials),
-            f(fixation_bias, both_trials; bin_spec=7),
-            f(first_fixation_duration, both_trials; bin_spec=7),
+            f(first_fixation_duration_corrected, trials; bin_spec=7),
+            f(fixation_bias_corrected, trials; bin_spec=7),
+            f(value_choice, trials; bin_spec=Binning(-4.5:1:4.5)),
+            f(difference_time, trials),
+            f(nfix_hist, trials),
+            f(difference_nfix, trials),
+            f(binned_fixation_times, trials),
+            f(fixate_by_uncertain, trials; bin_spec=Binning(-50:100:850), three_only=true),
+            f(value_bias, trials),
+            f(value_duration, trials; fix_select=firstfix),
+            f(fixate_on_worst, trials; cutoff=2000, n_bin=20),
+            f(fix4_value, trials; three_only=true),
+            f(fix3_value, trials; three_only=true),
+            f(last_fix_bias, trials),
+            f(fixation_bias, trials; bin_spec=7),
+            f(first_fixation_duration, trials; bin_spec=7),
         )
     end

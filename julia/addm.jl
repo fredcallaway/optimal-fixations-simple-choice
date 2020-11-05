@@ -34,7 +34,8 @@ function BinaryFixationProcess(trials=load_dataset(2, :test))
     first_durations = first.(trials.fix_times)
     other_durations = Dict(dif => Int[] for dif in unique(difficulty.(trials.value)))
     for t in trials
-        push!(other_durations[difficulty(t.value)], t.fix_times[2:end]...)
+        durations = t.fix_times[2:end-1]  # skip first and last
+        push!(other_durations[difficulty(t.value)], durations...)
     end
     BinaryFixationProcess(prob_2_first, first_durations, other_durations)
 end
