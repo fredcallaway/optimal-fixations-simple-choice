@@ -23,19 +23,22 @@ abstract type Fixations end
 
 struct BinaryFixationProcess <: FixationProcess
     prob_2_first::Float64
-    first_durations::Vector{Int}
+    first_durations::Dict{Int,Vector{Int}}
     other_durations::Dict{Int,Vector{Int}}
 end
 Base.show(io::IO, fp::BinaryFixationProcess) = print(io, "BinaryFixationProcess()")
 difficulty(v) = abs(v[1] - v[2])
 
-function BinaryFixationProcess(trials=load_dataset(2, :test))
+function BinaryFixationProcess(trials=load_dataset(2, :train))
+    trials = filter(trials) do t
+        difficulty(t.value) <= 5
+    end
     prob_2_first = mean(first.(trials.fixations)) - 1
-    first_durations = first.(trials.fix_times)
+    first_durations = Dict(dif => Int[] for dif in unique(difficulty.(trials.value)))
     other_durations = Dict(dif => Int[] for dif in unique(difficulty.(trials.value)))
     for t in trials
-        durations = t.fix_times[2:end-1]  # skip first and last
-        push!(other_durations[difficulty(t.value)], durations...)
+        push!(first_durations[difficulty(t.value)], t.fix_times[1])
+        push!(other_durations[difficulty(t.value)], t.fix_times[2:end-1]...)
     end
     BinaryFixationProcess(prob_2_first, first_durations, other_durations)
 end
@@ -51,7 +54,7 @@ end
 function next!(fix::BinaryFixations)
     if isempty(fix.history)
         f = 1 + (rand() < fix.fp.prob_2_first)
-        ft = rand(fix.fp.first_durations)
+        ft = rand(fix.fp.first_durations[fix.dif])
     else
         f = [2, 1][fix.history[end]]
         ft = rand(fix.fp.other_durations[fix.dif])
@@ -70,7 +73,7 @@ function simulate(m::ADDM, fp::BinaryFixationProcess, v::Vector{Int}; maxt=10000
     E = 0.  # total accumulated evidence
     xx = m.d .* [v[1] - m.θ * v[2], m.θ * v[1] - v[2]]  # the two accumulation rates
     choice = 0
-    ft = 0  # no initiaal fixationl
+    ft = 0  # no initial fixationl
     fixations = Int[]
     fix_times = Int[]
 
@@ -95,7 +98,6 @@ function simulate(m::ADDM, fp::BinaryFixationProcess, v::Vector{Int}; maxt=10000
     end
     (choice=choice, value=v, fixations=fixations, fix_times=fix_times), history
 end
-simulate(ADDM(), BinaryFixationProcess(), [4,5])
 
 # # %% ==================== Trinary Fixation Process ====================
 include("trinary_fixation_probs.jl")

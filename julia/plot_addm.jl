@@ -20,7 +20,29 @@ vline!(cumsum(t.fix_times), c=:black)
 # %% ==================== KAR 2010 Figure 5 ====================
 
 trials = load_dataset(2, :test)
-sim = simulate_trials(ADDM(), repeat(trials, 10))
+trials = filter(trials) do t
+    difficulty(t.value) <= 5
+end
+
+# sim = simulate_trials(ADDM(), repeat(trials, 10))
+# %% --------
+vs = filter(collect(Iterators.product(0:10, 0:10))) do v
+    abs(v[1] - v[2]) <= 5
+end
+
+MAX_FIX = 20
+
+m = ADDM()
+fp = BinaryFixationProcess()
+sim = mapmany(vs) do v
+    map(1:1000) do i
+        while true
+            sim = simulate(m, fp, collect(v))[1]
+            length(sim.fixations) <= MAX_FIX && return sim
+        end
+        sim
+    end
+end;
 
 # %% --------
 
@@ -45,6 +67,7 @@ savefig("figs/addm/5a.pdf")
 # %% --------
 
 function plot5b!(trials, plot=plot!; kws...)
+    # bins = Binning(-600:200:600)
     bins = Binning(-700:200:700)
     y = mean.(bin_by(bins, fixation_bias(trials)...))
     plot(mids(bins), y; kws...)
@@ -82,7 +105,6 @@ savefig("figs/addm/5c.pdf")
 # %% --------
 
 function plot5d!(trials, plot=plot!; kws...)
-    bins = Binning(-100:200:700)    
     bins = Binning(0:200:800)
     x, y = Float64[], Bool[]
     for t in trials
@@ -94,8 +116,27 @@ function plot5d!(trials, plot=plot!; kws...)
     biny = mean.(bin_by(bins, x, y))
     plot(mids(bins), biny; kws...)
 end
+
+function alt_plot5d!(trials, plot=plot!; kws...)
+    bins = Binning(0:200:800)
+    biny = map(collect(group(t->t.subject, trials))) do tt
+        x, y = Float64[], Bool[]
+        for t in tt
+            if length(t.fixations) > 0
+                push!(x, t.fix_times[1])
+                push!(y, t.choice == t.fixations[1])
+            end
+        end
+       mean.(bin_by(bins, x, y))
+    end
+    map(invert(biny)) do yy
+        mean(filter(!isnan, yy))
+    end
+    plot(mids(bins), biny; kws...)
+end
+
 fig5d = plot(xlabel="First fixation duration (ms)", ylabel="P(first seen chosen)", ylim=(0, 1))
-plot5d!(trials, bar!, fill=:white)
+alt_plot5d!(trials, bar!, fill=:white)
 plot5d!(sim, color=:red)
 savefig("figs/addm/5d.pdf")
 # %% --------
@@ -128,12 +169,43 @@ plot5e!(sim, color=:red)
 savefig("figs/addm/5e.pdf")
 
 # %% --------
+# FIXATION DURATIONS
+x, y = binned_fixation_times(trials)
+bins = make_bins(:integer, x)
+biny = mean.(bin_by(bins, x, y))
+
+# %% --------
+mapmany(trials) do t
+    t.fix_times[2:end-1]
+end |> mean
+
+# %% --------
+dc = countmap(difficulty.(trials.value))
+
+fp = BinaryFixationProcess()
+# %% --------
+valmap(mean, fp.other_durations) |> sort |> values |> collect
+map(0:8) do d
+    mapmany(1:1000) do i
+        sim = simulate(ADDM(), fp, [v1, v1 + d])[1]
+        sim.fix_times[2:end-1]
+    end |> mean
+end
+
+# %% --------
 plot(fig5a, fig5b, fig5c, fig5d, fig5e, size=(1200,600))
 savefig("figs/addm/full.pdf")
 
+# %% --------
+trials.fixations |> flatten |> length
+map(trials) do t
+    t.value[t.choice]
+end |> mean
+mapmany(trials) do t
+    t.fix_times
+end |> mean
+
+length(trials)
 
 # %% --------
 
-function relative_left(x)
-    x[1] - sum(x[2:end])
-end
