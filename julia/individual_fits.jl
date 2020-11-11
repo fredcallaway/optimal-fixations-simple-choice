@@ -41,11 +41,14 @@ all_top = map(collect(values(like))) do ll
 end |> combinedims
 serialize("$path/all_top", all_top)
 
-# %% --------
-map(eachcol(all_top)) do prms
-    map(mean, invert(prms))
-end
 
+# %% ==================== Reoptimize policies and generate simulations/features ====================
+
+# This takes a long time and should be done on a cluster if possible.
+@everywhere include("evaluate_individual.jl")
+@everywhere f(job) = do_all(job)
+@time @showprogress pmap(evaluate_individual, eachindex(all_top));
+    
 
 # %% ==================== Aggregate plot features and simulations ====================
 

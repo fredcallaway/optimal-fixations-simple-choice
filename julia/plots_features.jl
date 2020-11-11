@@ -159,9 +159,9 @@ function fixate_by_uncertain(trials)
         for i in eachindex(t.fixations)
             fix = t.fixations[i]
             fix_time = t.fix_times[i]
-            if i > 1
+            if i > 2
                 prev = t.fixations[i-1]
-                a, b = [i for i in options if i != prev]
+                a, b = [x for x in options if x != prev]
                 d = cft[a] - cft[b]
                 push!(x, abs(d))
                 push!(y, fix == (d >= 0 ? a : b))

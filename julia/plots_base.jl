@@ -1,4 +1,5 @@
 using Memoize
+ENV["MPLBACKEND"] = "macosx"
 
 # if !@isdefined(plot_human!)  # don't reload every time
     include("plots_features.jl")
@@ -25,12 +26,12 @@ using Memoize
         deserialize("results/$(pp.run_name)/simulations/$(pp.dataset)-$(pp.prior)/$i")
     end
 
-    # @memoize get_ind_sim(run_name) = deserialize("results/$run_name/individual/processed/simulations")
-    # @memoize get_ind_features(run_name) = deserialize("results/$run_name/individual/processed/plot_features")
+    @memoize get_ind_sim(run_name) = deserialize("results/$run_name/individual/processed/simulations")
+    @memoize get_ind_features(run_name) = deserialize("results/$run_name/individual/processed/plot_features")
 
     @memoize function get_sim(pp, n_item, i, subject)
         if subject != -1
-            get_ind_sim(pp.run_name)[n_item, subject][i]
+            return get_ind_sim(pp.run_name)[n_item, subject][i]
         end
         pp.run_name == "addm" && return deserialize("results/addm/sims")[n_item - 1]
         pol_sims = load_sims(pp, i)[n_item-1]
@@ -253,7 +254,7 @@ function plot_one(feature::Function, n_item::Int, xlab, ylab, plot_kws=();
                 end
             end
         end
-        plotter(both_trials[n_item-1]; linewidth=2, color=:black, alpha=1)
+        plotter(trials; linewidth=2, color=:black, alpha=1)
     else
         plot_model && plot_model_precomputed!(feature, kws, type, n_item, subject)
         hx, hy = feature(trials; kws...)

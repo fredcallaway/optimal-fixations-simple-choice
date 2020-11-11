@@ -28,16 +28,16 @@ end
 
 function compute_plot_features(job::Int)
     trials = reduce(vcat, deserialize("$path/simulations/$job"))
-    compute_plot_features(trials)
+    compute_plot_features_individual(trials)
 end
 
-function do_all(job::Int)
-    # do_job(recompute_policies, "individual/test_policies", job)
-    # do_job(compute_simulations, "individual/simulations", job)
-    do_job(compute_plot_features, "individual/plot_features", job)
+function evaluate_individual(job::Int)
+    do_job(recompute_policies, "individual/test_policies", job)
+    do_job(compute_simulations, "individual/simulations", job)
+    do_job(compute_plot_features, "individual/plot_features", job, force=true)
 end
 
 if basename(PROGRAM_FILE) == basename(@__FILE__)
     job = parse(Int, ARGS[1])
-    do_all(job)
+    evaluate_individual(job)
 end
