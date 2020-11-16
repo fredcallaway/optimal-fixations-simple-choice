@@ -65,3 +65,4 @@ new_loss = @showprogress pmap(hcat(best, tuned)) do prm
         -likelihood(trials, histograms)[1]
     end
 end
+

@@ -22,7 +22,6 @@ function write_fits(f, best, losses)
     println(f, mean_std_str("loss", losses, 5))
 end
 
-
 # %% --------
 
 function identify_mle()

@@ -46,15 +46,20 @@ serialize("$path/all_top", all_top)
 
 # This takes a long time and should be done on a cluster if possible.
 @everywhere include("evaluate_individual.jl")
-@everywhere f(job) = do_all(job)
-@time @showprogress pmap(evaluate_individual, eachindex(all_top));
+# @time @showprogress pmap(evaluate_individual, eachindex(all_top));
+@everywhere USE_SEM = true
+@time pmap(eachindex(all_top)) do job
+    do_job(compute_plot_features, "individual/plot_features", job, force=true)
+end
+
+lkeys = deserialize("$path/keys")
     
 
 # %% ==================== Aggregate plot features and simulations ====================
 
 
 let
-    sims = Dict(k => Table[] for k in keys(like))
+    sims = Dict(k => Table[] for k in lkeys)
     for (i, (n_item, subject)) in enumerate(K)
         push!(sims[(n_item, subject)], reduce(vcat, deserialize("$path/simulations/$i")))
     end
@@ -63,7 +68,7 @@ end
 
 
 let
-    feats = Dict(k => Dict[] for k in keys(like))
+    feats = Dict(k => Dict[] for k in lkeys)
     for (i, (n_item, subject)) in enumerate(K)
         push!(feats[(n_item, subject)], deserialize("$path/plot_features/$i"))
     end

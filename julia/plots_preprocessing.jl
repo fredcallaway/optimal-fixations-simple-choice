@@ -55,6 +55,7 @@ function compute_plot_features(trials)
         f(fixation_bias_corrected, trials; bin_spec=7),
         f(value_choice, trials),
         f(difference_time, trials),
+        f(meanvalue_time, trials),
         f(nfix_hist, trials),
         f(difference_nfix, trials),
         f(binned_fixation_times, trials),
@@ -67,6 +68,7 @@ function compute_plot_features(trials)
         f(last_fix_bias, trials),
         f(fixation_bias, trials; bin_spec=7),
         f(first_fixation_duration, trials; bin_spec=7),
+        
     )
 end
 

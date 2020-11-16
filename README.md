@@ -19,5 +19,8 @@ I don't imagine anyone else will want to invest the compute resources to actuall
 - Plots are generated in `plots.jl`. This must be done in an environment where graphics can be displayed. I used the Hydrogen package in Atom. Alternatively, you can use X11 forwarding to run it on a server, or you can copy the simulation results to your local machine (warning: each set of simulations is 500-750 MB).
 <!-- - Run `julia plots.jl RUN_NAME FIT_MODE-FIT_PRIOR`.  As such, it is  -->
 
+## Individual fits
+
+- 
 
 

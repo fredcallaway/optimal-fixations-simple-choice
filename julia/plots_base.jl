@@ -1,9 +1,15 @@
 using Memoize
-ENV["MPLBACKEND"] = "macosx"
+using GLM
+# ENV["MPLBACKEND"] = "macosx"
 
-# if !@isdefined(plot_human!)  # don't reload every time
+if !@isdefined(RELOAD)
+    RELOAD = true
+end
+if RELOAD  # don't reload every time
+    println("Clearing cache...")
     include("plots_features.jl")
     include("human.jl")
+    RELOAD = false
     using Serialization
     using StatsPlots
     using Printf
@@ -13,6 +19,7 @@ ENV["MPLBACKEND"] = "macosx"
     using Glob
     using StatsBase
     pyplot(label="")
+    S = 1
     Plots.scalefontsizes()
     Plots.scalefontsizes(1.5)
     mm = StatsPlots.mm
@@ -33,12 +40,14 @@ ENV["MPLBACKEND"] = "macosx"
         if subject != -1
             return get_ind_sim(pp.run_name)[n_item, subject][i]
         end
-        pp.run_name == "addm" && return deserialize("results/addm/sims")[n_item - 1]
+        # pp.run_name == "addm" && return deserialize("results/addm/sims")[n_item - 1]
+        pp.run_name == "addm" && error("get_sim for addm")
         pol_sims = load_sims(pp, i)[n_item-1]
         reduce(vcat, pol_sims)
     end
 
     @memoize function get_full_sim(pp, n_item, subject)
+        pp.run_name == "addm" && return deserialize("results/addm/sims")[n_item - 1]
         mapreduce(vcat, pp.n_sim) do i
             get_sim(pp, n_item, i, subject)
         end
@@ -61,7 +70,7 @@ ENV["MPLBACKEND"] = "macosx"
             pf[n_item, subject][i][(feature=feature, feature_kws...)]
         end
     end
-# end
+end
 
 PALETTE = Dict(
     ("revision", true) => colorant"#b00007",
@@ -100,45 +109,61 @@ function ci_err(y)
     abs.(c[2:3] .- c[1])
 end
 
+function expand(a, b; amt=.05)
+    d = b - a
+    (a - amt * d, b + amt * d)
+end
+
 function plot_human!(bins, x, y, type=:line; kws...)
     vals = bin_by(bins, x, y)
     err = ci_err.(vals)
+    bx = mids(bins)
+    by = mean.(vals)
     if type == :line
-        plot!(mids(bins), mean.(vals), yerr=err,
+        plot!(bx, by, yerr=err,
               grid=:none,
-              line=(2,),
+              line=(3,),
               color=:black,
               label="";
               kws...)
     elseif type == :discrete
-        Plots.bar!(mids(bins), mean.(vals),
+        Plots.bar!(bx, by,
             yerr=err,
               grid=:none,
               fill=:white,
               fillalpha=0,
-              line=(2,),
+              line=(3,),
               color=:black,
               label="";
               kws...)
-  else
-      error("Bad plot type : $type")
-  end
-end
-
-function plot_human!(feature::Function, trials, bins=nothing, type=:line; kws...)
-    hx, hy = feature(trials; kws...)
-    bins = make_bins(bins, hx)
-    plot_human!(bins, hx, hy, type)
+    else
+        error("Bad plot type : $type")
+    end
+    return bx, by
 end
 
 
-function plot_model!(x::Vector{Float64}, y, err, type, pp; total=false, kws...)
-    if type == :line
+
+function plot_model!(x::Vector{Float64}, y, err, type, pp; total=false, alpha_mult=1, kws...)
+    if type == :individual
+        scatter!(x, y,
+              yerr=err,
+              marker=(3, :diamond, stroke(0))
+              ; make_plot_kws(pp, total, alpha_mult)...,
+              kws...)
+        # plot!(x, y,
+        #      marker=(3, :diamond, stroke(0)),
+        #      # err=err,
+        #      line=nothing,
+        #      make_plot_kws(pp, total, 0.3)...,
+        #      kws...
+        #     )
+    elseif type == :line
         plot!(x, y,
               ribbon=err,
-              fillalpha=FILL_ALPHA * pp.alpha,
+              fillalpha=alpha_mult * FILL_ALPHA * pp.alpha,
               label="";
-              make_plot_kws(pp, total)...,
+              make_plot_kws(pp, total, alpha_mult)...,
               kws...)
     elseif type == :discrete
         if err != nothing && all(err[1] .≈ 0)
@@ -147,16 +172,16 @@ function plot_model!(x::Vector{Float64}, y, err, type, pp; total=false, kws...)
         plot!(x, y,
               yerr=err,
               grid=:none,
-              marker=(7, :diamond, color, stroke(0)),
+              marker=(7, :diamond, stroke(0)),
               label="";
-              make_plot_kws(pp, total)...,
+              make_plot_kws(pp, total, alpha_mult)...,
               kws...)
     else
         error("Bad plot type : $type")
     end
 end
 
-function plot_model!(bins, x, y, type=:line; kws...)
+function plot_model!(bins, x, y, pp, type=:line; kws...)
     vals = bin_by(bins, x, y)
     err = invert(ci_err.(vals))
     x = mids(bins)
@@ -166,38 +191,35 @@ function plot_model!(bins, x, y, type=:line; kws...)
     # if !all(length.(vals) .== 1)
     #     x[too_few] .= NaN; y[too_few] .= NaN
     # end
-    plot_model!(x, y, err, type; kws...)
+    plot_model!(x, y, err, type, pp; kws...)
 end
 
 function plot_model_precomputed!(feature, feature_kws, type, n_item, subject)
+    if subject != -1
+        type = :individual
+    end
     for pp in PARAMS
-        xs, ys, ns = map(1:pp.n_sim) do i
-            x, y, err, n = get_feature(pp, n_item, i, subject, feature, feature_kws)
-            plot_model!(x, y, invert(err), type, pp)
-            x, y .* n, n
-        end |> invert
-        if pp.n_sim > 1
-            x = xs[1]
-            y = sum(ys) ./ sum(ns)
+        if pp.n_sim == 1
+            x, y, err, n = get_feature(pp, n_item, 1, subject, feature, feature_kws)
+            plot_model!(x, y, err, type, pp, total=true)
+        else
+            xs, yns, ns = map(1:pp.n_sim) do i
+                x, y, err, n = get_feature(pp, n_item, i, subject, feature, feature_kws)
+                pp.total_only || plot_model!(x, y, invert(err), type, pp)
+                x, y .* n, n
+            end |> invert
+            x = xs[1]; @assert x ≈ xs[2]
+            y = sum(yns) ./ sum(ns)
             plot_model!(x, y, nothing, type, pp, total=true)
         end
     end
 end
 
 function cross!(x, y)
-    vline!([x], line=(:grey, 0.7), label="")
-    hline!([y], line=(:grey, 0.7), label="")
+    vline!([x], line=(:grey, 0.2), label="")
+    hline!([y], line=(:grey, 0.2), label="")
 end
 
-# function plot_comparison(feature, trials, sim, bins=nothing, type=:line; kws...)
-#     plot()
-#     hx, hy = feature(trials; kws...)
-#     mx, my = feature(sim; kws...)
-#     bins = make_bins(bins, hx)
-#     plot_human!(bins, hx, hy, type)
-#     plot_model!(bins, mx, my, type)
-#     # title!(@sprintf "Loss = %.3f" make_loss(feature, bins)(sim))
-# end
 
 function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
     plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
@@ -214,26 +236,57 @@ end
 
 function make_lines!(xline, yline, trials)
     if xline != nothing
-        vline!([xline], line=(:grey, 0.7))
+        vline!([xline], line=(:grey, 0.2))
     end
     if yline != nothing
         if yline == :chance
             # yline = 1 / n_item(trials[1])
             yline = 1 / length(trials[1].value)
         end
-        hline!([yline], line=(:grey, 0.7))
+        hline!([yline], line=(:grey, 0.2))
     end
 end
 
-make_plot_kws(pp, total) = (
-    alpha = (total ? pp.alpha ^ (1/2) : ALPHA * pp.alpha),
+make_plot_kws(pp, total, alpha_mult=1) = (
+    alpha = alpha_mult * (total ? pp.alpha ^ (1/2) : ALPHA * pp.alpha),
     color = pp.color[Int(total)+1],
-    linewidth = total ? 2 : 1,
+    linewidth = total ? (pp.total_only ? 1 : 3) : 1,
 )
 
+add_intercept(x) = hcat(ones(length(x)), x)
+
+function get_glm_pred(x, y, xmin, xmax)
+    m = if Set(y) <= Set([true, false])
+        glm(add_intercept(x), y, Binomial())
+    else
+        lm(add_intercept(x), y)
+    end
+
+    xx = range(xmin, xmax, length=500)
+    xx, predict(m, add_intercept(xx))
+end
+
+function stan_glm(x, y, xmin, xmax)
+    family = Set(y) <= Set([true, false]) ? "binomial" : "gaussian"
+    Y = @suppress_out begin
+        R"""
+        library('rstanarm')
+        mod = stan_glm(y ~ x, data=data.frame(x=$x, y=$y), family=$family)
+        posterior_linpred(mod, newdata=data.frame(x=$xhat), transform=TRUE)
+        """ |> rcopy
+    end;
+    xhat, Y
+end
+
+function get_bins(feature, n_item, bin_spec, feature_kws)
+    trials = load_dataset(n_item, :test)
+    hx, hy = feature(trials; feature_kws...)
+    bins = make_bins(bin_spec, hx)
+end
+
 function plot_one(feature::Function, n_item::Int, xlab, ylab, plot_kws=();
-        binning=nothing, type=:line, xline=nothing, yline=nothing,
-        save=false, name=string(feature), manual=false, plot_model=true, subject=-1, kws...)
+        binning=nothing, type=:line, xline=nothing, yline=nothing, x_max=nothing,
+        save=false, name=string(feature), manual=false, plot_model=true, precomputed=true, subject=-1, kws...)
 
     f = plot(xlabel=xlab, ylabel=ylab; plot_kws...)
     trials = both_trials[n_item-1]
@@ -246,20 +299,59 @@ function plot_one(feature::Function, n_item::Int, xlab, ylab, plot_kws=();
         plotter = feature  # more accurate name
         for pp in PARAMS
             if plot_model
-                for i in 1:pp.n_sim
-                    plotter(get_sim(pp, n_item, i, subject); make_plot_kws(pp, false)...)
+                if pp.n_sim > 1 && !pp.total_only
+                    for i in 1:pp.n_sim
+                        i > 3 && FAST && break
+                        plotter(get_sim(pp, n_item, i, subject); id=pp.id, total=false, make_plot_kws(pp, false)...)
+                    end
                 end
-                if pp.n_sim > 1
-                    plotter(get_full_sim(pp, n_item, subject); make_plot_kws(pp, true)...)
+                plotter(get_full_sim(pp, n_item, subject); id=pp.id, total=true, make_plot_kws(pp, true)...)
+            end
+        end
+        plotter(trials; id=:human, linewidth=2, color=:black, alpha=1)
+    else
+        precomputed && plot_model && plot_model_precomputed!(feature, kws, type, n_item, subject)
+
+        hx, hy = feature(trials; kws...)
+        if x_max != nothing
+            hx, hy = clip_x(hx, hy, x_max)
+        end
+        bins = get_bins(feature, n_item, binning, kws)
+
+        if !precomputed
+            for pp in PARAMS
+                if plot_model
+                    if pp.n_sim > 1
+                        for i in 1:pp.n_sim
+                            mx, my = feature(get_full_sim(pp, n_item, subject); kws...)
+                            plot_model!(bins, mx, my, pp)
+                        end
+                    end
+                    mx, my = feature(get_full_sim(pp, n_item, subject); kws...)
+                    plot_model!(bins, mx, my, pp)
                 end
             end
         end
-        plotter(trials; linewidth=2, color=:black, alpha=1)
-    else
-        plot_model && plot_model_precomputed!(feature, kws, type, n_item, subject)
-        hx, hy = feature(trials; kws...)
-        bins = make_bins(binning, hx)
-        plot_human!(bins, hx, hy, type)
+
+
+        # bins = make_bins(binning, hx)
+        if subject == -1
+            plot_human!(bins, hx, hy, type)
+        else
+            if type == :line
+                mx, my = feature(get_full_sim(pp, n_item, subject); kws...)
+                if x_max != nothing
+                    mx, my = clip_x(mx, my, x_max)
+                end
+                gx, gy = get_glm_pred(mx, my, bins.limits[1], bins.limits[end])
+                plot!(gx, gy, color=pp.color[2], lw=2)
+            end
+            plot_human!(bins, hx, hy, type, alpha=0.2)
+            if type == :line
+                gx, gy = get_glm_pred(hx, hy, bins.limits[1], bins.limits[end])
+                plot!(gx, gy, color=:black, lw=2)            
+            end
+        end
     end
 
     make_lines!(xline, yline, trials)
@@ -270,8 +362,13 @@ function plot_one(feature::Function, n_item::Int, xlab, ylab, plot_kws=();
     f
 end
 
+function clip_x(x, y, x_max)
+    keep = x .<= x_max
+    x[keep], y[keep]
+end
+
 function plot_three(feature, xlab, ylab, plot_kws=(); manual=false, kws...)
-    plot_kws = (plot_kws..., size=(430,400))
+    plot_kws = (plot_kws..., size=(430S, 400S))
     plot_one(feature, 3, xlab, ylab, plot_kws; save=true, manual=manual, kws...)
 end
 
@@ -309,7 +406,7 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
             ylims!(f, chance - rng, chance + rng)
         end
     end
-    ff = plot(f1, f2, size=(900,400), margin=3mm)
+    ff = plot(f1, f2, size=(900S,400S), margin=3mm)
 
     if haskey(Dict(kws), :fix_select)
         name *= "_$(kws[:fix_select])"

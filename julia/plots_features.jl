@@ -68,6 +68,10 @@ function difference_time(trials)
     difficulty.(trials.value), sum.(trials.fix_times)
 end
 
+function meanvalue_time(trials)
+    mean.(trials.value), sum.(trials.fix_times)
+end
+
 function nfix_hist(trials)
     n_fix = length.(trials.fix_times)
     1:10, counts(n_fix, 10) ./ length(n_fix)
@@ -173,20 +177,21 @@ function fixate_by_uncertain(trials)
     return x, y
 end
 
-function binned_fixation_times(trials; middle=6)
+function binned_fixation_times(trials; middle=6, nonfinal=false)
     x = Tuple{Int, Float64}[]
     for t in trials
         f = t.fix_times
         length(f) == 0 && continue
         for i in 1:(middle-1)
             length(f) > i && push!(x, (i, f[i]))
-
         end
         # middle
         for i in middle:length(f)-1
             push!(x, (middle, f[i]))
         end
-        push!(x, (middle+1, f[end]))
+        if !nonfinal
+            push!(x, (middle+1, f[end]))
+        end
     end
     invert(x)
 end

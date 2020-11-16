@@ -28,7 +28,7 @@ end
 
 function compute_plot_features(job::Int)
     trials = reduce(vcat, deserialize("$path/simulations/$job"))
-    compute_plot_features_individual(trials)
+    compute_plot_features(trials)
 end
 
 function evaluate_individual(job::Int)

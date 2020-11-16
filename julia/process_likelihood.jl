@@ -23,8 +23,7 @@ both_train = map([2, 3]) do n_item
     filter(x->iseven(x.trial), load_dataset(n_item))
 end
 all_prm, like = get_likelihood(both_train)
-serialize("$BASE_DIR/all_prms", prms)
-
+# serialize("$BASE_DIR/all_prms", prms)
 
 # %% --------
 
@@ -78,6 +77,18 @@ open("$BASE_DIR/best_parameters/mle.txt", "w+") do mle_file
 end
 println("Wrote $BASE_DIR/best_parameters/mle.txt")
 print(read("$BASE_DIR/best_parameters/mle.txt", String))
+
+# %% --------
+best = deserialize("$BASE_DIR/best_parameters/joint-zero")
+rng = map(juxt(minimum, maximum), invert(best))
+map(free(SPACE)) do k
+    a, b = SPACE[k]
+    x, y = getfield(rng, k)
+    k => [x - a, b - y] ./ (b - a)
+end
+
+
+
 
 # %% --------
 loss = map(like) do ll

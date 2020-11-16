@@ -30,9 +30,9 @@ Base.show(io::IO, fp::BinaryFixationProcess) = print(io, "BinaryFixationProcess(
 difficulty(v) = abs(v[1] - v[2])
 
 function BinaryFixationProcess(trials=load_dataset(2, :train))
-    trials = filter(trials) do t
-        difficulty(t.value) <= 5
-    end
+    # trials = filter(trials) do t
+    #     difficulty(t.value) <= 5
+    # end
     prob_2_first = mean(first.(trials.fixations)) - 1
     first_durations = Dict(dif => Int[] for dif in unique(difficulty.(trials.value)))
     other_durations = Dict(dif => Int[] for dif in unique(difficulty.(trials.value)))
@@ -110,7 +110,7 @@ include("trinary_fixation_probs.jl")
     second_fix_rank_bonus::Float64 = .04
     third_fix_rank_bonus::Float64 = .03
     more_fix_rank_bonus::Float64 = .04
-    durations::Dict{Tuple{Int64,Symbol},Vector{Int}} = fixation_durations(load_dataset(3, :full))
+    durations::Dict{Tuple{Int64,Symbol},Vector{Int}} = fixation_durations(load_dataset(3, :train))
 end
 Base.show(io::IO, fp::TrinaryFixationProcess) = print(io, "TrinaryFixationProcess()")
 
