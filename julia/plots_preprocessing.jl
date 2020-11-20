@@ -7,8 +7,9 @@ N_BOOT = 10000
 CI = 0.95
 USE_SEM = false
 function ci_err(y)
-    length(y) == 1 && return (0., 0.)
     isempty(y) && return (NaN, NaN)
+    length(y) == 1 && return (0., 0.)
+    std(y) ≈ 0 && return (0., 0.)
     USE_SEM && return (2sem(y), 2sem(y))
     method = length(y) <= 10 ? ExactSampling() : BasicSampling(N_BOOT)
     bs = bootstrap(mean, y, method)
@@ -26,6 +27,7 @@ function compute_feature_both(feature::Function, both_trials; bin_spec=:integer,
 end
 
 function compute_feature_one(feature, trials; bin_spec=:integer, three_only=false, feature_kws...)
+    @show feature
     key = (feature=feature, feature_kws...)
     if (length(trials[1].value) == 2) && three_only
         return key => missing

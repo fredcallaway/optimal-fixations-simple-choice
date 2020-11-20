@@ -14,26 +14,32 @@ all_like_50 = asyncmap(1:1024) do job
     deserialize("$BASE_DIR/recovery/likelihood/50/$job")
 end;
 # %% --------
-function get_mle(all_like)
-    map(all_like) do like
+using ProgressMeter
+function get_mle(all_like, dataset)
+    res = @showprogress map(all_like) do like
         loss = map(like) do ll
-            -(ll[1][1] + ll[2][1])
+            l2 = -ll[1][1]
+            l3 = -ll[2][1]
+            Dict(:two => l2, :three => l3, :joint => l2 + l3)[dataset]
         end
         best = partialsortperm(loss, 1:30)
         (top1=all_prms[best[1]], top30=map(mean, (invert(all_prms[best]))))
-    end |> invert
+    end
+    invert(res)
 end
 
 true_prms |> CSV.write("$out/true.csv")
 
-top1, top30 = get_mle(all_like_full)
-top1 |> CSV.write("$out/top1.csv")
-top30 |> CSV.write("$out/top30.csv")
+top1, top30 = get_mle(all_like_full, :joint)
+top1 |> CSV.write("$out/top1-full-joint.csv")
+top30 |> CSV.write("$out/top30-full-joint.csv")
 
-top1, top30 = get_mle(all_like_50)
-top1 |> CSV.write("$out/top1-50.csv")
-top30 |> CSV.write("$out/top30-50.csv")
 
+for ds in [:two, :three]
+    top1, top30 = get_mle(all_like_50, ds)
+    top1 |> CSV.write("$out/top1-50-$ds.csv")
+    top30 |> CSV.write("$out/top30-50-$ds.csv")
+end
 # Fin!
 
 # %% --------

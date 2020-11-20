@@ -53,7 +53,7 @@ end
 mkpath("$BASE_DIR/best_parameters/")
 open("$BASE_DIR/best_parameters/mle.txt", "w+") do mle_file
     for prior_mode in [:fit, :unbiased, :zero]
-        l2, l3, lc = map(prm, like) do prm, ll
+        l2, l3, lc = map(all_prm, like) do prm, ll
             prior_ok(prior_mode, prm.β_μ) || return (Inf, Inf, Inf)
             l2 = -ll[1][1]
             l3 = -ll[2][1]
@@ -64,13 +64,16 @@ open("$BASE_DIR/best_parameters/mle.txt", "w+") do mle_file
 
         for (dataset, loss) in zip(["two", "three", "joint"], [l2, l3, lc])
             idx = partialsortperm(loss, 1:30)
-            best = prm[idx]
+            best = all_prm[idx]
+            ε2, ε3 = (invert([(l[1][2], l[2][2]) for l in like[idx]]))
             fp = "$BASE_DIR/best_parameters/$dataset-$prior_mode"
             serialize(fp, best)
             println("Wrote ", fp)
             println(mle_file, "----- dataset = $dataset  prior_mode = $prior_mode -----\n")
             # println(mle_file, join(idx, " "))
             write_fits(mle_file, best, partialsort(loss, 1:30))
+            println(mle_file, mean_std_str("ε2", ε2))
+            println(mle_file, mean_std_str("ε3", ε3))
             print(mle_file, "\n\n")
         end
     end

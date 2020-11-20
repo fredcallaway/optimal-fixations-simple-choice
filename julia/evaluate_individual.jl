@@ -32,8 +32,8 @@ function compute_plot_features(job::Int)
 end
 
 function evaluate_individual(job::Int)
-    do_job(recompute_policies, "individual/test_policies", job)
-    do_job(compute_simulations, "individual/simulations", job)
+    # do_job(recompute_policies, "individual/test_policies", job)
+    # do_job(compute_simulations, "individual/simulations", job)
     do_job(compute_plot_features, "individual/plot_features", job, force=true)
 end
 

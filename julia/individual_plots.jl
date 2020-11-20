@@ -1,18 +1,18 @@
 INTERACTIVE = basename(PROGRAM_FILE) == ""
 
 include("plots_base.jl")
-PARAMS = [
-    (run_name="revision", dataset="joint", prior="fit", color=(colorant"#ff6167", colorant"#b00007"), alpha=1, n_sim=30),
-    # (run_name="revision", dataset="joint", prior="zero", color=(colorant"#699efa", colorant"#003085"), alpha=0.1, n_sim=30),
-    # (run_name="addm", color=(colorant"#4DCE3F", colorant"#3B9B31"), alpha=1, n_sim=1),
-]
-out_path = "figs/revision/individual-alt"
+purple = colorant"#6B00D6"
+light_purple = colorant"#DCB8FF"
 
-rm(out_path, recursive=true, force=true)
-mkpath(out_path)
+PARAMS = [
+    (id=:fit, total_only=false, run_name="revision", dataset="joint", prior="fit", color=(light_purple, purple), alpha=0.3, n_sim=30),
+]
+out_path = "figs/revision/individual-bayes"
+
+# rm(out_path, recursive=true, force=true)
+# mkpath(out_path)
 
 # %% --------
-include("plots_base.jl")
 
 function get_lims(feature, n_item, binning, kws)
     hx, hy = feature(trials; kws...)
@@ -22,11 +22,11 @@ function get_lims(feature, n_item, binning, kws)
     (xlim=expand(bins.limits[1], bins.limits[end]),
      ylim=expand(minimum(by), maximum(by)))
 end
-
-function plot_both_ind(feature, xlab, ylab, xlim=nothing, ylim=nothing, plot_kws=(); three_only=false, n_col=5, kws...)
+FAST = false
+function plot_both_ind(feature, xlab, ylab, xlim=nothing, ylim=nothing, plot_kws=(); name = string(feature), three_only=false, n_col=5, kws...)
     # kws = (kws..., plot_model=false)
 
-    for n_item in (three_only ? [3] : [2, 3])
+    for n_item in (three_only || FAST ? [3] : [2, 3])
 
         # feature = difference_time; n_item = 2; binning = :integer; feature_kws = (); plot_kws = (); kws = (); xlab=""; ylab=""
 
@@ -38,13 +38,15 @@ function plot_both_ind(feature, xlab, ylab, xlim=nothing, ylim=nothing, plot_kws
         subjects = filter(s->sc[s] == 50, unique(S))
         subjects = subjects[1:min(length(subjects), 30)] |> sort
 
-        # subjects = subjects[1:3]
-        # push!(subjects, subjects[end], subjects[end])
+        if FAST
+            subjects = subjects[1:1]
+        end
+        
         plots = map(subjects) do subj
             plot_one(feature, n_item, xlab, ylab, 
                 # (;get_lims(feature, n_item, binning, feature_kws)..., plot_kws...),
                 (;xticks=collect(xlim), yticks=collect(ylim), xlims=expand(xlim...), ylims=expand(ylim...), 
-                    right_margin=6mm, plot_kws...)
+                    right_margin=9mm, bottom_margin=1mm, title=subj, plot_kws...)
                 # (plot_kws..., title=subj); 
                 ; subject=subj, kws...)
         end
@@ -68,10 +70,10 @@ function plot_both_ind(feature, xlab, ylab, xlim=nothing, ylim=nothing, plot_kws
         pp = permutedims(reshape(plots, n_col, n_row))
 
         for p in pp[:, 2:end]
-            plot!(p, yformatter=_->"", ylabel="")
+            plot!(p, yticks=[], ylabel="")
         end
         for p in pp[1:end-1, :]
-            plot!(p, xformatter=_->"", xlabel="")
+            plot!(p, xticks=[], xlabel="")
         end
         for i in 1:n_row
             i != cld(n_row,2) && plot!(pp[i, 1], ylabel="")
@@ -82,9 +84,8 @@ function plot_both_ind(feature, xlab, ylab, xlim=nothing, ylim=nothing, plot_kws
 
         ff = plot(collect(permutedims(pp))..., layout=(n_row,n_col), size=(n_col*200, n_row*200))
 
-        name = string(feature)
         savefig(ff, "$out_path/$name-$n_item.pdf")
-        run(`open $out_path/$name-$n_item.pdf`)
+        # run(`open $out_path/$name-$n_item.pdf`)
     end
 end
 
@@ -92,7 +93,6 @@ plot_three_ind(args...; kws...) = plot_both_ind(args...; kws..., three_only=true
 
 
 # %% ==================== Basic psychometrics ====================
-
 plot_both_ind(value_choice, :left_rv, "P(left chosen)",
     (-6, 6), (0, 1)
     ; xline=0, yline=:chance, binning=:integer)
@@ -108,6 +108,10 @@ plot_both_ind(rt_kde, "Total fixation time [ms]", "Density",
 
 plot_both_ind(difference_time, :best_rv, "Total fixation time [ms]",
     (0, 6), (0, 10000),
+    binning=:integer)
+
+plot_both_ind(meanvalue_time, "Mean item rating", "Total fixation time [ms]",
+    (0, 8), (0, 10000),
     binning=:integer)
 
 
@@ -161,7 +165,6 @@ plot_both_ind(value_bias, :left_rv, "Proportion fixate left",
     (-6, 6), (0, 1),
     ; binning=:integer, xline=0, yline=:chance)
 
-
 plot_both_ind(value_duration, "First fixated item rating",  "First fixation duration [ms]",
     (0, 10), (0, 2000),
     ; fix_select=firstfix, binning=:integer)
@@ -181,7 +184,8 @@ plot_three_ind(fix3_value, "Rating of first fixated item",
     (0, 10), (0, 1),
     ; binning=:integer,
     )
-i
+
+
 # %% ==================== Choce biases ====================
 plot_both_ind(last_fix_bias, :last_rv, "P(last fixated item chosen)",
     (-6, 6), (0, 1)
@@ -196,5 +200,15 @@ plot_both_ind(fixation_bias, "Final time advantage left [ms]", "P(left chosen)",
 plot_both_ind(first_fixation_duration, "First fixation duration [ms]", "P(first fixated chosen)",
     (0, 1500), (0, 1),
     yline= :chance )
+
+plot_both_ind(first_fixation_duration_corrected, "First fixation duration [ms]", "corrected P(first fixated chosen)",
+    (0, 1500), (-0.8, 0.8),
+    yline=0 )
+
+# %% --------
+x, y = deserialize("tmp/bad_glm")
+mean(y)
+
+
 
 

@@ -1,25 +1,6 @@
 INTERACTIVE = basename(PROGRAM_FILE) == ""
 RELOAD = true
 include("plots_base.jl")
-# PARAMS = [
-#     (id=:fit, run_name="revision", dataset="joint", prior="zero", color=(colorant"#699efa", colorant"#003085"), alpha=0.1, n_sim=30),
-#     (id=:zero, run_name="revision", dataset="joint", prior="unbiased", color=(colorant"#ff6167", colorant"#b00007"), alpha=1, n_sim=30),
-#     (id=:zero, run_name="revision", dataset="joint", prior="fit", color=(colorant"#ff6167", colorant"#b00007"), alpha=1, n_sim=30),
-#     (id=:addm, run_name="addm", color=(colorant"#4DCE3F", colorant"#3B9B31"), alpha=1, n_sim=1),
-# ]
-
-PARAMS = [
-    (id=:zero, total_only=false, run_name="revision", dataset="joint", prior="fit", color=(colorant"#42DF78", colorant"#2E9552"), alpha=1, n_sim=30),
-    (id=:fit, total_only=true, run_name="revision", dataset="joint", prior="zero", color=(colorant"#003085", colorant"#36B5FF"), alpha=0.4, n_sim=30),
-    (id=:unbiased, total_only=true, run_name="revision", dataset="joint", prior="unbiased", color=(colorant"#FFDD47", colorant"#FCA814"), alpha=0.4, n_sim=30),
-    (id=:addm, total_only=true, run_name="addm", color=(colorant"#FC00FC", colorant"#9A4EFF"), alpha=1, n_sim=1),
-]
-# out_path = "figs/scratch"
-out_path = "figs/revision/all"
-rm(out_path, recursive=true, force=true)
-mkpath(out_path)
-
-# %% ==================== Basic psychometrics ====================
 
 blue = colorant"#3A7CFF"  # unbiased
 red = colorant"#FC0010"  # zero
@@ -28,14 +9,22 @@ light_purple = colorant"#DCB8FF"
 yellow = colorant"#FFDD47"
 black = colorant"black"
 
-include("plots_base.jl")
 PARAMS = [
     (id=:fit, total_only=false, run_name="revision", dataset="joint", prior="fit", color=(light_purple, purple), alpha=1, n_sim=30),
     (id=:zero, total_only=true, run_name="revision", dataset="joint", prior="zero", color=(black, red), alpha=0.4, n_sim=30),
     (id=:unbiased, total_only=true, run_name="revision", dataset="joint", prior="unbiased", color=(black, blue), alpha=0.4, n_sim=30),
     (id=:addm, total_only=true, run_name="addm", color=(black, yellow), alpha=0.8, n_sim=1),
 ]
+# out_path = "figs/scratch"
+out_path = "figs/revision/all"
+rm(out_path, recursive=true, force=true)
+mkpath(out_path)
 
+# %% ==================== Basic psychometrics ====================
+map(both_trials) do trials
+    # quantile(sum.(trials.fix_times), 0.975)
+    quantile(length.(trials.fix_times), 0.975)
+end
 
 # %% --------
 
@@ -53,7 +42,7 @@ end
 
 function rt_kde(trials; id, total=true, kws...)
     rt = sum.(trials.fix_times)
-    kdeplot!(rt, 300., xmin=0, xmax=6000; kws...)
+    kdeplot!(rt, 300., xmin=0, xmax=8000; kws...)
     total && plot_quantiles!(rt, id; kws...)
 end
 

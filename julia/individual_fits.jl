@@ -47,12 +47,22 @@ serialize("$path/all_top", all_top)
 # This takes a long time and should be done on a cluster if possible.
 @everywhere include("evaluate_individual.jl")
 # @time @showprogress pmap(evaluate_individual, eachindex(all_top));
-@everywhere USE_SEM = true
+@everywhere USE_SEM = false
 @time pmap(eachindex(all_top)) do job
     do_job(compute_plot_features, "individual/plot_features", job, force=true)
 end
 
 lkeys = deserialize("$path/keys")
+# %% --------
+done = parse.(Int, readdir("results/revision/individual/plot_features/"))
+todo = setdiff(1:2070, done)
+@async pmap(todo) do job
+    do_job(compute_plot_features, "individual/plot_features", job, force=true)
+end
+
+# %% --------
+include("plots_preprocessing.jl")
+do_job(compute_plot_features, "individual/plot_features", 1022, force=true)
     
 
 # %% ==================== Aggregate plot features and simulations ====================

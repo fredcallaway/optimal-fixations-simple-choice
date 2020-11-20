@@ -1,5 +1,7 @@
 using Memoize
 using GLM
+using RCall
+using Suppressor
 # ENV["MPLBACKEND"] = "macosx"
 
 if !@isdefined(RELOAD)
@@ -18,12 +20,11 @@ if RELOAD  # don't reload every time
     using DataFrames
     using Glob
     using StatsBase
-    pyplot(label="")
+    pyplot(label="", grid=:none)
     S = 1
     Plots.scalefontsizes()
     Plots.scalefontsizes(1.5)
     mm = StatsPlots.mm
-    SKIP_MODEL = true
 
     both_trials = map(["two", "three"]) do num
         load_dataset(num, :test)
@@ -96,6 +97,7 @@ N_BOOT = 10000
 SKIP_BOOT = false
 DISABLE_ALIGN = true
 FAST = false
+LINE_WIDTH = 2
 
 # %% ====================  ====================
 
@@ -114,25 +116,32 @@ function expand(a, b; amt=.05)
     (a - amt * d, b + amt * d)
 end
 
-function plot_human!(bins, x, y, type=:line; kws...)
+function plot_human!(bins, x, y, type=:line; indiv=false, kws...)
     vals = bin_by(bins, x, y)
     err = ci_err.(vals)
     bx = mids(bins)
     by = mean.(vals)
     if type == :line
-        plot!(bx, by, yerr=err,
-              grid=:none,
-              line=(3,),
-              color=:black,
-              label="";
-              kws...)
+        if indiv
+            scatter!(bx, by, alpha=0.4,
+                  marker=(3, :circle, stroke(0)),
+                  color=:black)
+            scatter!(bx, by, yerr=err, alpha=0.3,
+                  marker=(3, :circle, 0.0),
+                  color=:black)
+        else
+            plot!(bx, by, yerr=err,
+                  line=(LINE_WIDTH,),
+                  color=:black,
+                  label="";
+                  kws...)
+        end
     elseif type == :discrete
         Plots.bar!(bx, by,
             yerr=err,
-              grid=:none,
               fill=:white,
               fillalpha=0,
-              line=(3,),
+              line=(LINE_WIDTH,),
               color=:black,
               label="";
               kws...)
@@ -171,7 +180,6 @@ function plot_model!(x::Vector{Float64}, y, err, type, pp; total=false, alpha_mu
         end
         plot!(x, y,
               yerr=err,
-              grid=:none,
               marker=(7, :diamond, stroke(0)),
               label="";
               make_plot_kws(pp, total, alpha_mult)...,
@@ -222,7 +230,7 @@ end
 
 
 function kdeplot!(k::UnivariateKDE, xmin, xmax; kws...)
-    plot!(range(xmin, xmax, length=200), z->pdf(k, z); grid=:none, label="", kws...)
+    plot!(range(xmin, xmax, length=200), z->pdf(k, z); kws...)
 end
 
 function kdeplot!(x; xmin=quantile(x, 0.05), xmax=quantile(x, 0.95), kws...)
@@ -255,27 +263,63 @@ make_plot_kws(pp, total, alpha_mult=1) = (
 
 add_intercept(x) = hcat(ones(length(x)), x)
 
-function get_glm_pred(x, y, xmin, xmax)
-    m = if Set(y) <= Set([true, false])
-        glm(add_intercept(x), y, Binomial())
-    else
-        lm(add_intercept(x), y)
-    end
+# function get_glm_pred(x, y, xmin, xmax)
+#     m = if Set(y) <= Set([true, false])
+#         glm(add_intercept(x), y, Binomial())
+#     else
+#         lm(add_intercept(x), y)
+#     end
 
-    xx = range(xmin, xmax, length=500)
-    xx, predict(m, add_intercept(xx))
-end
+#     xx = range(xmin, xmax, length=500)
+#     xx, predict(m, add_intercept(xx))
+# end
 
 function stan_glm(x, y, xmin, xmax)
+    xhat = range(xmin, xmax, length=500)
     family = Set(y) <= Set([true, false]) ? "binomial" : "gaussian"
-    Y = @suppress_out begin
-        R"""
-        library('rstanarm')
-        mod = stan_glm(y ~ x, data=data.frame(x=$x, y=$y), family=$family)
-        posterior_linpred(mod, newdata=data.frame(x=$xhat), transform=TRUE)
-        """ |> rcopy
-    end;
-    xhat, Y
+    uy = unique(y)
+    if length(uy) == 1
+        # breaks stan_glm
+        return xhat, uy .* ones(length(xhat)), zeros(length(xhat)), zeros(length(xhat))
+    end
+    Y = try
+        @suppress begin
+            R"""
+            library('rstanarm')
+            mod = stan_glm(y ~ x, data=data.frame(x=$x, y=$y), family=$family)
+            posterior_linpred(mod, newdata=data.frame(x=$xhat), transform=TRUE)
+            """ |> rcopy
+        end;
+    catch
+        println("Error in rstanarm; trying again")
+        serialize("tmp/bad_glm", (x, y))
+        begin
+            R"""
+            library('rstanarm')
+            mod = stan_glm(y ~ x, data=data.frame(x=$x, y=$y), family=$family)
+            posterior_linpred(mod, newdata=data.frame(x=$xhat), transform=TRUE)
+            """ |> rcopy
+        end;
+    end
+    est, lo, hi = map(eachcol(Y)) do y
+        yhat = mean(y)
+        lo, hi = quantile(y, [0.025, 0.975])
+        yhat, yhat - lo, hi - yhat
+    end |> invert
+    xhat, est, lo, hi
+    # xhat, Y
+end
+
+function get_glm_pred(x, y, xmin, xmax)
+    xhat = range(xmin, xmax, length=500)
+    family = Set(y) <= Set([true, false]) ? "binomial" : "gaussian"
+    P =  R"""
+    mod = glm(y ~ x, data=data.frame(x=$x, y=$y), family=$family)
+    p = predict(mod, newdata = data.frame(x=$xhat), type = "link", se.fit = TRUE)
+    ilink <- family(mod)$linkinv
+    data.frame(est=ilink(p$fit), hi=ilink(p$fit + 2 * p$se.fit), lo=ilink(p$fit - 2 * p$se.fit))
+    """ |> rcopy
+    xhat, P.est, P.est .- P.lo, P.hi .- P.est
 end
 
 function get_bins(feature, n_item, bin_spec, feature_kws)
@@ -336,20 +380,25 @@ function plot_one(feature::Function, n_item::Int, xlab, ylab, plot_kws=();
 
         # bins = make_bins(binning, hx)
         if subject == -1
-            plot_human!(bins, hx, hy, type)
-        else
+            plot_human!(bins, hx, hy, type, lw=1)
+        else  # for individual fits, we plot GLM predictions as well
+            pp = only(PARAMS)
             if type == :line
                 mx, my = feature(get_full_sim(pp, n_item, subject); kws...)
                 if x_max != nothing
                     mx, my = clip_x(mx, my, x_max)
                 end
-                gx, gy = get_glm_pred(mx, my, bins.limits[1], bins.limits[end])
-                plot!(gx, gy, color=pp.color[2], lw=2)
+                xhat, est, lo, hi = stan_glm(mx, my, bins.limits[1], bins.limits[end])
+                plot!(xhat, est, ribbon=(lo, hi), color=pp.color[2], fillalpha=0.2, lw=2)
+                # plot!(xhat, Y'[:, 1:1000], line=(0.03, pp.color[2]))
+                # plot!(xhat, mean(Y; dims=1)[:], line=(2, pp.color[2]))
             end
-            plot_human!(bins, hx, hy, type, alpha=0.2)
+            plot_human!(bins, hx, hy, type, alpha=0.3; indiv=true)
             if type == :line
-                gx, gy = get_glm_pred(hx, hy, bins.limits[1], bins.limits[end])
-                plot!(gx, gy, color=:black, lw=2)            
+                xhat, est, lo, hi = stan_glm(hx, hy, bins.limits[1], bins.limits[end])
+                plot!(xhat, est, ribbon=(lo, hi), color=:black, fillalpha=0.2, lw=2)
+                # plot!(xhat, Y'[:, 1:1000], line=(0.03, :black))
+                # plot!(xhat, mean(Y; dims=1)[:], line=(2, :black))
             end
         end
     end

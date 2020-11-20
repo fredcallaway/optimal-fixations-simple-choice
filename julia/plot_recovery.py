@@ -1,16 +1,18 @@
 import pandas as pd
 from figures import Figures
+import seaborn as sns
 figs = Figures('figs/recovery')
 figs.watch()
 show = figs.show
 
 true = pd.read_csv('results/revision/recovery/results/true.csv')
-top1 = pd.read_csv('results/revision/recovery/results/top1.csv')
-top30 = pd.read_csv('results/revision/recovery/results/top30.csv')
-top1_50 = pd.read_csv('results/revision/recovery/results/top1-50.csv')
-top30_50 = pd.read_csv('results/revision/recovery/results/top30-50.csv')
+mle = {
+    (n_top, n_trial, dataset): pd.read_csv(f'results/revision/recovery/results/top{n_top}-{n_trial}-{dataset}.csv')
+    for n_top in (1, 30) for n_trial in (50, 'full') 
+    for dataset in (['two', 'three'] if n_trial == 50 else ['joint'])
+}
+
 keys = true.columns
-# %% --------
 
 # %% --------
 
@@ -49,8 +51,9 @@ def plot_param_cor(n_item, method):
     fit = fits[n_item, method]
     plot_cor(fit)
 
-def plot_cor(true, fit):
-    fig, axes = plt.subplots(2, 3, figsize=(9, 6))
+def plot_cor(true, fit, axes=None):
+    if axes is None:
+        fig, axes = plt.subplots(2, 3, figsize=(9, 6))
     for (k, ax) in zip(keys, axes.flat):
         plt.sca(ax)
         lo, hi = lims[k]
@@ -70,28 +73,29 @@ def plot_cor(true, fit):
         ax.set_aspect('equal', 'box')
         r = pearsonr(true[k], fit[k])[0]
         plt.annotate(f'$r = {r:.3f}$', (0.1, 0.9), xycoords='axes fraction', bbox=dict(facecolor='white', alpha=0.8))
-    axes.flat[-1].axis('off')
-
-
-plot_cor(true, top30); show('top30', pdf=True)
+    # axes.flat[-1].axis('off')
 
 # %% --------
-plot_cor(true, top30_50); show('top30_50', pdf=True)
+fig, axes = plt.subplots(3, 5, figsize=(15, 9))
+plot_cor(true, mle[30, 'full', 'joint'], axes[0, :])
+plot_cor(true, mle[30, 50, 'two'], axes[1, :]);
+plot_cor(true, mle[30, 50, 'three'], axes[2, :]);
 
-plot_cor(true, top1); show('top1', pdf=True)
-plot_cor(true, top1_50); show('top1_50', pdf=True)
+titles = ['Full combined dataset', 'Individual binary dataset', 'Individual trinary dataset']
+for i, t in enumerate(titles):
+    axes[i, 0].annotate(t, (-0.5, 1.1), xycoords='axes fraction', size=20, va='bottom')
 
-# %% --------
-sns.regplot(alt_true['β_μ'], alt_mle['β_μ'], 
-    color='C0', scatter_kws=dict(color='k', s=10, alpha=0.5))
-show()
-
+plt.tight_layout(pad=0, w_pad=0, h_pad=1)
+show('recovery', pdf=True, tight=False)
+!cp figs/recovery/recovery.pdf ~/Papers/attention-optimal-sampling/figs/
 # %% --------
 def compute_bias(true, fit):
     rng = pd.Series([lims[k][1] - lims[k][0] for k in keys], index=keys)
     return (fit.mean() - true.mean()) / rng
 
-compute_bias(true, top30)
+compute_bias(true, mle[30, 'full', 'joint'])
+compute_bias(true, mle[30, 50, 'two'])
+compute_bias(true, mle[30, 50, 'three'])
 
 # %% --------
 # keep = alt_true.β_μ == 1
