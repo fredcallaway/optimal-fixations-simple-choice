@@ -26,3 +26,12 @@ julia/policy_npy/
 julia/results/
 julia/scratch/
 julia/fred-ec2-key
+julia/addm/
+julia/analyze_optimization.jl
+julia/analyze_optimization_3.jl
+julia/autoshutdown.sh
+julia/fighist/
+julia/investigate_optimization.jl
+julia/master.sh
+julia/old_ind.jl
+julia/old_plot_recovery.jl

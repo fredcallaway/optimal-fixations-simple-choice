@@ -87,8 +87,8 @@ PALETTE = Dict(
     # ("rando17", true) => colorant"#208020",
     # ("rando17", false) => colorant"#6bd16b",
 )
-ALPHA = 0.7
-FILL_ALPHA = 0.3
+ALPHA = 0.3
+FILL_ALPHA = 0.2
 # ALPHA = 0.3
 # FILL_ALPHA = 0.1
 
@@ -97,7 +97,7 @@ N_BOOT = 10000
 SKIP_BOOT = false
 DISABLE_ALIGN = true
 FAST = false
-LINE_WIDTH = 2
+LINE_WIDTH = 3
 
 # %% ====================  ====================
 
@@ -131,6 +131,7 @@ function plot_human!(bins, x, y, type=:line; indiv=false, kws...)
                   color=:black)
         else
             plot!(bx, by, yerr=err,
+                  alpha=0.8,
                   line=(LINE_WIDTH,),
                   color=:black,
                   label="";
@@ -139,12 +140,13 @@ function plot_human!(bins, x, y, type=:line; indiv=false, kws...)
     elseif type == :discrete
         Plots.bar!(bx, by,
             yerr=err,
-              fill=:white,
-              fillalpha=0,
-              line=(LINE_WIDTH,),
-              color=:black,
-              label="";
-              kws...)
+            alpha=0.8,
+            fill=:white,
+            fillalpha=0,
+            line=(LINE_WIDTH,),
+            color=:black,
+            label="";
+            kws...)
     else
         error("Bad plot type : $type")
     end
@@ -258,7 +260,9 @@ end
 make_plot_kws(pp, total, alpha_mult=1) = (
     alpha = alpha_mult * (total ? pp.alpha ^ (1/2) : ALPHA * pp.alpha),
     color = pp.color[Int(total)+1],
-    linewidth = total ? (pp.total_only ? 1 : 3) : 1,
+    linewidth = total ? LINE_WIDTH : 1,
+    pp.plot_kws...
+    # linewidth = total ? (pp.total_only ? 2 : 3) : 1,
 )
 
 add_intercept(x) = hcat(ones(length(x)), x)
@@ -377,7 +381,6 @@ function plot_one(feature::Function, n_item::Int, xlab, ylab, plot_kws=();
             end
         end
 
-
         # bins = make_bins(binning, hx)
         if subject == -1
             plot_human!(bins, hx, hy, type, lw=1)
@@ -461,7 +464,7 @@ function plot_both(feature, xlab, ylab, plot_kws=(); yticks=true, align=:default
         name *= "_$(kws[:fix_select])"
     end
     savefig(ff, "$out_path/$name.pdf")
-    !INTERACTIVE && println("Wrote  $out_path/$name.pdf")
+    println("Wrote  $out_path/$name.pdf")
     # return ff
     return ff
 end

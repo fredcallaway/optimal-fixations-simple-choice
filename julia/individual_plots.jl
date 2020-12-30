@@ -1,8 +1,11 @@
 INTERACTIVE = basename(PROGRAM_FILE) == ""
 
 include("plots_base.jl")
-purple = colorant"#6B00D6"
-light_purple = colorant"#DCB8FF"
+# purple = colorant"#6B00D6"
+# light_purple = colorant"#DCB8FF"
+
+purple = colorant"#8D58D7"
+light_purple = colorant"#DDB3FF"
 
 PARAMS = [
     (id=:fit, total_only=false, run_name="revision", dataset="joint", prior="fit", color=(light_purple, purple), alpha=0.3, n_sim=30),

@@ -17,7 +17,7 @@ function describe_vec(x::Vector)
 end
 
 function Base.show(io::IO, x::Union{Float64,Float32})
-     Base.Grisu._show(io, round(x, digits=3), Base.Grisu.SHORTEST, 0, get(io, :typeinfo, Any) !== typeof(x), false)
+     Base.Grisu._show(io, round(x, digits=5), Base.Grisu.SHORTEST, 0, get(io, :typeinfo, Any) !== typeof(x), false)
 end
 
 juxt(fs...) = (xs...) -> Tuple(f(xs...) for f in fs)

@@ -241,8 +241,8 @@ function last_fixation_duration(trials)
     x = Float64[]; y = Float64[]
     for t in trials
         length(t.fixations) == 0 && continue
-        last = t.fixations[end]
-        last != t.choice && continue
+        last = t.fixations[end] 
+        last != t.choice && continue  # IS THIS RIGHT?
         tft = total_fix_times(t)
         tft[last] -= t.fix_times[end]
         adv = 2 * tft[t.choice] - sum(tft)

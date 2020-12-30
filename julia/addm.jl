@@ -25,14 +25,12 @@ struct BinaryFixationProcess <: FixationProcess
     prob_2_first::Float64
     first_durations::Dict{Int,Vector{Int}}
     other_durations::Dict{Int,Vector{Int}}
+    max_fix::Int
 end
 Base.show(io::IO, fp::BinaryFixationProcess) = print(io, "BinaryFixationProcess()")
 difficulty(v) = abs(v[1] - v[2])
 
-function BinaryFixationProcess(trials=load_dataset(2, :train))
-    # trials = filter(trials) do t
-    #     difficulty(t.value) <= 5
-    # end
+function BinaryFixationProcess(trials=load_dataset(2, :train); max_fix=20)
     prob_2_first = mean(first.(trials.fixations)) - 1
     first_durations = Dict(dif => Int[] for dif in unique(difficulty.(trials.value)))
     other_durations = Dict(dif => Int[] for dif in unique(difficulty.(trials.value)))
@@ -40,26 +38,30 @@ function BinaryFixationProcess(trials=load_dataset(2, :train))
         push!(first_durations[difficulty(t.value)], t.fix_times[1])
         push!(other_durations[difficulty(t.value)], t.fix_times[2:end-1]...)
     end
-    BinaryFixationProcess(prob_2_first, first_durations, other_durations)
+    BinaryFixationProcess(prob_2_first, first_durations, other_durations, max_fix)
 end
 
-(fp::BinaryFixationProcess)(v) = BinaryFixations(fp, Int[], difficulty(v))
+function (fp::BinaryFixationProcess)(v)
+    dif = difficulty(v)
+    durations = sample(fp.other_durations[dif], 20; replace=false)
+    durations[1] = rand(fp.first_durations[dif])
+    first_fix = 1 + (rand() < fp.prob_2_first)
+    BinaryFixations(durations, first_fix, 1)
+end
 
-struct BinaryFixations <: Fixations
-    fp::BinaryFixationProcess
-    history::Vector{Int}
-    dif::Int
+mutable struct BinaryFixations <: Fixations
+    durations::Vector{Int}
+    fixated::Int
+    num::Int
 end
 
 function next!(fix::BinaryFixations)
-    if isempty(fix.history)
-        f = 1 + (rand() < fix.fp.prob_2_first)
-        ft = rand(fix.fp.first_durations[fix.dif])
-    else
-        f = [2, 1][fix.history[end]]
-        ft = rand(fix.fp.other_durations[fix.dif])
+    if fix.num > length(fix.durations)
+        return (-1, -1)
     end
-    push!(fix.history, f)
+    f = fix.fixated; ft = fix.durations[fix.num]
+    fix.num += 1
+    fix.fixated = [2, 1][fix.fixated]
     (f, ft)
 end
 
@@ -83,6 +85,9 @@ function simulate(m::ADDM, fp::BinaryFixationProcess, v::Vector{Int}; maxt=10000
         ε = rand(noise)
         if ft == 0
             f, ft = next!(fix)
+            if f == -1  # flag for exceeding max fixationss, try again
+                return simulate(m, fp, v; maxt=maxt, save_history=save_history)
+            end
             push!(fixations, f); push!(fix_times, ft)
             x = xx[f]
         end
@@ -110,7 +115,7 @@ include("trinary_fixation_probs.jl")
     second_fix_rank_bonus::Float64 = .04
     third_fix_rank_bonus::Float64 = .03
     more_fix_rank_bonus::Float64 = .04
-    durations::Dict{Tuple{Int64,Symbol},Vector{Int}} = fixation_durations(load_dataset(3, :train))
+    durations::Dict{Tuple{Int64,Symbol},Vector{Int}} = fixation_durations(load_dataset(3, :full))
 end
 Base.show(io::IO, fp::TrinaryFixationProcess) = print(io, "TrinaryFixationProcess()")
 
@@ -163,9 +168,7 @@ function next!(fix::TrinaryFixations)
     (f, ft)
 end
 
-
 # %% ==================== Trinary Simulation ====================
-
 
 function downweight!(v, f, θ)
     for i in eachindex(v)
