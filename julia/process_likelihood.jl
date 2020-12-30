@@ -81,28 +81,28 @@ end
 println("Wrote $BASE_DIR/best_parameters/mle.txt")
 print(read("$BASE_DIR/best_parameters/mle.txt", String))
 
-# %% --------
-best = deserialize("$BASE_DIR/best_parameters/joint-zero")
-rng = map(juxt(minimum, maximum), invert(best))
-map(free(SPACE)) do k
-    a, b = SPACE[k]
-    x, y = getfield(rng, k)
-    k => [x - a, b - y] ./ (b - a)
-end
+# # %% --------
+# best = deserialize("$BASE_DIR/best_parameters/joint-zero")
+# rng = map(juxt(minimum, maximum), invert(best))
+# map(free(SPACE)) do k
+#     a, b = SPACE[k]
+#     x, y = getfield(rng, k)
+#     k => [x - a, b - y] ./ (b - a)
+# end
 
 
 
 
-# %% --------
-loss = map(like) do ll
-    -(ll[1][1] + ll[2][1])
-end
+# # %% --------
+# loss = map(like) do ll
+#     -(ll[1][1] + ll[2][1])
+# end
 
-rank = sortperm(loss)
-top = prm[rank[1:30]]
-serialize("$BASE_DIR/best_parameters/joint-")
+# rank = sortperm(loss)
+# top = prm[rank[1:30]]
+# serialize("$BASE_DIR/best_parameters/joint-")
 
-write_fits("$BASE_DIR/mle.txt", top, loss)
-println(run(`cat "$BASE_DIR/mle.txt"`))
+# write_fits("$BASE_DIR/mle.txt", top, loss)
+# println(run(`cat "$BASE_DIR/mle.txt"`))
 
 
