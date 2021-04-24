@@ -1,4 +1,7 @@
-Code and data for a (hopefully) soon-to-be-published [paper](https://psyarxiv.com/57v6k).
+Code and data for "Fixation patterns in simple choice reflect optimal information sampling"
+
+Paper: https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1008863
+
 
 If you would like to use part of this code for your own project, I encourage you to get in touch with me before you dive into the code (it's a bit hairy) fredcallaway@princeton.edu
 
@@ -22,9 +25,4 @@ I don't imagine anyone else will want to invest the compute resources to actuall
 - Plots are generated in `plots.jl` and `individual_plots.jl`. This must be done in an environment where graphics can be displayed. I used the Hydrogen package in Atom. Alternatively, you can use X11 forwarding to run it on a server, or you can copy the simulation results to your local machine (warning: each set of simulations is 500-750 MB).
 - The ADDM is implemented in `addm.jl`. Generate simulations and precompute features to plot with `julia run_addm.jl`. `plot_addm_binary.jl` and `plot_addm_trinary.jl` generate the replication plots to compare against the original papers.
 <!-- - Run `julia plots.jl RUN_NAME FIT_MODE-FIT_PRIOR`.  As such, it is  -->
-
-## Individual fits
-
-- 
-
 
