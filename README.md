@@ -1,4 +1,4 @@
-Code and data for "Fixation patterns in simple choice reflect optimal information sampling"
+# Code and data for "Fixation patterns in simple choice reflect optimal information sampling"
 
 Paper: https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1008863
 
