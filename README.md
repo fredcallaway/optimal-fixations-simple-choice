@@ -13,6 +13,22 @@ If you would like to use part of this code for your own project, I encourage you
 - `bmps_ucb.jl` defines the UCB method for identifying near-optimal settings of the BMPS weights.
 - `pseudo_likelihood.jl` defines the likelihood of summary statistics used to fit the model.
 
+## Model simulations
+
+Simulations from the optimal model can be found [here](https://drive.google.com/drive/folders/1h6mpdTnKbyBe4hX93_ofowCmA0bGjPVW?usp=share_link)
+
+That folder contains all data needed to plot the model simulations in the paper. Each file contains the simulations for binary or trinary choice, with the prior either "fit" to the data, fixed to the empirical mean ("unbiased") or fixed to "zero".
+
+The files are JSON formatted, a list of trial objects. The spec for each trial is:
+
+- `value`: a list specifying the value of the two/three options
+- `choice`: the chosen option, **ONE-INDEXED** (1-2 or 1-3)
+- `fixations`: a list specifying which option was fixated at each time step (100ms), also one-indexed
+- `param_idx`: (1-30) id for the parameter configuration
+- `policy_idx`: (1-80) id for the near-optimal policy
+
+The last two values can be ignored in most cases. Together they roughly correspond to one "subject"
+
 ## Fitting steps
 
 I don't imagine anyone else will want to invest the compute resources to actually replicate this, but here are instructions to do so for the sake of completeness.
